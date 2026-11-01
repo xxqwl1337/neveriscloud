@@ -647,7 +647,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-                if Flags.Skeleton then updateSkeleton(plr, char)
+        if Flags.Skeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
@@ -803,21 +803,6 @@ local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", 
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
--- ===== UI: CROSSHAIR (ОТДЕЛЬНАЯ ВКЛАДКА) =====
-local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
-
-local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
-local crosshairDotToggle = CrosshairTab:AddToggle({Title="Dot (Точка)", Subtitle="Точка в центре", Icon="circle-dot", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
-
-CrosshairTab:AddSeparator()
-
-local crosshairColorPicker = CrosshairTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=2, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
-local crosshairDistSlider = CrosshairTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
-local crosshairThickSlider = CrosshairTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
-local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
-local crosshairDotSizeSlider = CrosshairTab:AddSlider({Title="Dot Size (Размер точки)", Icon="circle", Min=1, Max=10, Default=1, Callback=function(v) Flags.CrosshairDotSize=v end})
-
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
 local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
@@ -835,6 +820,21 @@ local fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Def
     Flags.Fullbright=s
     setFullbright(s)
 end})
+
+-- ===== UI: CROSSHAIR (МЕЖДУ OTHER И SETTINGS) =====
+local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
+
+local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+local crosshairDotToggle = CrosshairTab:AddToggle({Title="Dot (Точка)", Subtitle="Точка в центре", Icon="circle-dot", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
+
+CrosshairTab:AddSeparator()
+
+local crosshairColorPicker = CrosshairTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=2, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+local crosshairDistSlider = CrosshairTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
+local crosshairThickSlider = CrosshairTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+local crosshairDotSizeSlider = CrosshairTab:AddSlider({Title="Dot Size (Размер точки)", Icon="circle", Min=1, Max=10, Default=1, Callback=function(v) Flags.CrosshairDotSize=v end})
 
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
