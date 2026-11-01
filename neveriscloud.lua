@@ -613,38 +613,38 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
 
-VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams/Glow", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams (заливка) и Glow (обводка)", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
     for _,hl in pairs(Highlights) do
         if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
     end
 end})
 
-VisualsTab:AddColorPicker({Title="Text Color", Subtitle="Цвет Name / Distance / Health / Weapon", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+VisualsTab:AddColorPicker({Title="Text Color", Subtitle="Цвет текста: Name / Distance / Health / Weapon", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+VisualsTab:AddColorPicker({Title="Box Color", Subtitle="Цвет рамки вокруг игрока", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+VisualsTab:AddColorPicker({Title="Line Color", Subtitle="Цвет линии от низа экрана к игроку", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+VisualsTab:AddColorPicker({Title="Skeleton Color", Subtitle="Цвет линий скелета (кость к кости)", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Subtitle="Главный тоггл подсветки игроков", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Subtitle="Главный тоггл: без него ничего не рисуется", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
-VisualsTab:AddDropdown({Title="ESP Mode", Subtitle="Chams = заливка, Glow = обводка", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+VisualsTab:AddDropdown({Title="ESP Mode", Subtitle="Chams = заливка модели, Glow = обводка контура", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
     Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
-VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
-VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
+VisualsTab:AddToggle({Title="Box", Subtitle="Рамка вокруг модели игрока", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+VisualsTab:AddToggle({Title="Name", Subtitle="Ник игрока над головой", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+VisualsTab:AddToggle({Title="Health", Subtitle="HP и MaxHP под ногами", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+VisualsTab:AddToggle({Title="Distance", Subtitle="Расстояние до игрока в метрах", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+VisualsTab:AddToggle({Title="Line", Subtitle="Линия от низа экрана к игроку (snaplines)", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+VisualsTab:AddToggle({Title="Skeleton", Subtitle="Линии между костями (R6 и R15)", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Имя оружия в руках (без Handle и частей тела)", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+VisualsTab:AddSlider({Title="ESP Distance", Subtitle="Максимальная дистанция отрисовки, метров", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -652,7 +652,7 @@ end})
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
 
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
+PlayerTab:AddToggle({Title="FreeCam", Subtitle="Свободная камера: WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
@@ -660,12 +660,12 @@ end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
 PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
-PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
+PlayerTab:AddToggle({Title="Spider", Subtitle="Лазать по стенам: W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+PlayerTab:AddSlider({Title="Spider Speed", Subtitle="Скорость лазания по стенам", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
-OtherTab:AddToggle({Title="Fullbright", Subtitle="Убирает туман и тени", Icon="sun", Default=false, Callback=function(s)
+OtherTab:AddToggle({Title="Fullbright", Subtitle="Яркий мир: убирает туман и тени", Icon="sun", Default=false, Callback=function(s)
     Flags.Fullbright=s
     setFullbright(s)
 end})
@@ -677,8 +677,8 @@ local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
-SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
-SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+SettingsTab:AddDropdown({Title="Theme", Subtitle="Тема оформления меню", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
+SettingsTab:AddDropdown({Title="Accent Color", Subtitle="Акцентный цвет элементов меню", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
         White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
         Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
@@ -693,7 +693,7 @@ SettingsTab:AddToggle({Title="Stats HUD", Subtitle="FPS / Ping / HP / Position �
 
 SettingsTab:AddSeparator()
 
-SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
+SettingsTab:AddKeybind({Title="Hide UI Keybind", Subtitle="Кнопка скрытия/показа меню", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
 end})
