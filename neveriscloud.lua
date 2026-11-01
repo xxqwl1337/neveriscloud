@@ -154,7 +154,7 @@ RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
         local cx, cy = math.floor(Camera.ViewportSize.X/2), math.floor(Camera.ViewportSize.Y/2)
         
-        local sz = math.max(Flags.CrosshairSize, 4) -- Минимум 4 пикселя
+        local sz = math.max(Flags.CrosshairSize, 4)
         local gap = math.max(Flags.CrosshairDistance, 0)
         local trans = 1 - (Flags.CrosshairTransparency / 100)
 
@@ -816,7 +816,7 @@ local fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Def
     setFullbright(s)
 end})
 
--- ===== UI: CROSSHAIR (МЕЖДУ OTHER И SETTINGS) =====
+-- ===== UI: CROSSHAIR (БЕЗ ТОЧКИ) =====
 local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
 
 local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
