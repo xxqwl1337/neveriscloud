@@ -392,7 +392,7 @@ local function applyHighlight(plr)
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
         hl = Instance.new("Highlight")
-        hl.DepthMode = Enum.HighlightDepthMode.Occlusion
+        hl.DepthMode = Enum.HighlightDepthMode.Occluded
         hl.Parent = char
         Highlights[plr] = hl
     end
