@@ -154,15 +154,23 @@ local crossDot    = Drawing.new("Circle"); crossDot.Filled = true; crossDot.Visi
 
 RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
-        local cx, cy = Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2
-        local sz = math.max(Flags.CrosshairSize, 2)
-        local gap = Flags.CrosshairDistance
+        local cx, cy = math.floor(Camera.ViewportSize.X/2), math.floor(Camera.ViewportSize.Y/2)
+        
+        local sz = math.max(Flags.CrosshairSize, 4) -- Минимум 4 пикселя
+        local gap = math.max(Flags.CrosshairDistance, 0)
         local trans = 1 - (Flags.CrosshairTransparency / 100)
 
-        crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, cy - gap - sz)
-        crossBottom.From = Vector2.new(cx, cy + gap); crossBottom.To = Vector2.new(cx, cy + gap + sz)
-        crossLeft.From = Vector2.new(cx - gap, cy); crossLeft.To = Vector2.new(cx - gap - sz, cy)
-        crossRight.From = Vector2.new(cx + gap, cy); crossRight.To = Vector2.new(cx + gap + sz, cy)
+        crossTop.From = Vector2.new(cx, cy - gap)
+        crossTop.To   = Vector2.new(cx, math.max(cy - gap - sz, 0))
+        
+        crossBottom.From = Vector2.new(cx, cy + gap)
+        crossBottom.To   = Vector2.new(cx, cy + gap + sz)
+        
+        crossLeft.From = Vector2.new(cx - gap, cy)
+        crossLeft.To   = Vector2.new(math.max(cx - gap - sz, 0), cy)
+        
+        crossRight.From = Vector2.new(cx + gap, cy)
+        crossRight.To   = Vector2.new(cx + gap + sz, cy)
 
         for _, line in ipairs({crossTop, crossBottom, crossLeft, crossRight}) do
             line.Color = Flags.CrosshairColor
@@ -171,9 +179,11 @@ RunService.RenderStepped:Connect(function()
             line.Visible = true
         end
 
+        -- ТОЧКА: смещение на радиус для идеального центра
         if Flags.CrosshairDot then
-            crossDot.Position = Vector2.new(cx, cy)
-            crossDot.Radius = Flags.CrosshairDotSize
+            local r = Flags.CrosshairDotSize
+            crossDot.Position = Vector2.new(cx - r, cy - r)
+            crossDot.Radius = r
             crossDot.Color = Flags.CrosshairColor
             crossDot.Transparency = trans
             crossDot.Visible = true
@@ -647,7 +657,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-        if Flags.Skeleton then updateSkeleton(plr, char)
+                if Flags.Skeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
@@ -830,7 +840,7 @@ local crosshairDotToggle = CrosshairTab:AddToggle({Title="Dot (Точка)", Sub
 CrosshairTab:AddSeparator()
 
 local crosshairColorPicker = CrosshairTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=2, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=4, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
 local crosshairDistSlider = CrosshairTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
 local crosshairThickSlider = CrosshairTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
