@@ -1,4 +1,4 @@
-\local url = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"
+local url = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"
 
 local VantixUI = loadstring(game:HttpGet(url))()
 
