@@ -1,550 +1,528 @@
-local url = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"
+--[[
+    CLOUDCLIENT — Aimbot (Direct) + Visuals + Player + Other
+]]
+local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
-local VantixUI = loadstring(game:HttpGet(url))()
-
-local Players    = game:GetService("Players")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS        = game:GetService("UserInputService")
-local LP         = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local Lighting = game:GetService("Lighting")
+local LP = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 local Window = VantixUI:CreateWindow({
-	Title       = "Showcase",
-	Theme       = "Vantix",
-	AccentColor = Color3.fromRGB(255, 255, 255),
-	LogoID      = 110034487018208,
-	Size        = {820, 480},
+    Title       = "cloudclient",
+    Theme       = "Vantix",
+    AccentColor = Color3.fromRGB(255, 255, 255),
+    LogoID      = 110034487018208,
+    Size        = {820, 480},
 })
 
-Window:CreateTag("Beta",    Color3.fromRGB(240, 100, 100), nil, "flask-conical")
-Window:CreateTag("Premium", Color3.fromRGB(255, 180, 50),  nil, "crown")
-Window:CreateTag("v2.0",    Color3.fromRGB(60, 120, 210),  nil, "git-branch")
-Window:CreateTag("discord.gg/GUXhJuaqsF", Color3.fromRGB(88, 101, 242), nil, nil, true)
+Window:CreateTag("Beta",    Color3.fromRGB(255, 105, 180), nil, "flask-conical")
+Window:CreateTag("v1.0",    Color3.fromRGB(150, 150, 150), nil, "git-branch")
+Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0),   nil, "crown")
 
-Window:Notify({
-	Title    = "Welcome",
-	Text     = "Library loaded",
-	Icon     = "check",
-	Duration = 4,
-})
+Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
-local Flags = {}
-local Panel, QuickBar, accentRow, minRow, keyRow, qFpsRow, qPingRow, zoomConn
-local lastPing = "n/a"
+-- ===== СОСТОЯНИЕ =====
+local Flags = {
+    ESP = false, Glow = false, Box = false, Distance = false, Name = false, Health = false, Line = false,
+    MaxDistance = 1000,
+    ESPColor = Color3.fromRGB(255,255,255), BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
+    FreeCam = false,
+    FPSPing = false,
+    -- Aimbot
+    Aimbot = false,
+    AimPart = "Head",
+    AimSmooth = 1.0,  -- 1.0 = моментально, 0.1 = плавно
+    AimFOV = 120,
+    -- Fullbright
+    Fullbright = false,
+    -- Noclip / ThirdPerson
+    Noclip = false,
+    ThirdPerson = false,
+    -- Offscreen Arrows
+    OffscreenArrows = false,
+    ArrowColor = Color3.fromRGB(255, 0, 0),
+}
 
-local function toHex(c)
-	return string.format("#%02X%02X%02X", math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5))
+-- ===== AIMBOT FOV CIRCLE =====
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 1
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Filled = false
+fovCircle.Visible = false
+
+-- ===== AIMBOT ЛОГИКА =====
+local function getClosestTarget()
+    local closest = nil
+    local shortestDist = math.huge
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local part = plr.Character:FindFirstChild(Flags.AimPart)
+            if part then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local dist = (center - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if dist < Flags.AimFOV and dist < shortestDist then
+                        shortestDist = dist
+                        closest = part
+                    end
+                end
+            end
+        end
+    end
+    return closest
 end
 
-local MainTab = Window:AddTab("Main", "house")
+-- ===== FREECAM =====
+local freecamConn = nil
+local savedCameraType = nil
+local savedWalkSpeed, savedJumpPower = 16, 50
+local freecamPos = Vector3.new(0,0,0)
 
--- created at the bottom of the tab, the callbacks below only use them later
-local status, console
+local function stopFreeCam()
+    if freecamConn then freecamConn:Disconnect(); freecamConn = nil end
+    if savedCameraType then
+        Camera.CameraType = savedCameraType
+        savedCameraType = nil
+    end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = savedWalkSpeed
+        hum.JumpPower = savedJumpPower
+    end
+end
 
-local godmode = MainTab:AddToggle({
-	Title    = "God Mode",
-	Subtitle = "Become invincible",
-	Icon     = "shield",
-	Default  = false,
-	Risky    = "Changing MaxHealth gets picked up by a lot of anti-cheats. Use it on servers you trust.",
-	Tooltip  = "Some anti-cheats flag this",
-	Callback = function(state)
-		Flags.GodMode = state
-		local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.MaxHealth = state and math.huge or 100
-			hum.Health = hum.MaxHealth
-		end
-		status:Set("Status: God Mode " .. (state and "on" or "off"))
-		console:Write("God Mode " .. (state and "enabled" or "disabled"))
-		Window:Notify({
-			Title    = "God Mode",
-			Text     = state and "Enabled" or "Disabled",
-			Icon     = state and "shield-check" or "shield-off",
-			Duration = 2,
-		})
-	end,
-})
+local function startFreeCam()
+    if freecamConn then return end
+    savedCameraType = Camera.CameraType
+    Camera.CameraType = Enum.CameraType.Scriptable
+    freecamPos = Camera.CFrame.Position
 
-local autoFarm = MainTab:AddToggle({
-	Title    = "Auto Farm",
-	Subtitle = "Collects nearby items",
-	Icon     = "flask-conical",
-	Default  = false,
-	Beta     = "Can miss items on some maps, still working on it.",
-	Tooltip  = "Still in testing",
-	Callback = function(state)
-		Flags.AutoFarm = state
-		console:Write("Auto Farm " .. (state and "enabled" or "disabled"))
-		Window:Notify({
-			Title    = "Auto Farm",
-			Text     = state and "Enabled" or "Disabled",
-			Icon     = state and "flask-conical" or "flask",
-			Duration = 2,
-		})
-	end,
-})
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        savedWalkSpeed = hum.WalkSpeed
+        savedJumpPower = hum.JumpPower
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+    end
 
-local walkspeed = MainTab:AddSlider({
-	Title    = "Walk Speed",
-	Icon     = "activity",
-	Min      = 16,
-	Max      = 200,
-	Default  = 16,
-	Tooltip  = "Applies instantly",
-	Callback = function(value)
-		local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-		if hum then hum.WalkSpeed = value end
-	end,
-})
+    freecamConn = RunService.RenderStepped:Connect(function(dt)
+        local speed = 50 * dt
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then speed = 150 * dt end
+        local moveDir = Vector3.new(0,0,0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0,1,0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0,1,0) end
+        if moveDir.Magnitude > 0 then
+            freecamPos = freecamPos + moveDir.Unit * speed
+        end
+        Camera.CFrame = CFrame.new(freecamPos, freecamPos + Camera.CFrame.LookVector)
+    end)
+end
 
--- every element also has a .Changed signal
-walkspeed.Changed:Connect(function(value)
-	if status then status:Set("Status: walk speed " .. value) end
+-- ===== FULLBRIGHT =====
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows,
+    Ambient = Lighting.Ambient,
+}
+
+local function setFullbright(state)
+    if state then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 12
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(178, 178, 178)
+    else
+        Lighting.Brightness = originalLighting.Brightness
+        Lighting.ClockTime = originalLighting.ClockTime
+        Lighting.FogEnd = originalLighting.FogEnd
+        Lighting.GlobalShadows = originalLighting.GlobalShadows
+        Lighting.Ambient = originalLighting.Ambient
+    end
+end
+
+-- ===== ESP DRAWINGS =====
+local Drawings = {}
+local Highlights = {}
+
+local function createDrawingsForPlayer(plr)
+    if plr == LP or Drawings[plr] then return end
+    local d = {}
+    d.Box = Drawing.new("Square"); d.Box.Thickness = 1; d.Box.Filled = false; d.Box.Visible = false
+    d.Name = Drawing.new("Text"); d.Name.Size = 14; d.Name.Center = true; d.Name.Outline = true; d.Name.Visible = false
+    d.Health = Drawing.new("Text"); d.Health.Size = 12; d.Health.Center = true; d.Health.Outline = true; d.Health.Visible = false
+    d.Line = Drawing.new("Line"); d.Line.Thickness = 1; d.Line.Visible = false
+    d.Distance = Drawing.new("Text"); d.Distance.Size = 12; d.Distance.Center = true; d.Distance.Outline = true; d.Distance.Visible = false
+    d.Arrow = Drawing.new("Triangle"); d.Arrow.Thickness = 2; d.Arrow.Filled = true; d.Arrow.Visible = false
+    Drawings[plr] = d
+end
+
+local function removeDrawings(plr)
+    if Drawings[plr] then
+        for _, obj in pairs(Drawings[plr]) do if obj then obj:Remove() end end
+        Drawings[plr] = nil
+    end
+    if Highlights[plr] then Highlights[plr]:Destroy(); Highlights[plr] = nil end
+end
+
+local function applyGlow(plr)
+    if plr == LP then return end
+    if not Flags.Glow then
+        if Highlights[plr] then Highlights[plr]:Destroy(); Highlights[plr] = nil end
+        return
+    end
+    local char = plr.Character
+    if not char then return end
+    if not Highlights[plr] or not Highlights[plr].Parent then
+        local hl = Instance.new("Highlight")
+        hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0.5
+        hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 0
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Parent = char
+        Highlights[plr] = hl
+    else
+        Highlights[plr].FillColor = Flags.ESPColor
+        Highlights[plr].OutlineColor = Flags.ESPColor
+    end
+end
+
+local function refreshAllGlows()
+    for _, plr in ipairs(Players:GetPlayers()) do applyGlow(plr) end
+end
+
+local function updateESP()
+    local localChar = LP.Character
+    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then
+        for _, d in pairs(Drawings) do for _, obj in pairs(d) do obj.Visible = false end end
+        return
+    end
+    local localPos = localRoot.Position
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for plr, d in pairs(Drawings) do
+        local char = plr.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum or hum.Health <= 0 then
+            for _, obj in pairs(d) do obj.Visible = false end
+            continue
+        end
+        local dist = (root.Position - localPos).Magnitude
+        if dist > Flags.MaxDistance then
+            for _, obj in pairs(d) do obj.Visible = false end
+            continue
+        end
+        
+        local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        local headScreen, headOn = Camera:WorldToViewportPoint((char.Head and char.Head.Position or root.Position) + Vector3.new(0,1.5,0))
+        local feetScreen, feetOn = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,2.5,0))
+        local sx, sy = screenPos.X, screenPos.Y
+
+        if onScreen then
+            if Flags.Box and headOn and feetOn then
+                local h = math.abs(headScreen.Y - feetScreen.Y); local w = h*0.5
+                d.Box.Size = Vector2.new(w,h); d.Box.Position = Vector2.new(sx-w/2, headScreen.Y)
+                d.Box.Color = Flags.BoxColor; d.Box.Visible = true
+            else d.Box.Visible = false end
+
+            if Flags.Name then
+                d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, headScreen.Y-18)
+                d.Name.Color = Flags.ESPColor; d.Name.Visible = true
+            else d.Name.Visible = false end
+
+            if Flags.Health then
+                d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
+                d.Health.Position = Vector2.new(sx, feetScreen.Y+2)
+                d.Health.Color = Flags.ESPColor; d.Health.Visible = true
+            else d.Health.Visible = false end
+
+            if Flags.Distance then
+                d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, feetScreen.Y+18)
+                d.Distance.Color = Flags.ESPColor; d.Distance.Visible = true
+            else d.Distance.Visible = false end
+
+            if Flags.Line then
+                d.Line.From = Vector2.new(center.X, Camera.ViewportSize.Y)
+                d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; d.Line.Visible = true
+            else d.Line.Visible = false end
+            
+            d.Arrow.Visible = false
+        else
+            d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false
+            d.Distance.Visible = false; d.Line.Visible = false
+            
+            -- Offscreen Arrows
+            if Flags.OffscreenArrows then
+                local dir = (root.Position - Camera.CFrame.Position).Unit
+                local camDir = Camera.CFrame.LookVector
+                local dot = camDir:Dot(dir)
+                if dot < 0 then
+                    local screenDir = Vector2.new(dir.X, dir.Y)
+                    if screenDir.Magnitude > 0 then
+                        local angle = math.atan2(screenDir.Y, screenDir.X)
+                        local radius = math.min(Camera.ViewportSize.X, Camera.ViewportSize.Y) * 0.4
+                        local arrowPos = center + Vector2.new(math.cos(angle), math.sin(angle)) * radius
+                        
+                        local size = 10
+                        local angleDeg = math.deg(angle)
+                        d.Arrow.PointA = arrowPos + Vector2.new(math.cos(math.rad(angleDeg)), math.sin(math.rad(angleDeg))) * size
+                        d.Arrow.PointB = arrowPos + Vector2.new(math.cos(math.rad(angleDeg + 140)), math.sin(math.rad(angleDeg + 140))) * size
+                        d.Arrow.PointC = arrowPos + Vector2.new(math.cos(math.rad(angleDeg - 140)), math.sin(math.rad(angleDeg - 140))) * size
+                        d.Arrow.Color = Flags.ArrowColor
+                        d.Arrow.Visible = true
+                    end
+                else
+                    d.Arrow.Visible = false
+                end
+            else
+                d.Arrow.Visible = false
+            end
+        end
+    end
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do createDrawingsForPlayer(plr) end
+Players.PlayerAdded:Connect(function(plr) createDrawingsForPlayer(plr); if Flags.Glow then task.wait(1); applyGlow(plr) end end)
+Players.PlayerRemoving:Connect(removeDrawings)
+
+-- ===== FPS/PING COUNTER =====
+local fpsText, pingText
+local fpsCounter = 0
+local lastFpsTime = os.clock()
+
+local function ensureCounter()
+    if not fpsText then
+        fpsText = Drawing.new("Text")
+        fpsText.Size = 14; fpsText.Color = Color3.fromRGB(255,255,255)
+        fpsText.Outline = true; fpsText.Position = Vector2.new(10, 10); fpsText.Visible = false
+    end
+    if not pingText then
+        pingText = Drawing.new("Text")
+        pingText.Size = 14; pingText.Color = Color3.fromRGB(255,255,255)
+        pingText.Outline = true; pingText.Position = Vector2.new(10, 28); pingText.Visible = false
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if Flags.FPSPing then
+        ensureCounter()
+        fpsCounter = fpsCounter + 1
+        local now = os.clock()
+        if now - lastFpsTime >= 1 then
+            fpsText.Text = "FPS: " .. fpsCounter
+            fpsText.Visible = true
+            fpsCounter = 0
+            lastFpsTime = now
+        end
+        local ok, ping = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+        if ok and ping then
+            pingText.Text = "Ping: " .. math.floor(ping) .. "ms"
+            pingText.Visible = true
+        else
+            pingText.Text = "Ping: n/a"
+            pingText.Visible = true
+        end
+    else
+        if fpsText then fpsText.Visible = false end
+        if pingText then pingText.Visible = false end
+    end
 end)
 
-MainTab:AddButton({
-	Title    = "Custom Button Label",
-	Subtitle = "The button on the right says Press Me",
-	Icon     = "mouse-pointer",
-	Text     = "Press Me",
-	Callback = function()
-		console:Write("Custom button pressed")
-		Window:Notify({Title="Pressed", Text="You pressed the button"})
-	end,
-})
+-- ===== NOCLIP =====
+RunService.Stepped:Connect(function()
+    if Flags.Noclip then
+        local char = LP.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
 
-MainTab:AddButton({
-	Title    = "Rebuild Item Cache",
-	Subtitle = "Rescans the map for items",
-	Icon     = "refresh-cw",
-	Text     = "Rebuild",
-	Beta     = true,
-	Tooltip  = "New scan, not tested on every map",
-	Callback = function()
-		console:Write("Item cache rebuilt")
-		Window:Notify({Title="Item Cache", Text="Rebuilt", Duration=2})
-	end,
-})
-
-MainTab:AddSeparator()
-
-MainTab:AddToggleKey({
-	Title    = "UI Toggle Key",
-	Subtitle = "Key that hides / shows the window",
-	Icon     = "keyboard",
-})
-
-MainTab:AddButton({
-	Title    = "Reset Toggle Key",
-	Subtitle = "Back to RightShift",
-	Icon     = "rotate-ccw",
-	Text     = "Reset",
-	Callback = function()
-		Window:SetToggleKey(Enum.KeyCode.RightShift)
-		Window:Notify({Title="Toggle Key", Text="Reset to " .. Window:GetToggleKey().Name, Duration=2})
-	end,
-})
-
-MainTab:AddSeparator()
-
-status = MainTab:AddLabel("Status: idle", "activity")
-console = MainTab:AddConsole({ Title = "Activity Log", Height = 110 })
-console:Write("Showcase loaded")
-
-local LocksTab = Window:AddTab("Locked Controls", "lock")
-local lockState = LocksTab:AddLabel("Demo toggle: locked / off", "lock")
-local lockedToggle
-local function updateLockState()
-	lockState:Set("Demo toggle: " .. (lockedToggle:IsLocked() and "locked" or "unlocked")
-		.. " / " .. (lockedToggle:Get() and "on" or "off"))
+-- ===== THIRD PERSON =====
+local function setThirdPerson(state)
+    if state then
+        LP.CameraMaxZoomDistance = 50
+        LP.CameraMinZoomDistance = 25
+    else
+        LP.CameraMaxZoomDistance = 128
+        LP.CameraMinZoomDistance = 0.5
+    end
 end
 
--- Locked accepts true for the default message, or a string for a custom reason.
--- A locked toggle stays off even when Default is true or Set(true) is called.
-lockedToggle = LocksTab:AddToggle({
-	Title = "Locked Toggle",
-	Subtitle = "Click to see the reason, or unlock it with the button below",
-	Icon = "lock",
-	Default = true,
-	Locked = "This toggle is locked for the showcase. Click Unlock Demo Toggle to enable it.",
-	Callback = function(state)
-		Flags.LockedDemo = state
-		console:Write("Demo toggle " .. (state and "enabled" or "disabled"))
-		updateLockState()
-	end,
-})
+-- ===== ОСНОВНОЙ ЦИКЛ (ESP + Aimbot FOV Circle) =====
+RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
+    -- ESP
+    if Flags.ESP then updateESP()
+    else
+        for _, d in pairs(Drawings) do
+            for _, obj in pairs(d) do obj.Visible = false end
+        end
+    end
+    
+    -- Aimbot FOV Circle
+    if Flags.Aimbot then
+        fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        fovCircle.Radius = Flags.AimFOV
+        fovCircle.Visible = true
+    else
+        fovCircle.Visible = false
+    end
+end)
 
-LocksTab:AddButton({
-	Title = "Locked Button",
-	Subtitle = "Locked = true shows the default reason and blocks the callback",
-	Icon = "lock",
-	Text = "Try It",
-	Locked = true,
-	Callback = function()
-		console:Write("This callback cannot run while the button is locked")
-	end,
-})
+-- ===== AIMBOT CYCLE (Прямая наводка) =====
+RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Value + 2, function()
+    if Flags.Aimbot and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = getClosestTarget()
+        if target then
+            local cameraPos = Camera.CFrame.Position
+            local targetPos = target.Position
+            
+            local lookCF = CFrame.new(cameraPos, targetPos)
+            
+            if Flags.AimSmooth >= 1.0 then
+                Camera.CFrame = lookCF
+            else
+                Camera.CFrame = Camera.CFrame:Lerp(lookCF, Flags.AimSmooth)
+            end
+        end
+    end
+end)
 
-LocksTab:AddSeparator()
-LocksTab:AddButton({
-	Title = "Unlock Demo Toggle",
-	Subtitle = "Unlock() makes the toggle available without turning it on",
-	Icon = "lock-open",
-	Text = "Unlock",
-	Callback = function()
-		lockedToggle:Unlock()
-		updateLockState()
-	end,
-})
-LocksTab:AddButton({
-	Title = "Lock Demo Toggle",
-	Subtitle = "Lock(reason) switches it off and restores the locked state",
-	Icon = "lock",
-	Text = "Lock",
-	Callback = function()
-		lockedToggle:Lock("The demo toggle was locked again. Use Unlock Demo Toggle to enable it.")
-		updateLockState()
-	end,
-})
+-- ===== AIMBOT TAB (сверху) =====
+local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 
+AimbotTab:AddToggle({ Title = "Aimbot", Subtitle = "Hold Right Mouse Button to aim", Icon = "crosshair", Default = false,
+    Callback = function(s) Flags.Aimbot = s end })
+
+AimbotTab:AddSlider({ Title = "Smoothness", Icon = "activity", Min = 0.1, Max = 1.0, Default = 1.0,
+    Callback = function(v) Flags.AimSmooth = v end })
+
+AimbotTab:AddSlider({ Title = "Aim FOV", Icon = "circle", Min = 20, Max = 400, Default = 120,
+    Callback = function(v) Flags.AimFOV = v end })
+
+AimbotTab:AddDropdown({ Title = "Target Part", Icon = "user", Options = {"Head", "HumanoidRootPart", "UpperTorso"}, Default = "Head",
+    Callback = function(s) Flags.AimPart = s end })
+
+-- ===== VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
-local espColor = VisualsTab:AddColorPicker({
-	Title    = "ESP Color",
-	Subtitle = "Color for player ESP",
-	Icon     = "palette",
-	Default  = Color3.fromRGB(255, 0, 0),
-	Callback = function(color)
-		Flags.ESPColor = color
-	end,
-})
+VisualsTab:AddColorPicker({ Title = "ESP Color", Icon = "palette", Default = Flags.ESPColor,
+    Callback = function(c)
+        Flags.ESPColor = c
+        if Flags.Glow then for plr, hl in pairs(Highlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end end
+    end })
+VisualsTab:AddColorPicker({ Title = "Box Color", Icon = "square", Default = Flags.BoxColor, Callback = function(c) Flags.BoxColor = c end })
+VisualsTab:AddColorPicker({ Title = "Line Color", Icon = "move", Default = Flags.LineColor, Callback = function(c) Flags.LineColor = c end })
 
 VisualsTab:AddSeparator()
-
-local materialDropdown = VisualsTab:AddDropdown({
-	Title   = "Chams Material",
-	Icon    = "box",
-	Options = {
-		"ForceField", "Neon", "Plastic", "Glass",
-		"Wood", "Metal", "Ice", "Slate",
-		"Marble", "Granite", "Sand", "Fabric",
-		"Grass", "Cobblestone", "Brick", "Foil"
-	},
-	Default  = 1,
-	Callback = function(selected)
-		Flags.ChamsMaterial = selected
-	end,
-})
-
+VisualsTab:AddLabel("ESP SYSTEM", "eye")
 VisualsTab:AddSeparator()
 
-local espElements = VisualsTab:AddMultiDropdown({
-	Title    = "ESP Elements",
-	Subtitle = "Pick what the ESP draws",
-	Icon     = "layers",
-	Options  = {"Names", "Boxes", "Bones", "Chams", "Tools", "Snaplines"},
-	Default  = {"Names", "Boxes"},
-	Callback = function(selected)
-		Flags.ESPElements = selected
-	end,
-})
+VisualsTab:AddToggle({ Title = "ESP", Icon = "eye", Default = false, Callback = function(s)
+    Flags.ESP = s
+    if not s and Flags.Glow then
+        for plr, hl in pairs(Highlights) do if hl then hl:Destroy() end; Highlights[plr] = nil end
+    end
+end })
+VisualsTab:AddToggle({ Title = "Glow", Icon = "sparkles", Default = false, Callback = function(s)
+    Flags.Glow = s
+    if s then refreshAllGlows()
+    else for plr, hl in pairs(Highlights) do if hl then hl:Destroy() end; Highlights[plr] = nil end end
+end })
+VisualsTab:AddToggle({ Title = "Box", Icon = "box", Default = false, Callback = function(s) Flags.Box = s end })
+VisualsTab:AddToggle({ Title = "Distance", Icon = "ruler", Default = false, Callback = function(s) Flags.Distance = s end })
+VisualsTab:AddSlider({ Title = "ESP Distance", Icon = "ruler", Min = 0, Max = 2000, Default = 1000, Callback = function(v) Flags.MaxDistance = v end })
+VisualsTab:AddToggle({ Title = "Name", Icon = "user", Default = false, Callback = function(s) Flags.Name = s end })
+VisualsTab:AddToggle({ Title = "Health", Icon = "heart", Default = false, Callback = function(s) Flags.Health = s end })
+VisualsTab:AddToggle({ Title = "Line", Icon = "move", Default = false, Callback = function(s) Flags.Line = s end })
 
+-- NEW: OFFSCREEN ARROWS
 VisualsTab:AddSeparator()
+VisualsTab:AddToggle({ Title = "Offscreen Arrows", Subtitle = "Show arrows to players behind you", Icon = "navigation", Default = false, Callback = function(s) Flags.OffscreenArrows = s end })
+VisualsTab:AddColorPicker({ Title = "Arrow Color", Icon = "palette", Default = Flags.ArrowColor, Callback = function(c) Flags.ArrowColor = c end })
 
-VisualsTab:AddKeybind({
-	Title    = "Toggle ESP",
-	Subtitle = "Press to turn ESP on / off",
-	Icon     = "crosshair",
-	Default  = Enum.KeyCode.RightAlt,
-	Callback = function()
-		Flags.ESPEnabled = not Flags.ESPEnabled
-	end,
-})
+-- ===== PLAYER =====
+local PlayerTab = Window:AddTab("Player", "user")
 
--- keybinds take keyboard keys or middle mouse; without a Callback you read the key yourself with :Get()
-local zoomKey = VisualsTab:AddKeybind({
-	Title    = "Hold to Zoom",
-	Subtitle = "Middle mouse by default",
-	Icon     = "zoom-in",
-	Default  = Enum.UserInputType.MouseButton3,
-})
+PlayerTab:AddToggle({ Title = "FreeCam", Subtitle = "WASD + Space/Ctrl to fly camera", Icon = "camera", Default = false,
+    Callback = function(s)
+        Flags.FreeCam = s
+        if s then startFreeCam() else stopFreeCam() end
+    end })
 
-local function isHeld(key)
-	if typeof(key) ~= "EnumItem" or key == Enum.KeyCode.Unknown then return false end
-	if key.EnumType == Enum.UserInputType then return UIS:IsMouseButtonPressed(key) end
-	return UIS:IsKeyDown(key)
-end
+-- NEW: NOCLIP
+PlayerTab:AddToggle({ Title = "Noclip", Subtitle = "Walk through walls", Icon = "shield", Default = false,
+    Callback = function(s)
+        Flags.Noclip = s
+        if not s then
+            local char = LP.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = true end
+                end
+            end
+        end
+    end })
 
-local normalFov
-zoomConn = RunService.RenderStepped:Connect(function()
-	local cam = workspace.CurrentCamera
-	if not cam then return end
-	if isHeld(zoomKey:Get()) and not UIS:GetFocusedTextBox() then
-		normalFov = normalFov or cam.FieldOfView
-		cam.FieldOfView = 30
-	elseif normalFov then
-		cam.FieldOfView = normalFov
-		normalFov = nil
-	end
-end)
+-- NEW: THIRD PERSON
+PlayerTab:AddToggle({ Title = "Third Person", Subtitle = "Force third person view", Icon = "eye", Default = false,
+    Callback = function(s)
+        Flags.ThirdPerson = s
+        setThirdPerson(s)
+    end })
 
+-- ===== OTHER =====
+local OtherTab = Window:AddTab("Other", "box")
+
+OtherTab:AddToggle({ Title = "Fullbright", Subtitle = "Makes the world bright", Icon = "sun", Default = false,
+    Callback = function(s)
+        Flags.Fullbright = s
+        setFullbright(s)
+    end })
+
+-- ===== SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
 local themeNames = {}
-for name in pairs(VantixUI.Themes) do
-	table.insert(themeNames, name)
-end
+for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
-SettingsTab:AddDropdown({
-	Title    = "Theme",
-	Icon     = "swatch-book",
-	Options  = themeNames,
-	Default  = Window:GetTheme(),
-	Callback = function(selected)
-		Window:SetTheme(selected)
-	end,
-})
-
-SettingsTab:AddDropdown({
-	Title    = "Accent Color",
-	Icon     = "droplet",
-	Options  = {"White", "Blue", "Red", "Green", "Purple"},
-	Default  = "White",
-	Callback = function(selected)
-		local colors = {
-			White  = Color3.fromRGB(255, 255, 255),
-			Blue   = Color3.fromRGB(64, 156, 255),
-			Red    = Color3.fromRGB(230, 70, 70),
-			Green  = Color3.fromRGB(80, 210, 120),
-			Purple = Color3.fromRGB(170, 110, 240),
-		}
-		VantixUI:SetAccentColor(colors[selected])
-		Panel:SetTitle("Live Stats (" .. selected .. ")")
-		accentRow:Set(toHex(VantixUI:GetAccentColor()))
-	end,
-})
-
-SettingsTab:AddToggle({
-	Title    = "Show Stats Panel",
-	Icon     = "gauge",
-	Default  = true,
-	Callback = function(state)
-		Panel:SetVisible(state)
-	end,
-})
+SettingsTab:AddDropdown({ Title = "Theme", Icon = "swatch-book", Options = themeNames, Default = Window:GetTheme(),
+    Callback = function(s) Window:SetTheme(s) end })
+SettingsTab:AddDropdown({ Title = "Accent Color", Icon = "droplet", Options = {"White","Blue","Red","Green","Purple"}, Default = "White",
+    Callback = function(s)
+        local colors = {White=Color3.fromRGB(255,255,255),Blue=Color3.fromRGB(64,156,255),Red=Color3.fromRGB(230,70,70),Green=Color3.fromRGB(80,210,120),Purple=Color3.fromRGB(170,110,240)}
+        VantixUI:SetAccentColor(colors[s])
+    end })
 
 SettingsTab:AddSeparator()
 
-local configName = SettingsTab:AddTextBox({
-	Title       = "Configuration Name",
-	Icon        = "file-text",
-	Placeholder = "Enter config name...",
-	Default     = "ShowcaseConfig",
-	Callback    = function(text, enterPressed)
-		if enterPressed then
-			Flags.ConfigName = text
-		end
-	end,
-})
-
-local uiKeybind = SettingsTab:AddKeybind({
-	Title    = "Hide UI Keybind",
-	Subtitle = "Insert hides the window (separate from the toggle key)",
-	Icon     = "keyboard",
-	Default  = Enum.KeyCode.Insert,
-	Callback = function()
-		-- the gui name is random, use the reference
-		local sg = Window.Gui
-		if sg then sg.Enabled = not sg.Enabled end
-	end,
-})
-
-SettingsTab:AddSeparator()
-SettingsTab:AddLabel("Config System", "save")
-
-Window.ConfigManager:SetFolder("VantixUI_Examples")
-
-local function buildConfig(name)
-	local cfg = Window.ConfigManager:CreateConfig(name)
-	cfg:RegisterElement("GodMode",       godmode)
-	cfg:RegisterElement("WalkSpeed",     walkspeed)
-	cfg:RegisterElement("ESPColor",      espColor)
-	cfg:RegisterElement("ChamsMaterial", materialDropdown)
-	cfg:RegisterElement("ESPElements",   espElements)
-	cfg:RegisterElement("ConfigName",    configName)
-	cfg:RegisterElement("UIKeybind",     uiKeybind)
-	cfg:RegisterElement("ZoomKey",       zoomKey)
-	return cfg
-end
-
-local savedConfigs = SettingsTab:AddDropdown({
-	Title    = "Saved Configs",
-	Icon     = "folder",
-	Options  = Window.ConfigManager:GetConfigs(),
-})
-
-SettingsTab:AddButton({
-	Title    = "Save Config",
-	Icon     = "save",
-	Text     = "Save",
-	Callback = function()
-		buildConfig(configName:Get()):Save()
-		savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-		Window:Notify({Title="Config", Text="Saved as " .. configName:Get(), Duration=2})
-	end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Load Selected",
-	Icon     = "download",
-	Text     = "Load",
-	Callback = function()
-		local name = savedConfigs:Get()
-		if name and name ~= "" then
-			configName:Set(name)
-			buildConfig(name):Load()
-			Window:Notify({Title="Config", Text="Loaded " .. name, Duration=2})
-		end
-	end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Delete Selected",
-	Icon     = "trash-2",
-	Text     = "Delete",
-	Risky    = true,
-	Tooltip  = "Deletes the config file",
-	Callback = function()
-		local name = savedConfigs:Get()
-		if name and name ~= "" then
-			Window.ConfigManager:DeleteConfig(name)
-			savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-			Window:Notify({Title="Config", Text="Deleted " .. name, Duration=2})
-		end
-	end,
-})
+SettingsTab:AddToggle({ Title = "FPS / Ping Counter", Icon = "activity", Default = false,
+    Callback = function(s) Flags.FPSPing = s end })
 
 SettingsTab:AddSeparator()
 
-SettingsTab:AddButton({
-	Title    = "Minimize",
-	Icon     = "minus",
-	Text     = "Minimize",
-	Callback = function() Window:Minimize() end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Restore",
-	Icon     = "square",
-	Text     = "Restore",
-	Callback = function() Window:Restore() end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Toggle Window",
-	Icon     = "repeat",
-	Text     = "Toggle",
-	Callback = function() Window:Toggle() end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Restore Stats Panel",
-	Subtitle = "Show the stats panel and expand its body",
-	Icon     = "panel-top",
-	Text     = "Restore",
-	Callback = function() Panel:Restore() end,
-})
-
-SettingsTab:AddButton({
-	Title    = "Unload",
-	Icon     = "log-out",
-	Text     = "Unload",
-	Callback = function()
-		if zoomConn then zoomConn:Disconnect() end
-		Panel:Destroy()
-		QuickBar:Destroy()
-		Window:Destroy()
-	end,
-})
-
-Panel = VantixUI:CreateNewWindow({
-	Title   = "Live Stats (White)",
-	Name    = "ShowcaseStats",
-	Size    = {240},
-	Minimizable = true, -- opt in to the minus / plus button in the title bar
-	OnClose = function() console:Write("Stats panel closed") end,
-})
-Panel:AddHeader("Session")
-local fpsRow  = Panel:AddRow("FPS")
-local pingRow = Panel:AddRow("Ping")
-minRow = Panel:AddRow("Main Window Minimized")
-keyRow = Panel:AddRow("Toggle Key")
-Panel:AddSeparator()
-Panel:AddHeader("Window")
-accentRow = Panel:AddRow("Accent")
-accentRow:Set(toHex(VantixUI:GetAccentColor()))
-Panel:AddSeparator()
-Panel:AddHeader("Player")
-local posRow = Panel:AddRow("Position")
-Panel:AddRow("Character", {
-	Style         = "Vertical",
-	AccentKey     = "white",
-	ValueColorKey = "text",
-}):Set(LP.Name)
-Panel:AddSeparator()
-Panel:AddHeader("Actions")
-Panel:AddToggle("Show Quick Bar", true, function(on)
-	QuickBar:SetVisible(on)
-end)
-Panel:AddButton("Clear activity log", function()
-	console:Clear()
-end)
-Panel:AddButton("Minimize this panel", function()
-	Panel:Minimize()
-end)
-
--- Omit Minimizable (or set it to false) for the original close-only header.
-QuickBar = VantixUI:CreateNewWindow({
-	Title    = "Quick Bar",
-	Layout   = "Horizontal",
-	Position = UDim2.new(0, 20, 0, 88),
-})
-qFpsRow  = QuickBar:AddRow("FPS")
-QuickBar:AddSeparator()
-qPingRow = QuickBar:AddRow("Ping")
-QuickBar:AddSeparator()
-QuickBar:AddButton({ Text = "Log ping", Callback = function()
-	console:Write("Ping: " .. lastPing)
-end })
-
-task.spawn(function()
-	local Stats = game:GetService("Stats")
-	local frames, last = 0, os.clock()
-	while Panel.Card and Panel.Card.Parent do
-		frames += 1
-		local now = os.clock()
-		if now - last >= 1 then
-			fpsRow:Set(frames)
-			qFpsRow:Set(frames)
-			frames, last = 0, now
-		end
-		local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local p = root.Position
-			posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z))
-		end
-		local ok, ping = pcall(function()
-			return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-		end)
-		if ok then
-			lastPing = string.format("%dms", ping)
-			pingRow:Set(lastPing)
-			qPingRow:Set(lastPing)
-		end
-		minRow:Set(Window:IsMinimized() and "Yes" or "No")
-		local key = Window:GetToggleKey()
-		keyRow:Set(key and key.Name or "None")
-		RunService.Heartbeat:Wait()
-	end
-end)
+SettingsTab:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
+    Callback = function()
+        local sg = Window.Gui
+        if sg then sg.Enabled = not sg.Enabled end
+    end })
