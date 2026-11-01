@@ -852,11 +852,83 @@ OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=func
     setFullbright(s)
 end})
 
+-- ===== CONFIG SYSTEM =====
+-- Сохраняет Flags в JSON-файл через writefile (Xeno поддерживает).
+-- Папка: cloudclient/configs/. Имя файла = имя конфига.
+local CONFIG_FOLDER = "cloudclient/configs/"
+pcall(function() makefolder("cloudclient"); makefolder(CONFIG_FOLDER) end)
+
+-- Рекурсивный сериализатор для Flags (только bool/number/string/Color3/EnumItem)
+local function serialize(v, indent)
+    indent = indent or ""
+    local t = type(v)
+    if t == "boolean" or t == "number" then return tostring(v) end
+    if t == "string" then return string.format("%q", v) end
+    if t == "userdata" and typeof(v) == "Color3" then
+        return string.format("Color3.fromRGB(%d,%d,%d)", v.R*255, v.G*255, v.B*255)
+    end
+    if t == "userdata" and typeof(v) == "EnumItem" then
+        return string.format("Enum.%s.%s", v.EnumType.Name, v.Name)
+    end
+    if t == "table" then
+        local parts = {}
+        for k, val in pairs(v) do
+            local keyStr = type(k) == "string" and k or "["..tostring(k).."]"
+            table.insert(parts, indent.."  "..keyStr.." = "..serialize(val, indent.."  "))
+        end
+        return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
+    end
+    return "nil"
+end
+
+local function saveConfig(name)
+    if not name or name == "" then return false end
+    local ok, err = pcall(function()
+        local data = "return "..serialize(Flags)
+        writefile(CONFIG_FOLDER..name..".lua", data)
+    end)
+    return ok, err
+end
+
+local function loadConfig(name)
+    if not name or name == "" then return false end
+    local ok, err = pcall(function()
+        local src = readfile(CONFIG_FOLDER..name..".lua")
+        local chunk = loadstring(src)
+        if not chunk then error("invalid config") end
+        local data = chunk()
+        if type(data) ~= "table" then error("invalid data") end
+        for k, v in pairs(data) do
+            if Flags[k] ~= nil then Flags[k] = v end
+        end
+    end)
+    return ok, err
+end
+
+local function deleteConfig(name)
+    if not name or name == "" then return false end
+    local ok = pcall(function() delfile(CONFIG_FOLDER..name..".lua") end)
+    return ok
+end
+
+local function listConfigs()
+    local out = {}
+    local ok = pcall(function()
+        for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
+            local n = f:match("([^/\\]+)%.lua$")
+            if n then table.insert(out, n) end
+        end
+    end)
+    return ok and out or {}
+end
+
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
+
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
+
 SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
 SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
@@ -866,9 +938,88 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
     }
     VantixUI:SetAccentColor(colors[s])
 end})
+
 SettingsTab:AddSeparator()
+
 SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+
+SettingsTab:AddSeparator(); SettingsTab:AddLabel("CONFIG SYSTEM", "save"); SettingsTab:AddSeparator()
+
+local configNameBox = SettingsTab:AddTextBox({
+    Title = "Config Name",
+    Placeholder = "Enter name...",
+    Default = "default",
+})
+
+local configList = SettingsTab:AddDropdown({
+    Title = "Saved Configs",
+    Options = listConfigs(),
+    Default = "",
+})
+
+-- Обновляет список в дропдауне
+local function refreshConfigList()
+    local list = listConfigs()
+    if #list == 0 then list = {""} end
+    configList:SetOptions(list)
+end
+
+SettingsTab:AddButton({
+    Title = "Save Config",
+    Text = "Save",
+    Icon = "save",
+    Callback = function()
+        local name = configNameBox:Get()
+        if not name or name == "" then
+            Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2})
+            return
+        end
+        local ok, err = saveConfig(name)
+        if ok then
+            refreshConfigList()
+            Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=3})
+        end
+    end,
+})
+
+SettingsTab:AddButton({
+    Title = "Load Config",
+    Text = "Load",
+    Icon = "download",
+    Callback = function()
+        local name = configList:Get()
+        if not name or name == "" then
+            Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2})
+            return
+        end
+        local ok, err = loadConfig(name)
+        if ok then
+            -- применяем загруженные флаги к текущему состоянию
+            for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+            Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=3})
+        end
+    end,
+})
+
+SettingsTab:AddButton({
+    Title = "Delete Config",
+    Text = "Delete",
+    Icon = "trash-2",
+    Callback = function()
+        local name = configList:Get()
+        if not name or name == "" then return end
+        deleteConfig(name)
+        refreshConfigList()
+        Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+    end,
+})
+
 SettingsTab:AddSeparator()
+
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
