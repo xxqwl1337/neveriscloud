@@ -1,7 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider
-    Aimbot: Aim Assist двигает камеру (работает всегда), Silent Aim хукает Mouse.Hit, Aim Lock — rage
-    Config: сохранение Flags в cloudclient/configs/ через writefile
+    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider + Config
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -76,7 +74,7 @@ local silentHookOk = pcall(function()
         return oldIndex(self, key)
     end)
 end)
-if not silentHookOk then warn("[cloudclient] Silent Aim hook FAILED — используй Aim Assist") end
+if not silentHookOk then warn("[cloudclient] Silent Aim hook FAILED") end
 
 -- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
@@ -266,7 +264,7 @@ local function updateSpider()
     end
 end
 
--- ===== FULLBRIGHT (гасит туман/атмосферу/облака) =====
+-- ===== FULLBRIGHT =====
 local origLight = {
     Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime,
     FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart,
@@ -279,23 +277,20 @@ local FULLBRIGHT_VALUES = {
     Ambient=Color3.fromRGB(178,178,178), OutdoorAmbient=Color3.fromRGB(178,178,178),
 }
 local origAtmosphere, origClouds = nil, nil
+
 local function captureAtmosphere()
     origAtmosphere = {}
     for _, atm in ipairs(Lighting:GetChildren()) do
         if atm:IsA("Atmosphere") then
-            table.insert(origAtmosphere, {
-                obj=atm, Density=atm.Density, Offset=atm.Offset,
-                Color=atm.Color, Decay=atm.Decay, Glare=atm.Glare, Haze=atm.Haze,
-            })
+            table.insert(origAtmosphere, {obj=atm, Density=atm.Density, Offset=atm.Offset,
+                Color=atm.Color, Decay=atm.Decay, Glare=atm.Glare, Haze=atm.Haze})
         end
     end
     origClouds = {}
     for _, cl in ipairs(Lighting:GetChildren()) do
         if cl:IsA("Clouds") then
-            table.insert(origClouds, {
-                obj=cl, Cover=cl.Cover, Density=cl.Density,
-                Color=cl.Color, Enabled=cl.Enabled,
-            })
+            table.insert(origClouds, {obj=cl, Cover=cl.Cover, Density=cl.Density,
+                Color=cl.Color, Enabled=cl.Enabled})
         end
     end
 end
@@ -310,8 +305,6 @@ local function applyFullbrightOnce()
             if atm.Density ~= 0 then pcall(function() atm.Density = 0 end) end
             if atm.Haze ~= 0 then pcall(function() atm.Haze = 0 end) end
             if atm.Glare ~= 0 then pcall(function() atm.Glare = 0 end) end
-            if atm.Decay ~= Color3.fromRGB(255,255,255) then pcall(function() atm.Decay = Color3.fromRGB(255,255,255) end) end
-            if atm.Color ~= Color3.fromRGB(255,255,255) then pcall(function() atm.Color = Color3.fromRGB(255,255,255) end) end
         end
     end
     for _, cl in ipairs(Lighting:GetChildren()) do
@@ -328,9 +321,8 @@ local function restoreLighting()
         for _, a in ipairs(origAtmosphere) do
             if a.obj and a.obj.Parent then
                 pcall(function()
-                    a.obj.Density=a.Density; a.obj.Offset=a.Offset
-                    a.obj.Color=a.Color; a.obj.Decay=a.Decay
-                    a.obj.Glare=a.Glare; a.obj.Haze=a.Haze
+                    a.obj.Density=a.Density; a.obj.Offset=a.Offset; a.obj.Color=a.Color
+                    a.obj.Decay=a.Decay; a.obj.Glare=a.Glare; a.obj.Haze=a.Haze
                 end)
             end
         end
@@ -348,12 +340,7 @@ local function restoreLighting()
 end
 
 local function setFullbright(state)
-    if state then
-        captureAtmosphere()
-        applyFullbrightOnce()
-    else
-        restoreLighting()
-    end
+    if state then captureAtmosphere(); applyFullbrightOnce() else restoreLighting() end
 end
 
 task.spawn(function()
@@ -395,13 +382,12 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
+-- ===== ESP HIGHLIGHT =====
 local function applyHighlight(plr)
     if plr == LP then return end
     local char = plr.Character
     local want = Flags.ESP and Flags.MaxDistance > 0
-    if not want or not char or not isAlive(char) then
-        clearHighlight(plr); return
-    end
+    if not want or not char or not isAlive(char) then clearHighlight(plr); return end
     local hl = Highlights[plr]
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
@@ -497,7 +483,6 @@ local function getWeaponName(char)
     return nil
 end
 
--- ===== HIGHLIGHT ПО ДИСТАНЦИИ =====
 local function updateHighlightDistance(plr, dist, visible)
     local hl = Highlights[plr]
     if not hl or not hl.Parent then return end
@@ -669,31 +654,34 @@ local function serialize(v, indent)
         end
         return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
     end
-        return "nil"
+    return "nil"
+end
+
+local function parseName(raw)
+    if type(raw) == "string" then return raw end
+    if typeof(raw) == "EnumItem" then return tostring(raw.Value) end
+    return tostring(raw)
 end
 
 local function saveConfig(name)
     if not name or name == "" or name == "nil" then return false, "empty name" end
-    local ok, err = pcall(function()
-        local data = "return "..serialize(Flags)
-        writefile(CONFIG_FOLDER..name..".lua", data)
+    return pcall(function()
+        writefile(CONFIG_FOLDER..name..".lua", "return "..serialize(Flags))
     end)
-    return ok, err
 end
 
 local function loadConfig(name)
     if not name or name == "" or name == "nil" then return false, "empty name" end
-    local ok, err = pcall(function()
+    return pcall(function()
         local src = readfile(CONFIG_FOLDER..name..".lua")
         local chunk = loadstring(src)
         if not chunk then error("invalid config") end
         local data = chunk()
-        if type(data) ~= "table" then error("invalid data") end
+               if type(data) ~= "table" then error("invalid data") end
         for k, v in pairs(data) do
             if Flags[k] ~= nil then Flags[k] = v end
         end
     end)
-    return ok, err
 end
 
 local function deleteConfig(name)
@@ -710,13 +698,6 @@ local function listConfigs()
         end
     end)
     return out
-end
-
--- Универсальный парсер имени из UI-элемента (защита от EnumItem)
-local function parseName(raw)
-    if type(raw) == "string" then return raw end
-    if typeof(raw) == "EnumItem" then return tostring(raw.Value) end
-    return tostring(raw)
 end
 
 -- ===== FPS/PING HUD =====
@@ -883,18 +864,11 @@ SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
 local configNameBox = SettingsTab:AddTextBox({
-    Title = "Config Name",
-    Placeholder = "Enter name...",
-    Default = "default",
+    Title = "Config Name", Placeholder = "Enter name...", Default = "default",
 })
-
 local initialList = listConfigs()
 if #initialList == 0 then initialList = {""} end
-local configList = SettingsTab:AddDropdown({
-    Title = "Saved Configs",
-    Options = initialList,
-    Default = "",
-})
+local configList = SettingsTab:AddDropdown({Title = "Saved Configs", Options = initialList, Default = ""})
 
 local function refreshConfigList()
     local list = listConfigs()
@@ -902,67 +876,50 @@ local function refreshConfigList()
     pcall(function() configList:SetOptions(list) end)
 end
 
-SettingsTab:AddButton({
-    Title = "Save Config", Text = "Save", Icon = "save",
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = parseName(configNameBox:Get())
-            if name == "" or name == "nil" then
-                Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2})
-                return
-            end
-            local saved, serr = saveConfig(name)
-            if saved then
-                refreshConfigList()
-                Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
-            else
-                Window:Notify({Title="Config", Text="Ошибка: "..tostring(serr), Duration=3})
-            end
-        end)
-        if not ok then
-            warn("[config] save crash:", err)
-            Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4})
+SettingsTab:AddButton({Title = "Save Config", Text = "Save", Icon = "save", Callback = function()
+    local ok, err = pcall(function()
+        local name = parseName(configNameBox:Get())
+        if name == "" or name == "nil" then
+            Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2}); return
         end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Load Config", Text = "Load", Icon = "download",
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = parseName(configList:Get())
-            if name == "" or name == "nil" then
-                Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2})
-                return
-            end
-            local loaded, lerr = loadConfig(name)
-            if loaded then
-                for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-                Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
-            else
-                Window:Notify({Title="Config", Text="Ошибка: "..tostring(lerr), Duration=3})
-            end
-        end)
-        if not ok then
-            warn("[config] load crash:", err)
-            Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4})
-        end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Delete Config", Text = "Delete", Icon = "trash-2",
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = parseName(configList:Get())
-            if name == "" or name == "nil" then return end
-            deleteConfig(name)
+        local saved, serr = saveConfig(name)
+        if saved then
             refreshConfigList()
-            Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
-        end)
-        if not ok then warn("[config] delete crash:", err) end
-    end,
-})
+            Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(serr), Duration=3})
+        end
+    end)
+    if not ok then warn("[config] save crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
+end})
+
+SettingsTab:AddButton({Title = "Load Config", Text = "Load", Icon = "download", Callback = function()
+    local ok, err = pcall(function()
+        local name = parseName(configList:Get())
+        if name == "" or name == "nil" then
+            Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2}); return
+        end
+        local loaded, lerr = loadConfig(name)
+        if loaded then
+            for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+            Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(lerr), Duration=3})
+        end
+    end)
+    if not ok then warn("[config] load crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
+end})
+
+SettingsTab:AddButton({Title = "Delete Config", Text = "Delete", Icon = "trash-2", Callback = function()
+    local ok, err = pcall(function()
+        local name = parseName(configList:Get())
+        if name == "" or name == "nil" then return end
+        deleteConfig(name)
+        refreshConfigList()
+        Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] delete crash:", err) end
+end})
 
 SettingsTab:AddSeparator()
 
