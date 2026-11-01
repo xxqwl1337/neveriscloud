@@ -1,23 +1,13 @@
 --[[
-    KeyAuth Loader (через официальную Roblox-библиотеку)
+    KeyAuth Loader (Рабочая версия для Xeno)
 ]]
 local APP_NAME = "clientsound"
-local OWNER_ID = "uXkNMViDLi"
+local OWNER_ID = "uXkNMViDLi" 
 local VERSION  = "1.0"
 
--- Загружаем официальную KeyAuth библиотеку для Roblox
-local KeyAuth = loadstring(game:HttpGet("https://raw.githubusercontent.com/KeyAuth/KeyAuth-Roblox-Example/main/keyauth.lua"))()
-
--- Инициализируем
-KeyAuth.app_data = {
-    name = APP_NAME,
-    ownerid = OWNER_ID,
-    version = VERSION
-}
-
+-- 1. ЗАГРУЖАЕМ МЕНЮ (оно появится сразу, даже если KeyAuth лежит)
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
--- ===== МЕНЮ =====
 local Window = VantixUI:CreateWindow({
     Title = "cloudclient | Activation",
     Theme = "Vantix",
@@ -35,6 +25,30 @@ local keyBox = MainTab:AddTextBox({
     Default = "",
 })
 
+-- 2. ФУНКЦИЯ ЗАПРОСА (через секретный параметр для keyauth.cc)
+local function apiRequest(params)
+    local query = ""
+    for k, v in pairs(params) do
+        query = query .. k .. "=" .. tostring(v) .. "&"
+    end
+    query = query:sub(1, -2)
+    
+    -- Пробуем напрямую к keyauth.cc
+    local success, res = pcall(function()
+        return game:HttpGet("https://keyauth.cc/api/1.2/?" .. query)
+    end)
+    
+    if not success or not res then 
+        return nil 
+    end
+    
+    local succ, decoded = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(res)
+    end)
+    return succ and decoded or nil
+end
+
+-- 3. КНОПКА АКТИВАЦИИ
 MainTab:AddButton({
     Title = "Activate",
     Text = "Activate",
@@ -48,26 +62,45 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            local hwid = "unknown"
-            pcall(function() hwid = game:GetService("RbxAnalyticsService"):GetClientId() end)
+            -- Инициализация
+            local init = apiRequest({
+                type = "init",
+                ver = VERSION,
+                name = APP_NAME,
+                secret = OWNER_ID, 
+            })
             
-            -- 1. Инициализация
-            local init = KeyAuth.init()
             if not init then
-                status:Set("Ошибка: KeyAuth не инициализировался", "info")
+                status:Set("Ошибка: KeyAuth заблокирован", "info")
                 return
             end
             
-            -- 2. Проверка ключа
-            local login = KeyAuth.license(key)
-            if login then
+            if not init.success then
+                status:Set("Ошибка Init: " .. tostring(init.message or "Unknown"), "info")
+                return
+            end
+            
+            -- Проверка ключа
+            local hwid = "unknown"
+            pcall(function() hwid = game:GetService("RbxAnalyticsService"):GetClientId() end)
+            
+            local login = apiRequest({
+                type = "license",
+                key = key,
+                sessionid = init.sessionid,
+                hwid = hwid,
+            })
+            
+            if login and login.success then
                 status:Set("Активация успешна!", "info")
                 Window:Notify({ Title = "Success", Text = "Загрузка cloudclient...", Icon = "check", Duration = 2 })
                 task.wait(1)
                 Window:Destroy()
+                -- Запуск основного скрипта
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
             else
-                status:Set("Неверный ключ!", "info")
+                local msg = login and login.message or "Неверный ключ"
+                status:Set("Ошибка: " .. tostring(msg), "info")
             end
         end)
     end,
