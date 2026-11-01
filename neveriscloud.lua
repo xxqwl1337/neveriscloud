@@ -1,4 +1,4 @@
-\--[[
+--[[
     CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
     ESP: один Highlight, режим Chams (заливка) / Glow (обводка), ОДИН цвет ESPColor на всё
     Weapon ESP: только реальное оружие/предмет, части тела и Handle отфильтрованы
