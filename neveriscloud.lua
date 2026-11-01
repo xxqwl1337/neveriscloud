@@ -36,7 +36,6 @@ local Flags = {
     FPSPing = false, Fullbright = false,
     Crosshair = false, CrosshairColor = Color3.fromRGB(255, 255, 255), CrosshairSize = 10,
     CrosshairThickness = 1, CrosshairTransparency = 0, CrosshairDistance = 4,
-    CrosshairDot = false, CrosshairDotSize = 1,
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
@@ -145,12 +144,11 @@ RunService.RenderStepped:Connect(function()
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
--- ===== CROSSHAIR (ФИКС) =====
+-- ===== CROSSHAIR (БЕЗ ТОЧКИ) =====
 local crossTop    = Drawing.new("Line"); crossTop.Visible = false
 local crossBottom = Drawing.new("Line"); crossBottom.Visible = false
 local crossLeft   = Drawing.new("Line"); crossLeft.Visible = false
 local crossRight  = Drawing.new("Line"); crossRight.Visible = false
-local crossDot    = Drawing.new("Circle"); crossDot.Filled = true; crossDot.Visible = false
 
 RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
@@ -178,22 +176,9 @@ RunService.RenderStepped:Connect(function()
             line.Transparency = trans
             line.Visible = true
         end
-
-        -- ТОЧКА: смещение на радиус для идеального центра
-        if Flags.CrosshairDot then
-            local r = Flags.CrosshairDotSize
-            crossDot.Position = Vector2.new(cx - r, cy - r)
-            crossDot.Radius = r
-            crossDot.Color = Flags.CrosshairColor
-            crossDot.Transparency = trans
-            crossDot.Visible = true
-        else
-            crossDot.Visible = false
-        end
     else
         crossTop.Visible = false; crossBottom.Visible = false
         crossLeft.Visible = false; crossRight.Visible = false
-        crossDot.Visible = false
     end
 end)
 
@@ -657,7 +642,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-                if Flags.Skeleton then updateSkeleton(plr, char)
+        if Flags.Skeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
@@ -835,7 +820,6 @@ end})
 local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
 
 local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
-local crosshairDotToggle = CrosshairTab:AddToggle({Title="Dot (Точка)", Subtitle="Точка в центре", Icon="circle-dot", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
 
 CrosshairTab:AddSeparator()
 
@@ -844,7 +828,6 @@ local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина ли
 local crosshairDistSlider = CrosshairTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
 local crosshairThickSlider = CrosshairTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
-local crosshairDotSizeSlider = CrosshairTab:AddSlider({Title="Dot Size (Размер точки)", Icon="circle", Min=1, Max=10, Default=1, Callback=function(v) Flags.CrosshairDotSize=v end})
 
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
@@ -918,13 +901,11 @@ local function buildConfig(name)
     
     -- Crosshair
     cfg:RegisterElement("Crosshair", crosshairToggle)
-    cfg:RegisterElement("CrosshairDot", crosshairDotToggle)
     cfg:RegisterElement("CrosshairColor", crosshairColorPicker)
     cfg:RegisterElement("CrosshairSize", crosshairSizeSlider)
     cfg:RegisterElement("CrosshairDistance", crosshairDistSlider)
     cfg:RegisterElement("CrosshairThick", crosshairThickSlider)
     cfg:RegisterElement("CrosshairTransp", crosshairTranspSlider)
-    cfg:RegisterElement("CrosshairDotSize", crosshairDotSizeSlider)
     
     -- Player
     cfg:RegisterElement("FreeCam", freecamToggle)
