@@ -1,9 +1,6 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Fill/Glow/Skeleton/Weapon) + FreeCam + AutoRun/Spider
-    Aimbot: hookmetamethod (Silent) + CFrame.lookAt (Aimlock)
-    ESP = заливка модели (бывший Chams), Glow = обводка контура (совмещается с ESP)
-    MaxDistance = 0 => ничего не видно (box/name/hp/dist/line/skeleton/fill/glow)
-    Порядок включения ESP/Glow не важен — оба пересоздаются при переключении
+    CLOUDCLIENT — Silent Aim + ESP (Fill+Glow на одном Highlight) + FreeCam + AutoRun/Spider
+    ESP = заливка, Glow = обводка — работают одновременно на одном Highlight (Roblox не даёт 2)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -27,7 +24,6 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
-    -- ESP
     ESP = false, Glow = false, Box = false, Distance = false, Name = false, Health = false, Line = false,
     Skeleton = false, WeaponESP = false,
     MaxDistance = 1000,
@@ -35,11 +31,8 @@ local Flags = {
     GlowColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0),
-    -- Player
     FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
-    -- Misc
     FPSPing = false, Fullbright = false,
-    -- Aimbot
     Aimbot = false, AimPart = "Head", AimSmooth = 1, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimlockMode = false, AimPrediction = 0, HitChance = 100,
 }
@@ -284,13 +277,8 @@ local function createDrawings(plr)
     Drawings[plr] = d
 end
 
--- Удаляет оба Highlight (fill + glow) и все Drawings
 local function clearHighlight(plr)
-    local slot = Highlights[plr]
-    if not slot then return end
-    if slot.fill then pcall(function() slot.fill:Destroy() end) end
-    if slot.glow then pcall(function() slot.glow:Destroy() end) end
-    Highlights[plr] = nil
+    if Highlights[plr] then pcall(function() Highlights[plr]:Destroy() end); Highlights[plr] = nil end
 end
 
 local function removeDrawings(plr)
@@ -306,66 +294,43 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
--- ===== ESP HIGHLIGHTS (заливка + обводка) =====
--- fill: заливка модели цветом ESPColor (бывший Chams), работает когда ESP on
--- glow: обводка контура цветом GlowColor (без заливки), работает когда Glow on
--- Оба Highlight висят на персонаже одновременно, не мешают друг другу.
-
-local function applyFill(plr)
+-- ===== ESP HIGHLIGHT (один объект: заливка + обводка) =====
+-- Roblox не даёт держать 2 Highlight на одном персонаже — второй перебивает первый.
+-- Поэтому один Highlight, у которого заливка и обводка управляются независимо:
+--   ESP on  => заливка цветом ESPColor (FillTransparency=0)
+--   Glow on => обводка цветом GlowColor (OutlineTransparency=0)
+--   Оба on  => и заливка, и обводка одновременно
+local function applyHighlight(plr)
     if plr == LP then return end
-    if not Highlights[plr] then Highlights[plr] = {} end
-    local slot = Highlights[plr]
-
-    local want = Flags.ESP and Flags.MaxDistance > 0
     local char = plr.Character
+    local want = (Flags.ESP or Flags.Glow) and Flags.MaxDistance > 0
 
     if not want or not char or not isAlive(char) then
-        if slot.fill then pcall(function() slot.fill:Destroy() end); slot.fill = nil end
+        clearHighlight(plr)
         return
     end
 
-    if not slot.fill or not slot.fill.Parent then
-        local hl = Instance.new("Highlight")
-        hl.Name = "ESP_Fill"
+    local hl = Highlights[plr]
+    if not hl or not hl.Parent then
+        if hl then pcall(function() hl:Destroy() end) end
+        hl = Instance.new("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Parent = char
+        Highlights[plr] = hl
+    end
+
+    if Flags.ESP then
         hl.FillColor = Flags.ESPColor
         hl.FillTransparency = 0
-        hl.OutlineColor = Flags.ESPColor
-        hl.OutlineTransparency = 1
-        hl.Parent = char
-        slot.fill = hl
     else
-        slot.fill.FillColor = Flags.ESPColor
-        slot.fill.OutlineColor = Flags.ESPColor
-    end
-end
-
-local function applyGlow(plr)
-    if plr == LP then return end
-    if not Highlights[plr] then Highlights[plr] = {} end
-    local slot = Highlights[plr]
-
-    local want = Flags.Glow and Flags.MaxDistance > 0
-    local char = plr.Character
-
-    if not want or not char or not isAlive(char) then
-        if slot.glow then pcall(function() slot.glow:Destroy() end); slot.glow = nil end
-        return
-    end
-
-    if not slot.glow or not slot.glow.Parent then
-        local hl = Instance.new("Highlight")
-        hl.Name = "ESP_Glow"
-        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.FillColor = Flags.GlowColor
         hl.FillTransparency = 1
+    end
+
+    if Flags.Glow then
         hl.OutlineColor = Flags.GlowColor
         hl.OutlineTransparency = 0
-        hl.Parent = char
-        slot.glow = hl
     else
-        slot.glow.FillColor = Flags.GlowColor
-        slot.glow.OutlineColor = Flags.GlowColor
+        hl.OutlineTransparency = 1
     end
 end
 
@@ -433,22 +398,18 @@ end
 
 -- ===== HIGHLIGHT ПО ДИСТАНЦИИ =====
 local function updateHighlightDistance(plr, dist, visible)
-    local slot = Highlights[plr]
-    if not slot then return end
+    local hl = Highlights[plr]
+    if not hl or not hl.Parent then return end
     local inRange = Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
-    if slot.fill then slot.fill.Enabled = inRange and Flags.ESP or false end
-    if slot.glow then slot.glow.Enabled = inRange and Flags.Glow or false end
+    hl.Enabled = inRange and (Flags.ESP or Flags.Glow) or false
 end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
 local function updateESP()
-    if not Flags.ESP or Flags.MaxDistance <= 0 then
+    if (not Flags.ESP and not Flags.Glow) or Flags.MaxDistance <= 0 then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,slot in pairs(Highlights) do
-            if slot.fill then slot.fill.Enabled = false end
-            if slot.glow then slot.glow.Enabled = false end
-        end
+        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
         return
     end
 
@@ -457,10 +418,7 @@ local function updateESP()
     if not localRoot then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,slot in pairs(Highlights) do
-            if slot.fill then slot.fill.Enabled = false end
-            if slot.glow then slot.glow.Enabled = false end
-        end
+        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
         return
     end
     local localPos = localRoot.Position
@@ -532,12 +490,10 @@ local function hookPlayer(plr)
     createDrawings(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.2)
-        applyFill(plr)
-        applyGlow(plr)
+        applyHighlight(plr)
     end)
     plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
-    applyFill(plr)
-    applyGlow(plr)
+    applyHighlight(plr)
 end
 for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
@@ -574,15 +530,12 @@ end)
 
 -- ===== MAIN LOOP =====
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if Flags.ESP and Flags.MaxDistance > 0 then
+    if (Flags.ESP or Flags.Glow) and Flags.MaxDistance > 0 then
         updateESP()
     else
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,slot in pairs(Highlights) do
-            if slot.fill then slot.fill.Enabled = false end
-            if slot.glow then slot.glow.Enabled = false end
-        end
+        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
     end
 end)
 
@@ -606,21 +559,15 @@ VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsT
 
 VisualsTab:AddColorPicker({Title="Fill Color", Icon="shirt", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    for _,slot in pairs(Highlights) do
-        if slot.fill and slot.fill.Parent then
-            slot.fill.FillColor = c
-            slot.fill.OutlineColor = c
-        end
+    for _,hl in pairs(Highlights) do
+        if hl and hl.Parent then hl.FillColor = c end
     end
 end})
 
 VisualsTab:AddColorPicker({Title="Glow Color", Icon="sparkles", Default=Flags.GlowColor, Callback=function(c)
     Flags.GlowColor=c
-    for _,slot in pairs(Highlights) do
-        if slot.glow and slot.glow.Parent then
-            slot.glow.FillColor = c
-            slot.glow.OutlineColor = c
-        end
+    for _,hl in pairs(Highlights) do
+        if hl and hl.Parent then hl.OutlineColor = c end
     end
 end})
 
@@ -633,17 +580,12 @@ VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:
 
 VisualsTab:AddToggle({Title="ESP", Subtitle="Заливка модели цветом", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
-    for _,p in ipairs(Players:GetPlayers()) do applyFill(p) end
-    if not s then
-        for _,slot in pairs(Highlights) do
-            if slot.glow then slot.glow.Enabled = false end
-        end
-    end
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
 VisualsTab:AddToggle({Title="Glow", Subtitle="Обводка контура (совмещается с ESP)", Icon="sparkles", Default=false, Callback=function(s)
     Flags.Glow=s
-    for _,p in ipairs(Players:GetPlayers()) do applyGlow(p) end
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
 VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
@@ -655,10 +597,7 @@ VisualsTab:AddToggle({Title="Skeleton", Subtitle="R6 + R15", Icon="bone", Defaul
 VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Только реальное оружие, без Handle", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=0, Max=2000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
-    for _,p in ipairs(Players:GetPlayers()) do
-        applyFill(p)
-        applyGlow(p)
-    end
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
 -- ===== UI: PLAYER =====
@@ -671,10 +610,7 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
--- AutoRun: фиксированная скорость 20, слайдер убран
 PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-
--- Spider: ползунок 15-30
 PlayerTab:AddToggle({Title="Spider", Subtitle="Лазать по стенам (W/Space вверх, S/Ctrl вниз)", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
 PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
