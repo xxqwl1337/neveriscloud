@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + ThirdPerson + Crosshair + Config
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -32,8 +32,9 @@ local Flags = {
     TextColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0),
-    FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
+    FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20, ThirdPerson = false,
     FPSPing = false, Fullbright = false,
+    Crosshair = false, CrosshairColor = Color3.fromRGB(255, 255, 255), CrosshairSize = 10,
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
@@ -142,6 +143,22 @@ RunService.RenderStepped:Connect(function()
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
+-- ===== CROSSHAIR =====
+local crossH = Drawing.new("Line"); crossH.Thickness=1; crossH.Visible=false
+local crossV = Drawing.new("Line"); crossV.Thickness=1; crossV.Visible=false
+RunService.RenderStepped:Connect(function()
+    if Flags.Crosshair then
+        local cx, cy = Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2
+        local sz = Flags.CrosshairSize
+        crossH.From = Vector2.new(cx - sz, cy); crossH.To = Vector2.new(cx + sz, cy)
+        crossV.From = Vector2.new(cx, cy - sz); crossV.To = Vector2.new(cx, cy + sz)
+        crossH.Color = Flags.CrosshairColor; crossV.Color = Flags.CrosshairColor
+        crossH.Visible = true; crossV.Visible = true
+    else
+        crossH.Visible = false; crossV.Visible = false
+    end
+end)
+
 -- ===== FREECAM =====
 local freecamConn, freecamMouseConn, savedCamType, savedMouseBehavior = nil, nil, nil, nil
 local savedWS, savedJP = 16, 50
@@ -186,10 +203,30 @@ local function startFreeCam()
     end)
 end
 
+-- ===== THIRD PERSON =====
+local tpConn = nil
+local function updateThirdPerson()
+    if Flags.ThirdPerson and not tpConn then
+        tpConn = RunService.RenderStepped:Connect(function()
+            if not Flags.ThirdPerson then if tpConn then tpConn:Disconnect(); tpConn = nil end; return end
+            if Camera.CameraType == Enum.CameraType.Scriptable then return end -- freecam active
+            local head = LP.Character and LP.Character:FindFirstChild("Head")
+            if head then
+                Camera.CameraSubject = head
+                Camera.FieldOfView = 70
+            end
+        end)
+    elseif not Flags.ThirdPerson and tpConn then
+        tpConn:Disconnect(); tpConn = nil
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then Camera.CameraSubject = hum end
+        Camera.FieldOfView = 70
+    end
+end
+
 -- ===== AUTORUN =====
 local defaultWalkSpeed = 16
 local autoRunActive = false
-
 local function captureDefaultWalkSpeed()
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
     if hum then defaultWalkSpeed = hum.WalkSpeed end
@@ -273,8 +310,7 @@ local origLight = {
 }
 local FULLBRIGHT_VALUES = {
     Brightness=2, ClockTime=12, FogEnd=1e5, FogStart=0,
-    GlobalShadows=false,
-    Ambient=Color3.fromRGB(178,178,178), OutdoorAmbient=Color3.fromRGB(178,178,178),
+    GlobalShadows=false, Ambient=Color3.fromRGB(178,178,178), OutdoorAmbient=Color3.fromRGB(178,178,178),
 }
 local origAtmosphere, origClouds = nil, nil
 
@@ -289,8 +325,7 @@ local function captureAtmosphere()
     origClouds = {}
     for _, cl in ipairs(Lighting:GetChildren()) do
         if cl:IsA("Clouds") then
-            table.insert(origClouds, {obj=cl, Cover=cl.Cover, Density=cl.Density,
-                Color=cl.Color, Enabled=cl.Enabled})
+            table.insert(origClouds, {obj=cl, Cover=cl.Cover, Density=cl.Density, Color=cl.Color, Enabled=cl.Enabled})
         end
     end
 end
@@ -331,8 +366,7 @@ local function restoreLighting()
         for _, c in ipairs(origClouds) do
             if c.obj and c.obj.Parent then
                 pcall(function()
-                    c.obj.Cover=c.Cover; c.obj.Density=c.Density
-                    c.obj.Color=c.Color; c.obj.Enabled=c.Enabled
+                    c.obj.Cover=c.Cover; c.obj.Density=c.Density; c.obj.Color=c.Color; c.obj.Enabled=c.Enabled
                 end)
             end
         end
@@ -392,7 +426,7 @@ local function applyHighlight(plr)
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
         hl = Instance.new("Highlight")
-        hl.DepthMode = Enum.HighlightDepthMode.Occluded
+        hl.DepthMode = Enum.HighlightDepthMode.Occluded -- ИСПРАВЛЕНО
         hl.Parent = char
         Highlights[plr] = hl
     end
@@ -672,7 +706,7 @@ task.spawn(function()
                 end)
                 if pingRow then pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
             end
-                        local char = LP.Character
+            local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local hum  = char and char:FindFirstChildOfClass("Humanoid")
             if root and posRow then
@@ -768,6 +802,10 @@ local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Spa
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
+local thirdPersonToggle = PlayerTab:AddToggle({Title="Third Person", Subtitle="Камера от третьего лица", Icon="user", Default=false, Callback=function(s)
+    Flags.ThirdPerson=s
+    updateThirdPerson()
+end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 local autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 local spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
@@ -801,6 +839,14 @@ SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 SettingsTab:AddSeparator()
 
+-- CROSSHAIR SYSTEM
+SettingsTab:AddLabel("CROSSHAIR SYSTEM", "crosshair")
+SettingsTab:AddSeparator()
+local crosshairToggle = SettingsTab:AddToggle({Title="Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+local crosshairColorPicker = SettingsTab:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+local crosshairSizeSlider = SettingsTab:AddSlider({Title="Crosshair Size", Icon="ruler", Min=2, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+
+SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
@@ -820,6 +866,7 @@ local savedConfigs = SettingsTab:AddDropdown({
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
     
+    -- Aimbot
     cfg:RegisterElement("Aimbot", aimbotToggle)
     cfg:RegisterElement("AimAssist", aimAssistToggle)
     cfg:RegisterElement("SilentAim", silentAimToggle)
@@ -832,6 +879,7 @@ local function buildConfig(name)
     cfg:RegisterElement("TeamCheck", teamCheckToggle)
     cfg:RegisterElement("AimKey", aimKeyBind)
     
+    -- ESP
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
     cfg:RegisterElement("Box", boxToggle)
@@ -848,13 +896,21 @@ local function buildConfig(name)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
     
+    -- Player
     cfg:RegisterElement("FreeCam", freecamToggle)
+    cfg:RegisterElement("ThirdPerson", thirdPersonToggle)
     cfg:RegisterElement("AutoRun", autoRunToggle)
     cfg:RegisterElement("Spider", spiderToggle)
     cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
     
+    -- Other
     cfg:RegisterElement("Fullbright", fullbrightToggle)
+    
+    -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
+    cfg:RegisterElement("Crosshair", crosshairToggle)
+    cfg:RegisterElement("CrosshairColor", crosshairColorPicker)
+    cfg:RegisterElement("CrosshairSize", crosshairSizeSlider)
     
     return cfg
 end
@@ -875,34 +931,14 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         local name = savedConfigs:Get()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
-        
-        -- Загружаем сам конфиг
         buildConfig(name):Load()
         
-        -- ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ВСЕГО
-        -- 1. Пересоздаем Highlight для всех игроков
+        -- Синхронизация визуала
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-        
-        -- 2. Применяем Fullbright
-        if Flags.Fullbright then 
-            setFullbright(true) 
-        else 
-            setFullbright(false) 
-        end
-        
-        -- 3. Включаем/выключаем FreeCam
-        if Flags.FreeCam then 
-            startFreeCam() 
-        else 
-            stopFreeCam() 
-        end
-        
-        -- 4. Включаем/выключаем HUD
-        if not Flags.FPSPing and HudPanel then 
-            destroyHud() 
-        elseif Flags.FPSPing and not HudPanel then 
-            createHud() 
-        end
+        if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
+        if Flags.FreeCam then startFreeCam() else stopFreeCam() end
+        updateThirdPerson()
+        if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
         
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
