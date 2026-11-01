@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Toggles) + FreeCam + AutoRun/Spider + Config
+    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider + Config
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -25,7 +25,8 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
-    Box = false, Name = false, Health = false, Distance = false, Line = false, Skeleton = false, WeaponESP = false,
+    Box = false, Distance = false, Name = false, Health = false, Line = false,
+    Skeleton = false, WeaponESP = false,
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
@@ -630,6 +631,75 @@ for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(removeDrawings)
 
+-- ===== CONFIG SYSTEM =====
+local CONFIG_FOLDER = "cloudclient/configs/"
+pcall(function() makefolder("cloudclient"); makefolder(CONFIG_FOLDER) end)
+
+local function serialize(v, indent)
+    indent = indent or ""
+    local t = type(v)
+    if t == "boolean" or t == "number" then return tostring(v) end
+    if t == "string" then return string.format("%q", v) end
+    if t == "userdata" and typeof(v) == "Color3" then
+        return string.format("Color3.fromRGB(%d,%d,%d)", v.R*255, v.G*255, v.B*255)
+    end
+    if t == "userdata" and typeof(v) == "EnumItem" then
+        return string.format("Enum.%s.%s", v.EnumType.Name, v.Name)
+    end
+    if t == "table" then
+        local parts = {}
+        for k, val in pairs(v) do
+            local keyStr = type(k) == "string" and k or "["..tostring(k).."]"
+            table.insert(parts, indent.."  "..keyStr.." = "..serialize(val, indent.."  "))
+        end
+        return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
+    end
+    return "nil"
+end
+
+local function parseName(raw)
+    if type(raw) == "string" then return raw end
+    if typeof(raw) == "EnumItem" then return tostring(raw.Value) end
+    return tostring(raw)
+end
+
+local function saveConfig(name)
+    if not name or name == "" or name == "nil" then return false, "empty name" end
+    return pcall(function()
+        writefile(CONFIG_FOLDER..name..".lua", "return "..serialize(Flags))
+    end)
+end
+
+local function loadConfig(name)
+    if not name or name == "" or name == "nil" then return false, "empty name" end
+    return pcall(function()
+        local src = readfile(CONFIG_FOLDER..name..".lua")
+        local chunk = loadstring(src)
+        if not chunk then error("invalid config") end
+        local data = chunk()
+               if type(data) ~= "table" then error("invalid data") end
+        for k, v in pairs(data) do
+            if Flags[k] ~= nil then Flags[k] = v end
+        end
+    end)
+end
+
+local function deleteConfig(name)
+    if not name or name == "" or name == "nil" then return false end
+    return pcall(function() delfile(CONFIG_FOLDER..name..".lua") end)
+end
+
+local function listConfigs()
+    local out = {}
+    pcall(function()
+        for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
+            local n = f:match("([^/\\]+)%.lua$")
+            if n then table.insert(out, n) end
+        end
+    end)
+    return out
+end
+
 -- ===== FPS/PING HUD =====
 local StatsService = game:GetService("Stats")
 local HudPanel, fpsRow, pingRow, hpRow, posRow, statusRow
@@ -661,8 +731,10 @@ task.spawn(function()
     while true do
         if Flags.FPSPing then
             if not HudPanel then createHud() end
-            hudFrames = hudFrames
-                                if fpsRow then fpsRow:Set(hudFrames) end
+            hudFrames = hudFrames + 1
+            local now = os.clock()
+            if now - hudLast >= 1 then
+                if fpsRow then fpsRow:Set(hudFrames) end
                 hudFrames, hudLast = 0, now
                 local ok, ping = pcall(function()
                     return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
@@ -692,19 +764,18 @@ RunService.Stepped:Connect(function()
 end)
 
 -- ===== MAIN LOOP =====
-RunService.RenderStepped:Connect(function()
-    if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
-    local ok, err = pcall(updateESP)
-    if not ok then warn("[cloudclient] ESP error:", err); pcall(hideAll) end
+RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
+    if Flags.ESP and Flags.MaxDistance > 0 then updateESP() else hideAll() end
 end)
 
 -- ===== UI: AIMBOT =====
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
+
 AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
+AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель — работает всегда", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
+AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit — может не работать в некоторых играх", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Мгновенный лок без сглаживания", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
@@ -714,39 +785,37 @@ AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserIn
 
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
+
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
 
-local espColorPicker = VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
     for _,hl in pairs(Highlights) do
         if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
     end
 end})
-local textColorPicker = VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-local boxColorPicker = VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-local lineColorPicker = VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-local skelColorPicker = VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
     Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-
--- ОБЫЧНЫЕ ТОГГЛЫ (без баганного мультидропдауна)
-local boxToggle = VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-local nameToggle = VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-local healthToggle = VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-local distToggle = VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-local lineToggle = VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-local skeletonToggle = VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-local weaponToggle = VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
-
+VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
@@ -754,7 +823,7 @@ end})
 
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
+PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
@@ -772,15 +841,21 @@ end})
 
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
+
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
 SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
 SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
-    local colors = {White=Color3.fromRGB(255,255,255),Blue=Color3.fromRGB(64,156,255),Red=Color3.fromRGB(230,70,70),Green=Color3.fromRGB(80,210,120),Purple=Color3.fromRGB(170,110,240)}
+    local colors = {
+        White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
+        Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
+        Purple=Color3.fromRGB(170,110,240),
+    }
     VantixUI:SetAccentColor(colors[s])
 end})
+
 SettingsTab:AddSeparator()
 SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 SettingsTab:AddSeparator()
@@ -788,64 +863,66 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
-Window.ConfigManager:SetFolder("cloudclient_configs")
-local configNameBox = SettingsTab:AddTextBox({Title="Config Name", Placeholder="Enter name...", Default="default"})
-local savedConfigs = SettingsTab:AddDropdown({Title="Saved Configs", Options=Window.ConfigManager:GetConfigs()})
+local configNameBox = SettingsTab:AddTextBox({
+    Title = "Config Name", Placeholder = "Enter name...", Default = "default",
+})
+local initialList = listConfigs()
+if #initialList == 0 then initialList = {""} end
+local configList = SettingsTab:AddDropdown({Title = "Saved Configs", Options = initialList, Default = ""})
 
-local function buildConfig(name)
-    local cfg = Window.ConfigManager:CreateConfig(name)
-    cfg:RegisterElement("ESP", espToggle)
-    cfg:RegisterElement("ESPMode", espModeDropdown)
-    cfg:RegisterElement("Box", boxToggle)
-    cfg:RegisterElement("Name", nameToggle)
-    cfg:RegisterElement("Health", healthToggle)
-    cfg:RegisterElement("Distance", distToggle)
-    cfg:RegisterElement("Line", lineToggle)
-    cfg:RegisterElement("Skeleton", skeletonToggle)
-    cfg:RegisterElement("Weapon", weaponToggle)
-    cfg:RegisterElement("ESPColor", espColorPicker)
-    cfg:RegisterElement("TextColor", textColorPicker)
-    cfg:RegisterElement("BoxColor", boxColorPicker)
-    cfg:RegisterElement("LineColor", lineColorPicker)
-    cfg:RegisterElement("SkelColor", skelColorPicker)
-    return cfg
+local function refreshConfigList()
+    local list = listConfigs()
+    if #list == 0 then list = {""} end
+    pcall(function() configList:SetOptions(list) end)
 end
 
-SettingsTab:AddButton({Title="Save Config", Text="Save", Callback=function()
+SettingsTab:AddButton({Title = "Save Config", Text = "Save", Icon = "save", Callback = function()
     local ok, err = pcall(function()
-        local name = configNameBox:Get()
-        if not name or name == "" then error("empty name") end
-        buildConfig(name):Save()
-        savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-        Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+        local name = parseName(configNameBox:Get())
+        if name == "" or name == "nil" then
+            Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2}); return
+        end
+        local saved, serr = saveConfig(name)
+        if saved then
+            refreshConfigList()
+            Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(serr), Duration=3})
+        end
     end)
-    if not ok then warn("[config] save:", err); Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+    if not ok then warn("[config] save crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
 end})
 
-SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
+SettingsTab:AddButton({Title = "Load Config", Text = "Load", Icon = "download", Callback = function()
     local ok, err = pcall(function()
-        local name = savedConfigs:Get()
-        if not name or name == "" then error("no config") end
-        configNameBox:Set(name)
-        buildConfig(name):Load()
-        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-        Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+        local name = parseName(configList:Get())
+        if name == "" or name == "nil" then
+            Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2}); return
+        end
+        local loaded, lerr = loadConfig(name)
+        if loaded then
+            for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+            Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+        else
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(lerr), Duration=3})
+        end
     end)
-    if not ok then warn("[config] load:", err); Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+    if not ok then warn("[config] load crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
 end})
 
-SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callback=function()
+SettingsTab:AddButton({Title = "Delete Config", Text = "Delete", Icon = "trash-2", Callback = function()
     local ok, err = pcall(function()
-        local name = savedConfigs:Get()
-        if not name or name == "" then return end
-        Window.ConfigManager:DeleteConfig(name)
-        savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
+        local name = parseName(configList:Get())
+        if name == "" or name == "nil" then return end
+        deleteConfig(name)
+        refreshConfigList()
         Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
     end)
-    if not ok then warn("[config] delete:", err) end
+    if not ok then warn("[config] delete crash:", err) end
 end})
 
 SettingsTab:AddSeparator()
+
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
