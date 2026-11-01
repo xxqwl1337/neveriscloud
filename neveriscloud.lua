@@ -833,7 +833,7 @@ local themeSelector = SettingsTab:AddDropdown({
     Title = "Theme Selector (hidden)", Icon = "swatch-book", Options = themeNames, Default = Window:GetTheme(),
     Callback = function(s) Window:SetTheme(s) end
 })
-themeSelector:SetVisible(false) -- Скрываем с глаз
+themeSelector:SetVisible(false)
 
 local accentSelector = SettingsTab:AddDropdown({
     Title = "Accent Selector (hidden)", Icon = "droplet", Options = {"White","Blue","Red","Green","Purple"}, Default = "White",
@@ -846,12 +846,12 @@ local accentSelector = SettingsTab:AddDropdown({
         VantixUI:SetAccentColor(colors[s])
     end
 })
-accentSelector:SetVisible(false) -- Скрываем с глаз
+accentSelector:SetVisible(false)
 
 -- ВИДИМЫЕ ЭЛЕМЕНТЫ
 SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) 
     Window:SetTheme(s)
-    themeSelector:Set(s) -- Синхронизируем скрытый
+    themeSelector:Set(s)
 end})
 SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
@@ -860,7 +860,7 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
         Purple=Color3.fromRGB(170,110,240),
     }
     VantixUI:SetAccentColor(colors[s])
-    accentSelector:Set(s) -- Синхронизируем скрытый
+    accentSelector:Set(s)
 end})
 
 SettingsTab:AddSeparator()
@@ -935,8 +935,8 @@ local function buildConfig(name)
     
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
-    cfg:RegisterElement("Theme", themeSelector)   -- ДОБАВЛЕНО В КОНФИГ
-    cfg:RegisterElement("Accent", accentSelector) -- ДОБАВЛЕНО В КОНФИГ
+    cfg:RegisterElement("Theme", themeSelector)
+    cfg:RegisterElement("Accent", accentSelector)
     
     return cfg
 end
@@ -958,6 +958,24 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
         buildConfig(name):Load()
+        
+        -- ПРИНУДИТЕЛЬНОЕ ПРИМЕНЕНИЕ ТЕМЫ И АКЦЕНТА
+        local loadedTheme = themeSelector:Get()
+        if loadedTheme and loadedTheme ~= "" then
+            Window:SetTheme(loadedTheme)
+        end
+        
+        local loadedAccent = accentSelector:Get()
+        if loadedAccent and loadedAccent ~= "" then
+            local colors = {
+                White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
+                Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
+                Purple=Color3.fromRGB(170,110,240),
+            }
+            if colors[loadedAccent] then
+                VantixUI:SetAccentColor(colors[loadedAccent])
+            end
+        end
         
         -- Синхронизация визуала
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
