@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Key System (Без таймера)
 ]]
-local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua"))()
 
 -- ===== БАЗА КЛЮЧЕЙ =====
 -- Просто список ключей. Если ключ есть в списке - пускает. Если удалить - не пускает.
