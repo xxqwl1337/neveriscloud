@@ -1,15 +1,17 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Config + KeySystem
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Config
+    ВСТРОЕННАЯ СИСТЕМА КЛЮЧЕЙ
 ]]
--- ===== ПРОВЕРКА КЛЮЧА =====
+local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+
+-- ===== СИСТЕМА КЛЮЧЕЙ =====
 local ValidKeys = {
     ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
     ["TEST-KEY-DEMO"] = true
 }
 
 if not getgenv().CloudClientActivated then
-    local KeyUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
-    local KeyWin = KeyUI:CreateWindow({
+    local KeyWin = VantixUI:CreateWindow({
         Title = "cloudclient | Activation", Theme = "Vantix", AccentColor = Color3.fromRGB(255, 255, 255),
         LogoID = 110034487018208, Size = {380, 260},
     })
@@ -37,11 +39,10 @@ if not getgenv().CloudClientActivated then
             end)
         end,
     })
-    return
+    return -- Останавливаем скрипт, пока не введут ключ
 end
--- ===== КОНЕЦ ПРОВЕРКИ КЛЮЧА =====
+-- ===== КОНЕЦ СИСТЕМЫ КЛЮЧЕЙ =====
 
-local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
 local UIS         = game:GetService("UserInputService")
