@@ -1,10 +1,6 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
-    ESP: один Highlight, режим Chams (заливка) / Glow (обводка), ОДИН цвет ESPColor
-    TextColor: отдельный цвет для Name/Distance/Health/Weapon
-    ESP Distance: 100-1000
-    Stats HUD: отдельная панель VantixUI с FPS/Ping/HP/Position
-    Weapon ESP: только реальное оружие/предмет, части тела и Handle отфильтрованы
+    CLOUDCLIENT — Silent Aim + ESP (Chams/Glow) + FreeCam + AutoRun/Spider
+    Оптимизация: меньше подписей, кэш Drawing, ранний выход, минимум проекций в кадр
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -42,7 +38,7 @@ local Flags = {
     AimKey = Enum.UserInputType.MouseButton2, AimlockMode = false, AimPrediction = 0, HitChance = 100,
 }
 
-local CurrentTarget, CurrentTargetPart = nil, nil
+local CurrentTargetPart = nil
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -131,7 +127,7 @@ RunService.RenderStepped:Connect(function()
     if Flags.Aimbot then
         fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         fovCircle.Radius = Flags.AimFOV; fovCircle.Visible = true
-    else fovCircle.Visible = false end
+    elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
 -- ===== FREECAM =====
@@ -320,15 +316,11 @@ local function applyHighlight(plr)
     end
 
     if Flags.ESPMode == "Chams" then
-        hl.FillColor = Flags.ESPColor
-        hl.FillTransparency = 0
-        hl.OutlineColor = Flags.ESPColor
-        hl.OutlineTransparency = 1
-    else -- Glow
-        hl.FillColor = Flags.ESPColor
-        hl.FillTransparency = 1
-        hl.OutlineColor = Flags.ESPColor
-        hl.OutlineTransparency = 0
+        hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0
+        hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 1
+    else
+        hl.FillColor = Flags.ESPColor; hl.FillTransparency = 1
+        hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 0
     end
 end
 
@@ -345,35 +337,37 @@ local R6_CONNECTIONS = {
     {"Torso","Left Leg"},{"Torso","Right Leg"},
 }
 
-local function ensureSkeleton(plr)
-    if Skeletons[plr] then return end
+local function ensureSkeleton(plr, isR15)
+    local sk = Skeletons[plr]
+    local conns = isR15 and SKELETON_CONNECTIONS or R6_CONNECTIONS
+    if sk and #sk.lines == #conns then return end
+    if sk then for _,l in pairs(sk.lines) do pcall(function() l:Remove() end) end end
     local lines = {}
-    local connections = (LP.Character and LP.Character:FindFirstChild("UpperTorso")) and SKELETON_CONNECTIONS or R6_CONNECTIONS
-    for i = 1, #connections do
+    for i = 1, #conns do
         local l = Drawing.new("Line"); l.Thickness=1; l.Visible=false
         lines[i] = l
     end
-    Skeletons[plr] = {lines = lines, conns = connections}
+    Skeletons[plr] = {lines = lines, conns = conns}
 end
 
 local function updateSkeleton(plr, char)
-    ensureSkeleton(plr)
-    local sk = Skeletons[plr]
     local isR15 = char:FindFirstChild("UpperTorso") ~= nil
-    local conns = isR15 and SKELETON_CONNECTIONS or R6_CONNECTIONS
-    if #sk.conns ~= #conns then sk.conns = conns end
+    ensureSkeleton(plr, isR15)
+    local sk = Skeletons[plr]
+    if not sk then return end
+    local conns = sk.conns
     for i, conn in ipairs(conns) do
-        local p1 = char:FindFirstChild(conn[1])
-        local p2 = char:FindFirstChild(conn[2])
+        local p1 = char[conn[1]]
+        local p2 = char[conn[2]]
         local line = sk.lines[i]
         if p1 and p2 then
-            local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
-            local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
-            if o1 and o2 and s1.Z > 0 and s2.Z > 0 then
+            local s1 = Camera:WorldToViewportPoint(p1.Position)
+            local s2 = Camera:WorldToViewportPoint(p2.Position)
+            if s1.Z > 0 and s2.Z > 0 then
                 line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y)
                 line.Color = Flags.SkeletonColor; line.Visible = true
-            else line.Visible = false end
-        else line.Visible = false end
+            elseif line.Visible then line.Visible = false end
+        elseif line.Visible then line.Visible = false end
     end
 end
 
@@ -405,9 +399,6 @@ local function getWeaponName(char)
     for _, child in ipairs(tool:GetChildren()) do
         if child:IsA("BasePart") and isMeaningfulName(child.Name) then return child.Name end
     end
-    for _, child in ipairs(tool:GetChildren()) do
-        if (child:IsA("Model") or child:IsA("MeshPart")) and isMeaningfulName(child.Name) then return child.Name end
-    end
     return nil
 end
 
@@ -416,26 +407,30 @@ local function updateHighlightDistance(plr, dist, visible)
     local hl = Highlights[plr]
     if not hl or not hl.Parent then return end
     local inRange = Flags.ESP and Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
-    hl.Enabled = inRange or false
+    if hl.Enabled ~= inRange then hl.Enabled = inRange end
 end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
-local function updateESP()
-    if not Flags.ESP or Flags.MaxDistance <= 0 then
-        for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
-        for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
-        return
+local function hideAll()
+    for _,d in pairs(Drawings) do
+        if d.Box.Visible then d.Box.Visible=false end
+        if d.Name.Visible then d.Name.Visible=false end
+        if d.Health.Visible then d.Health.Visible=false end
+        if d.Line.Visible then d.Line.Visible=false end
+        if d.Distance.Visible then d.Distance.Visible=false end
+        if d.Weapon.Visible then d.Weapon.Visible=false end
     end
+    for _,sk in pairs(Skeletons) do
+        for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end
+    end
+    for _,hl in pairs(Highlights) do if hl and hl.Parent and hl.Enabled then hl.Enabled = false end end
+end
 
-    local localChar = LP.Character
-    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    if not localRoot then
-        for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
-        for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
-        return
-    end
+local function updateESP()
+    if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
+
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then hideAll(); return end
     local localPos = localRoot.Position
     local vs = Camera.ViewportSize
 
@@ -444,28 +439,49 @@ local function updateESP()
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not root or not hum or hum.Health <= 0 then
-            for _,o in pairs(d) do o.Visible=false end
-            if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            if d.Box.Visible then d.Box.Visible=false end
+            if d.Name.Visible then d.Name.Visible=false end
+            if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end
+            if d.Distance.Visible then d.Distance.Visible=false end
+            if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = Skeletons[plr]
+            if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
             updateHighlightDistance(plr, math.huge, false)
             continue
         end
+
         local dist = (root.Position - localPos).Magnitude
         if dist > Flags.MaxDistance then
-            for _,o in pairs(d) do o.Visible=false end
-            if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            if d.Box.Visible then d.Box.Visible=false end
+            if d.Name.Visible then d.Name.Visible=false end
+            if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end
+            if d.Distance.Visible then d.Distance.Visible=false end
+            if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = Skeletons[plr]
+            if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
             updateHighlightDistance(plr, dist, false)
             continue
         end
+
         local sp = Camera:WorldToViewportPoint(root.Position)
         if sp.Z <= 0 then
-            for _,o in pairs(d) do o.Visible=false end
-            if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            if d.Box.Visible then d.Box.Visible=false end
+            if d.Name.Visible then d.Name.Visible=false end
+            if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end
+            if d.Distance.Visible then d.Distance.Visible=false end
+            if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = Skeletons[plr]
+            if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
             updateHighlightDistance(plr, dist, false)
             continue
         end
 
         local sx, sy = sp.X, sp.Y
-        local headPos = (char:FindFirstChild("Head") and char.Head.Position or root.Position) + Vector3.new(0,1.5,0)
+        local headPart = char.Head or root
+        local headPos = headPart.Position + Vector3.new(0,1.5,0)
         local feetPos = root.Position - Vector3.new(0,2.5,0)
         local hS = Camera:WorldToViewportPoint(headPos)
         local fS = Camera:WorldToViewportPoint(feetPos)
@@ -473,13 +489,35 @@ local function updateESP()
         if Flags.Box and hS.Z > 0 and fS.Z > 0 then
             local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
             d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y)
-            d.Box.Color = Flags.BoxColor; d.Box.Visible = true
-        else d.Box.Visible = false end
+            d.Box.Color = Flags.BoxColor
+            if not d.Box.Visible then d.Box.Visible = true end
+        elseif d.Box.Visible then d.Box.Visible = false end
 
-        if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = Flags.TextColor; d.Name.Visible = true else d.Name.Visible = false end
-        if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = Flags.TextColor; d.Health.Visible = true else d.Health.Visible = false end
-        if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = Flags.TextColor; d.Distance.Visible = true else d.Distance.Visible = false end
-        if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; d.Line.Visible = true else d.Line.Visible = false end
+        if Flags.Name then
+            d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18)
+            d.Name.Color = Flags.TextColor
+            if not d.Name.Visible then d.Name.Visible = true end
+        elseif d.Name.Visible then d.Name.Visible = false end
+
+        if Flags.Health then
+            d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
+            d.Health.Position = Vector2.new(sx, fS.Y+2)
+            d.Health.Color = Flags.TextColor
+            if not d.Health.Visible then d.Health.Visible = true end
+        elseif d.Health.Visible then d.Health.Visible = false end
+
+        if Flags.Distance then
+            d.Distance.Text = math.floor(dist).."m"
+            d.Distance.Position = Vector2.new(sx, fS.Y+18)
+            d.Distance.Color = Flags.TextColor
+            if not d.Distance.Visible then d.Distance.Visible = true end
+        elseif d.Distance.Visible then d.Distance.Visible = false end
+
+        if Flags.Line then
+            d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy)
+            d.Line.Color = Flags.LineColor
+            if not d.Line.Visible then d.Line.Visible = true end
+        elseif d.Line.Visible then d.Line.Visible = false end
 
         if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
@@ -487,12 +525,14 @@ local function updateESP()
                 d.Weapon.Text = "["..weaponName.."]"
                 d.Weapon.Position = Vector2.new(sx, fS.Y + 34)
                 d.Weapon.Color = Flags.TextColor
-                d.Weapon.Visible = true
-            else d.Weapon.Visible = false end
-        else d.Weapon.Visible = false end
+                if not d.Weapon.Visible then d.Weapon.Visible = true end
+            elseif d.Weapon.Visible then d.Weapon.Visible = false end
+        elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-        if Flags.Skeleton then updateSkeleton(plr, char) else
-            if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+        if Flags.Skeleton then updateSkeleton(plr, char)
+        else
+            local sk = Skeletons[plr]
+            if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
         end
 
         updateHighlightDistance(plr, dist, true)
@@ -521,10 +561,7 @@ local hudFrames, hudLast = 0, os.clock()
 
 local function createHud()
     HudPanel = VantixUI:CreateNewWindow({
-        Title = "Stats",
-        Name = "CloudClientStats",
-        Size = {220},
-        Minimizable = true,
+        Title = "Stats", Name = "CloudClientStats", Size = {220}, Minimizable = true,
     })
     HudPanel:AddHeader("Performance")
     fpsRow  = HudPanel:AddRow("FPS")
@@ -556,9 +593,7 @@ task.spawn(function()
                 local ok, ping = pcall(function()
                     return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
                 end)
-                if pingRow then
-                    pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a")
-                end
+                if pingRow then pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
             end
             local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -570,12 +605,8 @@ task.spawn(function()
             if hum and hpRow then
                 hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)))
             end
-            if statusRow then
-                statusRow:Set(Flags.ESP and "ESP on" or "ESP off")
-            end
-        else
-            if HudPanel then destroyHud() end
-        end
+            if statusRow then statusRow:Set(Flags.ESP and "ESP on" or "ESP off") end
+        elseif HudPanel then destroyHud() end
         RunService.Heartbeat:Wait()
     end
 end)
@@ -588,25 +619,19 @@ end)
 
 -- ===== MAIN LOOP =====
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if Flags.ESP and Flags.MaxDistance > 0 then
-        updateESP()
-    else
-        for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
-        for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
-    end
+    if Flags.ESP and Flags.MaxDistance > 0 then updateESP() else hideAll() end
 end)
 
 -- ===== UI: AIMBOT =====
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
-AimbotTab:AddToggle({Title="Aimbot", Subtitle="Silent Aim через хук Mouse.Hit, камера не двигается", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aimlock Mode", Subtitle="CFrame.lookAt вместо Silent — камера доворачивается", Icon="eye", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
+AimbotTab:AddToggle({Title="Aimlock Mode", Icon="eye", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=1, Callback=function(v) Flags.AimSmooth=v end})
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-AimbotTab:AddDropdown({Title="Target Part", Subtitle="Куда целится аимбот", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
-AimbotTab:AddToggle({Title="Team Check", Subtitle="Не наводится на союзников", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
+AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
+AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
 AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
 
 -- ===== UI: VISUALS =====
@@ -614,79 +639,64 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
 
-VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams (заливка) и Glow (обводка)", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
     for _,hl in pairs(Highlights) do
         if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
     end
 end})
-
-VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams (заливка) и Glow (обводка)", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
-    Flags.ESPColor=c
-    for _,hl in pairs(Highlights) do
-        if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
-    end
-end})
-
-VisualsTab:AddColorPicker({Title="Text Color", Subtitle="Цвет текста: Name / Distance / Health / Weapon", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-VisualsTab:AddColorPicker({Title="Box Color", Subtitle="Цвет рамки вокруг игрока", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-VisualsTab:AddColorPicker({Title="Line Color", Subtitle="Цвет линии от низа экрана к игроку", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-VisualsTab:AddColorPicker({Title="Skeleton Color", Subtitle="Цвет линий скелета (кость к кости)", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Subtitle="Главный тоггл: без него ничего не рисуется", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-
-VisualsTab:AddDropdown({Title="ESP Mode", Subtitle="Chams = заливка модели, Glow = обводка контура", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
     Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-
-VisualsTab:AddToggle({Title="Box", Subtitle="Рамка вокруг модели игрока", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-VisualsTab:AddToggle({Title="Name", Subtitle="Ник игрока над головой", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-VisualsTab:AddToggle({Title="Health", Subtitle="HP и MaxHP под ногами", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-VisualsTab:AddToggle({Title="Distance", Subtitle="Расстояние до игрока в метрах", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-VisualsTab:AddToggle({Title="Line", Subtitle="Линия от низа экрана к игроку (snaplines)", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-VisualsTab:AddToggle({Title="Skeleton", Subtitle="Линии между костями (R6 и R15)", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Имя оружия в руках (без Handle и частей тела)", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
-VisualsTab:AddSlider({Title="ESP Distance", Subtitle="Максимальная дистанция отрисовки, метров", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
+VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
-
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="Свободная камера: WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
+PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
-
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
-
-PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-PlayerTab:AddToggle({Title="Spider", Subtitle="Лазать по стенам: W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
-PlayerTab:AddSlider({Title="Spider Speed", Subtitle="Скорость лазания по стенам", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
+PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
-OtherTab:AddToggle({Title="Fullbright", Subtitle="Яркий мир: убирает туман и тени", Icon="sun", Default=false, Callback=function(s)
+OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
     Flags.Fullbright=s
     setFullbright(s)
 end})
 
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
-
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
-
-SettingsTab:AddDropdown({Title="Theme", Subtitle="Тема оформления меню", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
-SettingsTab:AddDropdown({Title="Accent Color", Subtitle="Акцентный цвет элементов меню", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
+SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
         White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
         Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
@@ -694,14 +704,10 @@ SettingsTab:AddDropdown({Title="Accent Color", Subtitle="Акцентный цв
     }
     VantixUI:SetAccentColor(colors[s])
 end})
-
 SettingsTab:AddSeparator()
-
-SettingsTab:AddToggle({Title="Stats HUD", Subtitle="FPS / Ping / HP / Position в отдельной панели", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
-
+SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 SettingsTab:AddSeparator()
-
-SettingsTab:AddKeybind({Title="Hide UI Keybind", Subtitle="Кнопка скрытия/показа меню", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
+SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
 end})
