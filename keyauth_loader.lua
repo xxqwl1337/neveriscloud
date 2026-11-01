@@ -1,13 +1,12 @@
 --[[
-    CLOUDCLIENT — Key System (С таймером и передачей данных)
+    CLOUDCLIENT — Key System (Без таймера в лоадере)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
--- ===== БАЗА КЛЮЧЕЙ (С ДАТОЙ) =====
--- 1767225600 = 1 Января 2026
+-- ===== БАЗА КЛЮЧЕЙ =====
 local ValidKeys = {
-    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 1767225600,
-    ["TEST-KEY-DEMO"] = 1767225600
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
+    ["TEST-KEY-DEMO"] = true
 }
 
 local Window = VantixUI:CreateWindow({
@@ -42,23 +41,13 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            local expireTime = ValidKeys[key]
-            
-            -- 1. Если ключа нет в базе
-            if not expireTime then
+            if not ValidKeys[key] then
                 status:Set("Неверный ключ!", "info")
                 return
             end
             
-            -- 2. Проверка срока действия
-            local now = os.time()
-            if now > expireTime then
-                status:Set("Срок действия ключа истек!", "info")
-                return
-            end
-            
-            -- 3. Всё ок, передаем данные в основной скрипт
-            getgenv().CloudClientExpireTime = expireTime
+            -- ТУТ МЫ ПРОСТО ПЕРЕДАЕМ ФЕЙКОВОЕ ВРЕМЯ (30 ДНЕЙ), ЧТОБЫ В НАСТРОЙКАХ ПИСАЛО КРАСИВО
+            getgenv().CloudClientExpireTime = os.time() + 2592000 -- 30 дней
             getgenv().CloudClientKey = key
             
             status:Set("Активация успешна!", "info")
