@@ -2,7 +2,8 @@
     CLOUDCLIENT — Silent Aim + ESP (Skeleton/Weapon/Chams) + FreeCam + AutoRun/Spider
     Aimbot: hookmetamethod (Silent) + CFrame.lookAt (Aimlock)
     Weapon ESP: фильтр Handle/служебных частей тулов
-    AutoRun: фиксированная скорость 20, Spider: 15-30
+    AutoRun: фиксированная скорость 20 (дефолт при выключении), Spider: 15-30
+    ESP: если игрок виден — рисуются все включённые элементы (box/name/hp/dist/line)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -33,7 +34,7 @@ local Flags = {
     ESPColor = Color3.fromRGB(255,255,255), BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0), ChamsColor = Color3.fromRGB(255, 0, 255),
     -- Player
-    FreeCam = false, AutoRun = false, AutoRunSpeed = 20, Spider = false, SpiderSpeed = 20,
+    FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
     -- Misc
     FPSPing = false, Fullbright = false,
     -- Aimbot
@@ -194,18 +195,37 @@ local function startFreeCam()
 end
 
 -- ===== AUTORUN =====
+-- Запоминает исходный WalkSpeed при старте/респавне. При включении ставит 20,
+-- при выключении возвращает дефолт.
+local defaultWalkSpeed = 16
+local autoRunActive = false
+
+-- Считывает текущий WalkSpeed как дефолтный (вызывается при старте и после респавна)
+local function captureDefaultWalkSpeed()
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then defaultWalkSpeed = hum.WalkSpeed end
+end
+captureDefaultWalkSpeed()
+LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
+
 -- Автоматически ведёт персонажа вперёд в направлении камеры (Humanoid:Move).
--- Скорость фиксированная — 20 (флаг AutoRunSpeed).
+-- WalkSpeed = 20 при включённом AutoRun, дефолт при выключенном.
 local function applyAutoRun()
-    if not Flags.AutoRun then return end
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-    hum.WalkSpeed = Flags.AutoRunSpeed
-    local look = Camera.CFrame.LookVector
-    local dir = Vector3.new(look.X, 0, look.Z)
-    if dir.Magnitude > 0.01 then
-        hum:Move(dir.Unit, false)
+
+    if Flags.AutoRun then
+        autoRunActive = true
+        hum.WalkSpeed = 20
+        local look = Camera.CFrame.LookVector
+        local dir = Vector3.new(look.X, 0, look.Z)
+        if dir.Magnitude > 0.01 then
+            hum:Move(dir.Unit, false)
+        end
+    elseif autoRunActive then
+        hum.WalkSpeed = defaultWalkSpeed
+        autoRunActive = false
     end
 end
 
@@ -217,7 +237,7 @@ local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
 
--- Убирает BodyVelocity и обнуляет вертикальную скорость (чтобы персонаж нормально падал)
+-- Убирает BodyVelocity (чтобы персонаж нормально падал)
 local function clearSpiderVelocity()
     if spiderBV then spiderBV:Destroy(); spiderBV = nil end
 end
@@ -430,8 +450,10 @@ local function getWeaponName(char)
 end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
--- Обновляет все включённые элементы ESP для каждого игрока:
--- бокс/имя/HP/дистанция/линия/weapon/skeleton. Скрывает всё при выключенном ESP.
+-- Обновляет все включённые элементы ESP для каждого игрока.
+-- ВАЖНО: если игрок вообще виден (Z > 0), рисуем ВСЕ включённые элементы —
+-- бокс, имя, HP, дистанцию, линию, weapon, skeleton. Проверка onScreen игнорируется,
+-- иначе бокс пропадал у целей, частично уходящих за край viewport'а.
 local function updateESP()
     local localChar = LP.Character
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
@@ -458,32 +480,36 @@ local function updateESP()
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
             continue
         end
-        local sp, onScreen = Camera:WorldToViewportPoint(root.Position)
-        if not onScreen or sp.Z <= 0 then
+
+        -- Главная проверка видимости: Z > 0 (перед камерой). onScreen игнорируем —
+        -- он false и для точек за камерой, и для точек за краем экрана.
+        local sp = Camera:WorldToViewportPoint(root.Position)
+        if sp.Z <= 0 then
             for _,o in pairs(d) do o.Visible=false end
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
             continue
         end
+
         local sx, sy = sp.X, sp.Y
         local headPos = (char:FindFirstChild("Head") and char.Head.Position or root.Position) + Vector3.new(0,1.5,0)
         local feetPos = root.Position - Vector3.new(0,2.5,0)
-        local hS, hO = Camera:WorldToViewportPoint(headPos)
-        local fS, fO = Camera:WorldToViewportPoint(feetPos)
+        local hS = Camera:WorldToViewportPoint(headPos)
+        local fS = Camera:WorldToViewportPoint(feetPos)
 
-        -- Box: рамка вокруг модели
-        if Flags.Box and hO and fO then
+        -- Box: рисуем если голова и ноги перед камерой (Z > 0), независимо от onScreen
+        if Flags.Box and hS.Z > 0 and fS.Z > 0 then
             local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
             d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y)
             d.Box.Color = Flags.BoxColor; d.Box.Visible = true
         else d.Box.Visible = false end
 
-        -- Name / Health / Distance / Line
+        -- Name / Health / Distance / Line — всегда, если игрок виден
         if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = Flags.ESPColor; d.Name.Visible = true else d.Name.Visible = false end
         if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = Flags.ESPColor; d.Health.Visible = true else d.Health.Visible = false end
         if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = Flags.ESPColor; d.Distance.Visible = true else d.Distance.Visible = false end
         if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; d.Line.Visible = true else d.Line.Visible = false end
 
-        -- Weapon ESP: показываем только реальное оружие, игнорируя Handle и служебные части
+        -- Weapon ESP: только реальное оружие, без Handle/служебных частей
         if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
             if weaponName then
@@ -494,7 +520,7 @@ local function updateESP()
             else d.Weapon.Visible = false end
         else d.Weapon.Visible = false end
 
-        -- Skeleton: линии между костями
+        -- Skeleton
         if Flags.Skeleton then updateSkeleton(plr, char) else
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
         end
@@ -574,7 +600,6 @@ AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserIn
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
--- Цвета
 VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
     if Flags.Glow then
@@ -593,7 +618,6 @@ end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
--- Основные тогглы
 VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s) Flags.ESP=s end})
 VisualsTab:AddToggle({Title="Glow", Icon="sparkles", Default=false, Callback=function(s)
     Flags.Glow=s
@@ -634,11 +658,8 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
--- AutoRun: всегда скорость 20, слайдер убран
-PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s)
-    Flags.AutoRun=s
-    Flags.AutoRunSpeed=20
-end})
+-- AutoRun: скорость фиксированная 20, слайдер убран
+PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 
 -- Spider: ползунок 15-30
 PlayerTab:AddToggle({Title="Spider", Subtitle="Лазать по стенам (W/Space вверх, S/Ctrl вниз)", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
