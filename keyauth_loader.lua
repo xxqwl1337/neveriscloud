@@ -1,28 +1,51 @@
 --[[
-    KeyAuth Loader (API 1.3) для cloudclient
+    KeyAuth Loader (API 1.3) для cloudclient (POST Request)
 ]]
 local APP_NAME = "clientsound"  -- Название приложения с твоего скрина
-local OWNER_ID = "uXkNMViDLi" -- Твой ID (скопируй из панели)
-local API_KEY  = "6a95279f8ec58a0a69a4abb0cf1ca9e8cc63b4e9e25865cbfe9b054a8006973c"  -- Если есть, если нет - оставь пустым ""
+local OWNER_ID = "uXkNMViDLi"   -- Твой ACCOUNT OWNER ID
+local API_KEY  = "6a95279f8ec58a0a69a4abb0cf1ca9e8cc63b4e9e25865cbfe9b054a8006973c" -- APPLICATION SECRET
 local VERSION  = "1.0"
 
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
--- ===== ФУНКЦИЯ ЗАПРОСА К KEYAUTH 1.3 =====
+-- ===== ФУНКЦИЯ ЗАПРОСА К KEYAUTH (POST) =====
 local function apiRequest(params)
-    local query = ""
+    local body = ""
     for k, v in pairs(params) do
-        query = query .. k .. "=" .. tostring(v) .. "&"
+        body = body .. k .. "=" .. tostring(v) .. "&"
     end
-    query = query:sub(1, -2)
+    body = body:sub(1, -2)
     
-    -- В API 1.3 используется POST через HttpPost (если поддерживается экзекутором)
-    -- Если нет - через GET
-    local ok, res = pcall(function()
-        return game:HttpGet("https://keyauth.win/api/1.3/?" .. query)
+    local success, res = pcall(function()
+        -- В Xeno обычно доступен syn.request или http.request
+        if syn and syn.request then
+            return syn.request({
+                Url = "https://keyauth.win/api/1.3/",
+                Method = "POST",
+                Body = body,
+                Headers = {["Content-Type"] = "application/x-www-form-urlencoded"}
+            }).Body
+        elseif http and http.request then
+            return http.request({
+                Url = "https://keyauth.win/api/1.3/",
+                Method = "POST",
+                Body = body,
+                Headers = {["Content-Type"] = "application/x-www-form-urlencoded"}
+            }).Body
+        elseif request then
+            return request({
+                Url = "https://keyauth.win/api/1.3/",
+                Method = "POST",
+                Body = body
+            }).Body
+        else
+            -- Если POST нет, пробуем GET
+            return game:HttpGet("https://keyauth.win/api/1.3/?" .. body)
+        end
     end)
     
-    if not ok or not res then return nil end
+    if not success or not res then return nil end
+    
     local succ, decoded = pcall(function()
         return game:GetService("HttpService"):JSONDecode(res)
     end)
@@ -70,12 +93,16 @@ MainTab:AddButton({
             })
             
             if not init or not init.success then
-                status:Set("Ошибка Init: " .. tostring(init and init.message or "Unknown"), "info")
+                status:Set("Ошибка Init: " .. tostring(init and init.message or "Нет ответа"), "info")
                 return
             end
             
             -- 2. Проверка лицензии
-            local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+            local hwid = "unknown"
+            pcall(function()
+                hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+            end)
+            
             local login = apiRequest({
                 type = "license",
                 key = key,
@@ -93,6 +120,7 @@ MainTab:AddButton({
                 -- Загрузка основного скрипта
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
             else
+                -- Если ошибка все еще про OwnerID, значит ключи из панели не подходят
                 status:Set("Неверный ключ: " .. tostring(login and login.message or "Invalid"), "info")
             end
         end)
