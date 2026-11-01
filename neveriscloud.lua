@@ -25,7 +25,7 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
-    ESPElements = {"Boxes", "Names"}, -- массив строк
+    ESPElements = {"Boxes", "Names"},
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
@@ -57,7 +57,6 @@ local function getVelocity(part)
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
--- ГЛАВНЫЙ ФИКС: проверяем и ключи (dictionary), и значения (array)
 local function hasElement(name)
     local elems = Flags.ESPElements
     if not elems or type(elems) ~= "table" then return false end
@@ -665,8 +664,9 @@ local function createHud()
     HudPanel:AddHeader("Player")
     hpRow   = HudPanel:AddRow("Health")
     posRow  = HudPanel:AddRow("Position", { Style = "Vertical", AccentKey = "white", ValueColorKey = "text" })
-    HudPanel:AddSeparator()
-        statusRow = HudPanel:AddRow("State")
+        HudPanel:AddSeparator()
+    HudPanel:AddHeader("Status")
+    statusRow = HudPanel:AddRow("State")
     statusRow:Set("Idle")
 end
 
@@ -711,9 +711,17 @@ RunService.Stepped:Connect(function()
     updateSpider()
 end)
 
--- ===== MAIN LOOP =====
-RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if Flags.ESP and Flags.MaxDistance > 0 then updateESP() else hideAll() end
+-- ===== MAIN LOOP (ИСПРАВЛЕННЫЙ: RenderStepped + pcall) =====
+RunService.RenderStepped:Connect(function()
+    if not Flags.ESP or Flags.MaxDistance <= 0 then
+        hideAll()
+        return
+    end
+    local ok, err = pcall(updateESP)
+    if not ok then
+        warn("[cloudclient] ESP error, hiding:", err)
+        pcall(hideAll)
+    end
 end)
 
 -- ===== UI: AIMBOT =====
@@ -758,7 +766,6 @@ local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers",
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
--- ДРОПДАУН С ФИКСОМ: принудительно конвертируем в массив
 local espElementsDropdown = VisualsTab:AddMultiDropdown({
     Title = "ESP Elements",
     Subtitle = "Выбери, что рисовать",
@@ -769,14 +776,15 @@ local espElementsDropdown = VisualsTab:AddMultiDropdown({
         local arr = {}
         if type(selected) == "table" then
             for k, v in pairs(selected) do
-                if type(k) == "string" then
-                    if v then table.insert(arr, k) end -- dictionary {Name = true}
+                if type(k) == "string" and v then
+                    table.insert(arr, k)
                 elseif type(v) == "string" then
-                    table.insert(arr, v) -- array {1 = "Name"}
+                    table.insert(arr, v)
                 end
             end
         end
         Flags.ESPElements = arr
+        for _,p in ipairs(Players:GetPlayers()) do pcall(applyHighlight, p) end
     end
 })
 
