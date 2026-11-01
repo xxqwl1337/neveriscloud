@@ -1,6 +1,6 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Fill+Glow на одном Highlight) + FreeCam + AutoRun/Spider
-    ESP = заливка, Glow = обводка — работают одновременно на одном Highlight (Roblox не даёт 2)
+    CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
+    ESP: один Highlight, режим переключается через дропдаун (Chams = заливка, Glow = обводка)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -24,7 +24,8 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
-    ESP = false, Glow = false, Box = false, Distance = false, Name = false, Health = false, Line = false,
+    ESP = false, ESPMode = "Chams",
+    Box = false, Distance = false, Name = false, Health = false, Line = false,
     Skeleton = false, WeaponESP = false,
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
@@ -294,16 +295,14 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
--- ===== ESP HIGHLIGHT (один объект: заливка + обводка) =====
--- Roblox не даёт держать 2 Highlight на одном персонаже — второй перебивает первый.
--- Поэтому один Highlight, у которого заливка и обводка управляются независимо:
---   ESP on  => заливка цветом ESPColor (FillTransparency=0)
---   Glow on => обводка цветом GlowColor (OutlineTransparency=0)
---   Оба on  => и заливка, и обводка одновременно
+-- ===== ESP HIGHLIGHT (один объект: Chams или Glow) =====
+-- Chams: заливка модели цветом ESPColor
+-- Glow:  обводка контура цветом GlowColor
+-- Roblox не даёт 2 Highlight на Instance, поэтому режим один.
 local function applyHighlight(plr)
     if plr == LP then return end
     local char = plr.Character
-    local want = (Flags.ESP or Flags.Glow) and Flags.MaxDistance > 0
+    local want = Flags.ESP and Flags.MaxDistance > 0
 
     if not want or not char or not isAlive(char) then
         clearHighlight(plr)
@@ -319,18 +318,16 @@ local function applyHighlight(plr)
         Highlights[plr] = hl
     end
 
-    if Flags.ESP then
+    if Flags.ESPMode == "Chams" then
         hl.FillColor = Flags.ESPColor
         hl.FillTransparency = 0
-    else
+        hl.OutlineColor = Flags.ESPColor
+        hl.OutlineTransparency = 1
+    else -- Glow
+        hl.FillColor = Flags.GlowColor
         hl.FillTransparency = 1
-    end
-
-    if Flags.Glow then
         hl.OutlineColor = Flags.GlowColor
         hl.OutlineTransparency = 0
-    else
-        hl.OutlineTransparency = 1
     end
 end
 
@@ -400,13 +397,13 @@ end
 local function updateHighlightDistance(plr, dist, visible)
     local hl = Highlights[plr]
     if not hl or not hl.Parent then return end
-    local inRange = Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
-    hl.Enabled = inRange and (Flags.ESP or Flags.Glow) or false
+    local inRange = Flags.ESP and Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
+    hl.Enabled = inRange or false
 end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
 local function updateESP()
-    if (not Flags.ESP and not Flags.Glow) or Flags.MaxDistance <= 0 then
+    if not Flags.ESP or Flags.MaxDistance <= 0 then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
         for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
@@ -530,7 +527,7 @@ end)
 
 -- ===== MAIN LOOP =====
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if (Flags.ESP or Flags.Glow) and Flags.MaxDistance > 0 then
+    if Flags.ESP and Flags.MaxDistance > 0 then
         updateESP()
     else
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
@@ -542,7 +539,7 @@ end)
 -- ===== UI: AIMBOT =====
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 AimbotTab:AddToggle({Title="Aimbot", Subtitle="Silent Aim (камера не двигается)", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aimlock Mode", Subtitle="CFrame.lookAt вместо Silent — камера доворачивается", Icon="eye", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+AimbotTab:AddToggle({Title="Aimlock Mode", Subtitle="CFrame.lookAt вместо Silent", Icon="eye", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=1, Callback=function(v) Flags.AimSmooth=v end})
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
@@ -554,20 +551,23 @@ AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserIn
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
--- ---------- ESP COLOR ----------
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
 
-VisualsTab:AddColorPicker({Title="Fill Color", Icon="shirt", Default=Flags.ESPColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="Fill Color (Chams)", Icon="shirt", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    for _,hl in pairs(Highlights) do
-        if hl and hl.Parent then hl.FillColor = c end
+    if Flags.ESPMode=="Chams" then
+        for _,hl in pairs(Highlights) do
+            if hl and hl.Parent then hl.FillColor=c; hl.OutlineColor=c end
+        end
     end
 end})
 
-VisualsTab:AddColorPicker({Title="Glow Color", Icon="sparkles", Default=Flags.GlowColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="Glow Color (Glow)", Icon="sparkles", Default=Flags.GlowColor, Callback=function(c)
     Flags.GlowColor=c
-    for _,hl in pairs(Highlights) do
-        if hl and hl.Parent then hl.OutlineColor = c end
+    if Flags.ESPMode=="Glow" then
+        for _,hl in pairs(Highlights) do
+            if hl and hl.Parent then hl.FillColor=c; hl.OutlineColor=c end
+        end
     end
 end})
 
@@ -575,16 +575,15 @@ VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxCo
 VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
 VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
--- ---------- ESP SYSTEM ----------
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Subtitle="Заливка модели цветом", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Subtitle="Подсветка игроков", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
-VisualsTab:AddToggle({Title="Glow", Subtitle="Обводка контура (совмещается с ESP)", Icon="sparkles", Default=false, Callback=function(s)
-    Flags.Glow=s
+VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+    Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
