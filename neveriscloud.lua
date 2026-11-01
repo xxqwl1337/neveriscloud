@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider + Config
+    CLOUDCLIENT — Silent Aim + ESP (MultiDropdown) + FreeCam + AutoRun/Spider + Config
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -25,8 +25,7 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
-    Box = false, Distance = false, Name = false, Health = false, Line = false,
-    Skeleton = false, WeaponESP = false,
+    ESPElements = {"Box", "Name"}, -- Box, Name, Health, Distance, Line, Skeleton, Weapon ESP
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
@@ -56,6 +55,13 @@ end
 local function getVelocity(part)
     if not part then return Vector3.zero end
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
+end
+
+local function hasElement(name)
+    for _, v in ipairs(Flags.ESPElements) do
+        if v == name then return true end
+    end
+    return false
 end
 
 -- ===== SILENT AIM =====
@@ -508,10 +514,19 @@ end
 
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
+
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then hideAll(); return end
     local localPos = localRoot.Position
     local vs = Camera.ViewportSize
+
+    local showBox = hasElement("Box")
+    local showName = hasElement("Name")
+    local showHealth = hasElement("Health")
+    local showDistance = hasElement("Distance")
+    local showLine = hasElement("Line")
+    local showSkeleton = hasElement("Skeleton")
+    local showWeapon = hasElement("Weapon ESP")
 
     for plr, d in pairs(Drawings) do
         local char = plr.Character
@@ -563,40 +578,40 @@ local function updateESP()
         local hS = Camera:WorldToViewportPoint(headPos)
         local fS = Camera:WorldToViewportPoint(feetPos)
 
-        if Flags.Box and hS.Z > 0 and fS.Z > 0 then
+        if showBox and hS.Z > 0 and fS.Z > 0 then
             local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
             d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y)
             d.Box.Color = Flags.BoxColor
             if not d.Box.Visible then d.Box.Visible = true end
         elseif d.Box.Visible then d.Box.Visible = false end
 
-        if Flags.Name then
+        if showName then
             d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18)
             d.Name.Color = Flags.TextColor
             if not d.Name.Visible then d.Name.Visible = true end
         elseif d.Name.Visible then d.Name.Visible = false end
 
-        if Flags.Health then
+        if showHealth then
             d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
             d.Health.Position = Vector2.new(sx, fS.Y+2)
             d.Health.Color = Flags.TextColor
             if not d.Health.Visible then d.Health.Visible = true end
         elseif d.Health.Visible then d.Health.Visible = false end
 
-        if Flags.Distance then
+        if showDistance then
             d.Distance.Text = math.floor(dist).."m"
             d.Distance.Position = Vector2.new(sx, fS.Y+18)
             d.Distance.Color = Flags.TextColor
             if not d.Distance.Visible then d.Distance.Visible = true end
         elseif d.Distance.Visible then d.Distance.Visible = false end
 
-        if Flags.Line then
+        if showLine then
             d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy)
             d.Line.Color = Flags.LineColor
             if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
 
-        if Flags.WeaponESP then
+        if showWeapon then
             local weaponName = getWeaponName(char)
             if weaponName then
                 d.Weapon.Text = "["..weaponName.."]"
@@ -606,7 +621,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-        if Flags.Skeleton then updateSkeleton(plr, char)
+        if showSkeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
@@ -627,78 +642,10 @@ local function hookPlayer(plr)
     plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
     applyHighlight(plr)
 end
+
 for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(removeDrawings)
-
--- ===== CONFIG SYSTEM =====
-local CONFIG_FOLDER = "cloudclient/configs/"
-pcall(function() makefolder("cloudclient"); makefolder(CONFIG_FOLDER) end)
-
-local function serialize(v, indent)
-    indent = indent or ""
-    local t = type(v)
-    if t == "boolean" or t == "number" then return tostring(v) end
-    if t == "string" then return string.format("%q", v) end
-    if t == "userdata" and typeof(v) == "Color3" then
-        return string.format("Color3.fromRGB(%d,%d,%d)", v.R*255, v.G*255, v.B*255)
-    end
-    if t == "userdata" and typeof(v) == "EnumItem" then
-        return string.format("Enum.%s.%s", v.EnumType.Name, v.Name)
-    end
-    if t == "table" then
-        local parts = {}
-        for k, val in pairs(v) do
-            local keyStr = type(k) == "string" and k or "["..tostring(k).."]"
-            table.insert(parts, indent.."  "..keyStr.." = "..serialize(val, indent.."  "))
-        end
-        return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
-    end
-    return "nil"
-end
-
-local function parseName(raw)
-    if type(raw) == "string" then return raw end
-    if typeof(raw) == "EnumItem" then return tostring(raw.Value) end
-    return tostring(raw)
-end
-
-local function saveConfig(name)
-    if not name or name == "" or name == "nil" then return false, "empty name" end
-    return pcall(function()
-        writefile(CONFIG_FOLDER..name..".lua", "return "..serialize(Flags))
-    end)
-end
-
-local function loadConfig(name)
-    if not name or name == "" or name == "nil" then return false, "empty name" end
-    return pcall(function()
-        local src = readfile(CONFIG_FOLDER..name..".lua")
-        local chunk = loadstring(src)
-        if not chunk then error("invalid config") end
-        local data = chunk()
-               if type(data) ~= "table" then error("invalid data") end
-        for k, v in pairs(data) do
-            if Flags[k] ~= nil then Flags[k] = v end
-        end
-    end)
-end
-
-local function deleteConfig(name)
-    if not name or name == "" or name == "nil" then return false end
-    return pcall(function() delfile(CONFIG_FOLDER..name..".lua") end)
-end
-
-local function listConfigs()
-    local out = {}
-    pcall(function()
-        for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
-            local n = f:match("([^/\\]+)%.lua$")
-            if n then table.insert(out, n) end
-        end
-    end)
-    return out
-end
 
 -- ===== FPS/PING HUD =====
 local StatsService = game:GetService("Stats")
@@ -772,10 +719,10 @@ end)
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 
 AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель — работает всегда", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit — может не работать в некоторых играх", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Мгновенный лок без сглаживания", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
+AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
+AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
@@ -801,21 +748,26 @@ VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.Sk
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
     Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+
+local espElementsDropdown = VisualsTab:AddMultiDropdown({
+    Title = "ESP Elements",
+    Subtitle = "Выбери, что рисовать",
+    Icon = "layers",
+    Options = {"Box", "Name", "Health", "Distance", "Line", "Skeleton", "Weapon ESP"},
+    Default = {"Box", "Name"},
+    Callback = function(selected)
+        Flags.ESPElements = selected
+    end
+})
+
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
@@ -823,7 +775,7 @@ end})
 
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl, мышь крутит угол", Icon="camera", Default=false, Callback=function(s)
+PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
@@ -863,17 +815,6 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
--- ВАЖНО: сохраняем ссылки на элементы, чтобы ConfigManager знал что сохранять
-local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
-    Flags.ESP=s
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-end})
-local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
-    Flags.ESPMode = v
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-end})
-
--- Настройка папки конфигов
 Window.ConfigManager:SetFolder("cloudclient_configs")
 
 local configNameBox = SettingsTab:AddTextBox({
@@ -887,13 +828,11 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
--- Собираем конфиг. Регистрируем все элементы, которые созданы ВЫШЕ.
--- Если хочешь сохранять больше — добавь ссылки на элементы через `local x = Tab:Add...`
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
-    -- сюда добавляй другие элементы, если сделал на них `local x = ...`
+    cfg:RegisterElement("ESPElements", espElementsDropdown)
     return cfg
 end
 
