@@ -1,5 +1,5 @@
 --[[
-    KeyAuth Loader (Universal) для cloudclient
+    KeyAuth Loader (API 1.3 keyauth.cc) для cloudclient
 ]]
 local APP_NAME = "clientsound"
 local OWNER_ID = "uXkNMViDLi" 
@@ -9,48 +9,23 @@ local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqw
 
 -- ===== ФУНКЦИЯ ЗАПРОСА =====
 local function apiRequest(params)
-    local body = ""
+    local query = ""
     for k, v in pairs(params) do
-        body = body .. k .. "=" .. tostring(v) .. "&"
+        query = query .. k .. "=" .. tostring(v) .. "&"
     end
-    body = body:sub(1, -2)
+    query = query:sub(1, -2)
     
-    local urls = {
-        "https://keyauth.cc/api/1.3/",
-        "https://keyauth.win/api/1.3/"
-    }
+    -- Отправляем через GET. Используем secret вместо ownerid (для keyauth.cc)
+    local success, res = pcall(function()
+        return game:HttpGet("https://keyauth.cc/api/1.3/?" .. query)
+    end)
     
-    for _, url in ipairs(urls) do
-        local success, res = pcall(function()
-            if syn and syn.request then
-                return syn.request({
-                    Url = url,
-                    Method = "POST",
-                    Body = body,
-                    Headers = {["Content-Type"] = "application/x-www-form-urlencoded"}
-                }).Body
-            elseif http and http.request then
-                return http.request({
-                    Url = url,
-                    Method = "POST",
-                    Body = body
-                }).Body
-            else
-                return game:HttpGet(url .. "?" .. body)
-            end
-        end)
-        
-        if success and res then
-            print("[KeyAuth Debug] Ответ от " .. url .. ": " .. res)
-            local succ, decoded = pcall(function()
-                return game:GetService("HttpService"):JSONDecode(res)
-            end)
-            if succ and decoded then return decoded end
-        else
-            warn("[KeyAuth Debug] Ошибка запроса к " .. url .. ": " .. tostring(res))
-        end
-    end
-    return nil
+    if not success or not res then return nil end
+    
+    local succ, decoded = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(res)
+    end)
+    return succ and decoded or nil
 end
 
 -- ===== МЕНЮ =====
@@ -84,16 +59,16 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- 1. Инициализация (в новых версиях API 1.3 api_key не нужен)
+            -- 1. Инициализация (в .cc параметр называется secret, а не ownerid)
             local init = apiRequest({
                 type = "init",
                 ver = VERSION,
                 name = APP_NAME,
-                ownerid = OWNER_ID,
+                secret = OWNER_ID, -- ВАЖНО: secret вместо ownerid
             })
             
             if not init then
-                status:Set("Ошибка: сервера KeyAuth недоступны (блок в Xeno)", "info")
+                status:Set("Ошибка: сервер недоступен (блок Xeno)", "info")
                 return
             end
             
@@ -120,7 +95,7 @@ MainTab:AddButton({
                 Window:Destroy()
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
             else
-                local msg = login and login.message or "Нет ответа от сервера"
+                local msg = login and login.message or "Нет ответа"
                 status:Set("Неверный ключ: " .. tostring(msg), "info")
             end
         end)
