@@ -1,10 +1,9 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Skeleton/Weapon/Chams) + FreeCam + AutoRun/Spider
+    CLOUDCLIENT — Silent Aim + ESP (Fill/Glow/Skeleton/Weapon) + FreeCam + AutoRun/Spider
     Aimbot: hookmetamethod (Silent) + CFrame.lookAt (Aimlock)
-    Weapon ESP: фильтр Handle/служебных частей тулов
-    AutoRun: фиксированная скорость 20 (дефолт при выключении), Spider: 15-30
-    ESP: MaxDistance = 0 => никого не видно (box/name/hp/dist/line/glow/chams)
-    Glow/Chams: подчиняются ESP Distance, создаются только при ESP on и MaxDistance > 0
+    ESP = заливка модели (бывший Chams), Glow = обводка контура (совмещается с ESP)
+    MaxDistance = 0 => ничего не видно (box/name/hp/dist/line/skeleton/fill/glow)
+    Порядок включения ESP/Glow не важен — оба пересоздаются при переключении
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -30,10 +29,12 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 local Flags = {
     -- ESP
     ESP = false, Glow = false, Box = false, Distance = false, Name = false, Health = false, Line = false,
-    Skeleton = false, WeaponESP = false, Chams = false,
+    Skeleton = false, WeaponESP = false,
     MaxDistance = 1000,
-    ESPColor = Color3.fromRGB(255,255,255), BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
-    SkeletonColor = Color3.fromRGB(0, 255, 0), ChamsColor = Color3.fromRGB(255, 0, 255),
+    ESPColor = Color3.fromRGB(255, 0, 255),
+    GlowColor = Color3.fromRGB(255, 255, 255),
+    BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
+    SkeletonColor = Color3.fromRGB(0, 255, 0),
     -- Player
     FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
     -- Misc
@@ -46,22 +47,18 @@ local Flags = {
 local CurrentTarget, CurrentTargetPart = nil, nil
 
 -- ===== УТИЛИТЫ =====
--- Проверяет, что персонаж существует и жив (Humanoid.Health > 0)
 local function isAlive(char)
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
 
--- Возвращает часть для наведения: сначала указанная в Flags.AimPart, иначе Head
 local function getAimPart(char)
     if not char then return nil end
     return char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
 end
 
--- ===== SILENT AIM (HOOK) =====
--- Подменяет Mouse.Hit / Mouse.Target через hookmetamethod.
--- Камера не двигается: пуля летит по координатам головы цели в момент выстрела.
+-- ===== SILENT AIM =====
 local silentHookOk = pcall(function()
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -77,11 +74,9 @@ local silentHookOk = pcall(function()
         return oldIndex(self, key)
     end)
 end)
-if not silentHookOk then warn("[cloudclient] hookmetamethod failed — Silent Aim недоступен, используй Aimlock") end
+if not silentHookOk then warn("[cloudclient] hookmetamethod failed — Silent Aim недоступен") end
 
 -- ===== ПОИСК ЦЕЛИ =====
--- Перебирает игроков, отбрасывает мёртвых/тиммейтов, считает расстояние в пикселях
--- от центра экрана до проекции AimPart. Возвращает ближайшую цель в радиусе AimFOV.
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
@@ -106,7 +101,6 @@ local function getClosestTarget()
 end
 
 -- ===== AIMLOCK =====
--- Альтернатива Silent Aim: плавно доворачивает камеру через CFrame.lookAt.
 RunService:BindToRenderStep("CloudClientAimlock", Enum.RenderPriority.Camera.Value + 2, function(dt)
     if not Flags.Aimbot or not Flags.AimlockMode then return end
     if not UIS:IsMouseButtonPressed(Flags.AimKey) or not CurrentTargetPart then return end
@@ -121,7 +115,6 @@ RunService:BindToRenderStep("CloudClientAimlock", Enum.RenderPriority.Camera.Val
 end)
 
 -- ===== ОБНОВЛЕНИЕ ЦЕЛИ =====
--- Каждый кадр пересчитывает текущую цель для Silent Aim / Aimlock / FOV-круга.
 RunService.RenderStepped:Connect(function()
     if Flags.Aimbot then
         local _, part = getClosestTarget()
@@ -132,7 +125,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ===== FOV CIRCLE =====
--- Рисует круг радиуса AimFOV по центру экрана, пока аимбот включён.
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 1; fovCircle.Color = Color3.fromRGB(255,255,255)
 fovCircle.Filled = false; fovCircle.Visible = false; fovCircle.NumSides = 64
@@ -145,12 +137,10 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ===== FREECAM =====
--- Свободная камера: WASD + Space/Ctrl, мышь крутит угол. Блокирует движение персонажа.
 local freecamConn, freecamMouseConn, savedCamType, savedMouseBehavior = nil, nil, nil, nil
 local savedWS, savedJP = 16, 50
 local freecamPos = Vector3.new(0,0,0); local freecamYaw, freecamPitch = 0, 0
 
--- Отключает FreeCam, восстанавливает CameraType, MouseBehavior и движение персонажа
 local function stopFreeCam()
     if freecamConn then freecamConn:Disconnect(); freecamConn = nil end
     if freecamMouseConn then freecamMouseConn:Disconnect(); freecamMouseConn = nil end
@@ -160,7 +150,6 @@ local function stopFreeCam()
     if hum then hum.WalkSpeed = savedWS; hum.JumpPower = savedJP end
 end
 
--- Запускает FreeCam: запоминает камеру/движение, лочит мышь в центр, обрабатывает WASD
 local function startFreeCam()
     if freecamConn then return end
     savedCamType = Camera.CameraType; Camera.CameraType = Enum.CameraType.Scriptable
@@ -192,12 +181,9 @@ local function startFreeCam()
 end
 
 -- ===== AUTORUN =====
--- Запоминает исходный WalkSpeed при старте/респавне. При включении ставит 20,
--- при выключении возвращает дефолт.
 local defaultWalkSpeed = 16
 local autoRunActive = false
 
--- Считывает текущий WalkSpeed как дефолтный (вызывается при старте и после респавна)
 local function captureDefaultWalkSpeed()
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
     if hum then defaultWalkSpeed = hum.WalkSpeed end
@@ -205,21 +191,16 @@ end
 captureDefaultWalkSpeed()
 LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
 
--- Автоматически ведёт персонажа вперёд в направлении камеры (Humanoid:Move).
--- WalkSpeed = 20 при включённом AutoRun, дефолт при выключенном.
 local function applyAutoRun()
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-
     if Flags.AutoRun then
         autoRunActive = true
         hum.WalkSpeed = 20
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then
-            hum:Move(dir.Unit, false)
-        end
+        if dir.Magnitude > 0.01 then hum:Move(dir.Unit, false) end
     elseif autoRunActive then
         hum.WalkSpeed = defaultWalkSpeed
         autoRunActive = false
@@ -227,34 +208,27 @@ local function applyAutoRun()
 end
 
 -- ===== SPIDER =====
--- Лазание по стенам: если рядом стена (raycast) — задаём вертикальную скорость вверх
--- через BodyVelocity. Отключается при отпускании управления/в прыжке без стены.
 local spiderBV = nil
 local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
 
--- Убирает BodyVelocity (чтобы персонаж нормально падал)
 local function clearSpiderVelocity()
     if spiderBV then spiderBV:Destroy(); spiderBV = nil end
 end
 
--- Основной тик Spider: raycast по 4 направлениям от HumanoidRootPart.
 local function updateSpider()
     local char = LP.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
-
     if not Flags.Spider then clearSpiderVelocity(); return end
 
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
     local dirs = {
-        Camera.CFrame.LookVector,
-        -Camera.CFrame.LookVector,
-        Camera.CFrame.RightVector,
-        -Camera.CFrame.RightVector,
+        Camera.CFrame.LookVector, -Camera.CFrame.LookVector,
+        Camera.CFrame.RightVector, -Camera.CFrame.RightVector,
     }
     local hit = nil
     for _, dir in ipairs(dirs) do
@@ -264,7 +238,6 @@ local function updateSpider()
             if res and res.Instance and res.Instance.CanCollide then hit = res; break end
         end
     end
-
     if not hit then clearSpiderVelocity(); return end
 
     local up = 0
@@ -286,7 +259,6 @@ local function updateSpider()
 end
 
 -- ===== FULLBRIGHT =====
--- Сохраняет исходные параметры Lighting и подменяет их при включении.
 local origLight = {Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime, FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart, GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient}
 local function setFullbright(state)
     if state then
@@ -298,10 +270,8 @@ local function setFullbright(state)
 end
 
 -- ===== ESP DRAWINGS =====
--- Хранилища: Drawings — тексты/боксы/линии, Highlights — Highlight-объекты, Skeletons — линии скелета.
 local Drawings, Highlights, Skeletons, WeaponLabels = {}, {}, {}, {}
 
--- Создаёт набор Drawing-объектов для игрока (один раз при подключении)
 local function createDrawings(plr)
     if plr == LP or Drawings[plr] then return end
     local d = {}
@@ -314,13 +284,21 @@ local function createDrawings(plr)
     Drawings[plr] = d
 end
 
--- Полностью удаляет все Drawing/Highlight/скелет для игрока (при PlayerRemoving)
+-- Удаляет оба Highlight (fill + glow) и все Drawings
+local function clearHighlight(plr)
+    local slot = Highlights[plr]
+    if not slot then return end
+    if slot.fill then pcall(function() slot.fill:Destroy() end) end
+    if slot.glow then pcall(function() slot.glow:Destroy() end) end
+    Highlights[plr] = nil
+end
+
 local function removeDrawings(plr)
     if Drawings[plr] then
         for _,o in pairs(Drawings[plr]) do if o then pcall(function() o:Remove() end) end end
         Drawings[plr]=nil
     end
-    if Highlights[plr] then pcall(function() Highlights[plr]:Destroy() end); Highlights[plr]=nil end
+    clearHighlight(plr)
     if Skeletons[plr] then
         for _,l in pairs(Skeletons[plr].lines) do pcall(function() l:Remove() end) end
         Skeletons[plr]=nil
@@ -328,50 +306,67 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
--- Уничтожает Highlight игрока (используется и для Glow, и для Chams)
-local function clearHighlight(plr)
-    if Highlights[plr] then pcall(function() Highlights[plr]:Destroy() end); Highlights[plr]=nil end
+-- ===== ESP HIGHLIGHTS (заливка + обводка) =====
+-- fill: заливка модели цветом ESPColor (бывший Chams), работает когда ESP on
+-- glow: обводка контура цветом GlowColor (без заливки), работает когда Glow on
+-- Оба Highlight висят на персонаже одновременно, не мешают друг другу.
+
+local function applyFill(plr)
+    if plr == LP then return end
+    if not Highlights[plr] then Highlights[plr] = {} end
+    local slot = Highlights[plr]
+
+    local want = Flags.ESP and Flags.MaxDistance > 0
+    local char = plr.Character
+
+    if not want or not char or not isAlive(char) then
+        if slot.fill then pcall(function() slot.fill:Destroy() end); slot.fill = nil end
+        return
+    end
+
+    if not slot.fill or not slot.fill.Parent then
+        local hl = Instance.new("Highlight")
+        hl.Name = "ESP_Fill"
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.FillColor = Flags.ESPColor
+        hl.FillTransparency = 0
+        hl.OutlineColor = Flags.ESPColor
+        hl.OutlineTransparency = 1
+        hl.Parent = char
+        slot.fill = hl
+    else
+        slot.fill.FillColor = Flags.ESPColor
+        slot.fill.OutlineColor = Flags.ESPColor
+    end
 end
 
--- Glow: полупрозрачный Highlight. Не создаётся, если ESP выключен или MaxDistance = 0.
 local function applyGlow(plr)
-    if plr == LP or not Flags.Glow then clearHighlight(plr); return end
-    if not Flags.ESP or Flags.MaxDistance <= 0 then clearHighlight(plr); return end
-    local char = plr.Character
-    if not char or not isAlive(char) then clearHighlight(plr); return end
-    local hl = Highlights[plr]
-    if not hl or not hl.Parent then
-        clearHighlight(plr)
-        hl = Instance.new("Highlight")
-        hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0.5
-        hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 0
-        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.Parent = char; Highlights[plr] = hl
-    else hl.FillColor = Flags.ESPColor; hl.OutlineColor = Flags.ESPColor end
-end
+    if plr == LP then return end
+    if not Highlights[plr] then Highlights[plr] = {} end
+    local slot = Highlights[plr]
 
--- Chams: непрозрачный Highlight. Не создаётся, если ESP выключен или MaxDistance = 0.
-local function applyChams(plr)
-    if plr == LP or not Flags.Chams then
-        if Highlights[plr] and Highlights[plr].Name == "ChamsHL" then clearHighlight(plr) end
-        return
-    end
-    if not Flags.ESP or Flags.MaxDistance <= 0 then
-        if Highlights[plr] and Highlights[plr].Name == "ChamsHL" then clearHighlight(plr) end
-        return
-    end
+    local want = Flags.Glow and Flags.MaxDistance > 0
     local char = plr.Character
-    if not char or not isAlive(char) then return end
-    local hl = Highlights[plr]
-    if not hl or not hl.Parent or hl.Name ~= "ChamsHL" then
-        clearHighlight(plr)
-        hl = Instance.new("Highlight")
-        hl.Name = "ChamsHL"
-        hl.FillColor = Flags.ChamsColor; hl.FillTransparency = 0
-        hl.OutlineColor = Flags.ChamsColor; hl.OutlineTransparency = 1
+
+    if not want or not char or not isAlive(char) then
+        if slot.glow then pcall(function() slot.glow:Destroy() end); slot.glow = nil end
+        return
+    end
+
+    if not slot.glow or not slot.glow.Parent then
+        local hl = Instance.new("Highlight")
+        hl.Name = "ESP_Glow"
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.Parent = char; Highlights[plr] = hl
-    else hl.FillColor = Flags.ChamsColor end
+        hl.FillColor = Flags.GlowColor
+        hl.FillTransparency = 1
+        hl.OutlineColor = Flags.GlowColor
+        hl.OutlineTransparency = 0
+        hl.Parent = char
+        slot.glow = hl
+    else
+        slot.glow.FillColor = Flags.GlowColor
+        slot.glow.OutlineColor = Flags.GlowColor
+    end
 end
 
 -- ===== SKELETON =====
@@ -387,7 +382,6 @@ local R6_CONNECTIONS = {
     {"Torso","Left Leg"},{"Torso","Right Leg"},
 }
 
--- Лениво создаёт массив линий для игрока (кол-во под текущий скелет)
 local function ensureSkeleton(plr)
     if Skeletons[plr] then return end
     local lines = {}
@@ -399,7 +393,6 @@ local function ensureSkeleton(plr)
     Skeletons[plr] = {lines = lines, conns = connections}
 end
 
--- Обновляет линии скелета: проецирует кости в экран, скрывает невидимые/за камерой
 local function updateSkeleton(plr, char)
     ensureSkeleton(plr)
     local sk = Skeletons[plr]
@@ -422,53 +415,40 @@ local function updateSkeleton(plr, char)
 end
 
 -- ===== WEAPON ESP =====
--- Служебные имена частей Tool, которые не считаем «оружием» в руках.
 local WEAPON_IGNORE = {
     Handle = true, Grip = true, Attachment = true, Attachment1 = true,
     ["LeftGrip"] = true, ["RightGrip"] = true, ["Tool"] = true,
 }
 
--- Возвращает имя реального оружия у персонажа или nil.
 local function getWeaponName(char)
     if not char then return nil end
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then return nil end
-    if not WEAPON_IGNORE[tool.Name] and tool.Name ~= "" then
-        return tool.Name
-    end
+    if not WEAPON_IGNORE[tool.Name] and tool.Name ~= "" then return tool.Name end
     for _, child in ipairs(tool:GetChildren()) do
-        if child:IsA("BasePart") and not WEAPON_IGNORE[child.Name] then
-            return child.Name
-        end
+        if child:IsA("BasePart") and not WEAPON_IGNORE[child.Name] then return child.Name end
     end
     return nil
 end
 
 -- ===== HIGHLIGHT ПО ДИСТАНЦИИ =====
--- Гасит Glow/Chams, если ESP off, MaxDistance = 0, цель дальше лимита или за камерой.
 local function updateHighlightDistance(plr, dist, visible)
-    local hl = Highlights[plr]
-    if not hl or not hl.Parent then return end
-
-    local shouldShow = Flags.ESP
-        and Flags.MaxDistance > 0
-        and visible
-        and dist <= Flags.MaxDistance
-
-    if hl.Name ~= "ChamsHL" then
-        hl.Enabled = (Flags.Glow and shouldShow) or false
-    else
-        hl.Enabled = (Flags.Chams and shouldShow) or false
-    end
+    local slot = Highlights[plr]
+    if not slot then return end
+    local inRange = Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
+    if slot.fill then slot.fill.Enabled = inRange and Flags.ESP or false end
+    if slot.glow then slot.glow.Enabled = inRange and Flags.Glow or false end
 end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
--- Жёсткий гейт: ESP off или MaxDistance = 0 => гасим всё (box/name/hp/dist/line/skeleton/glow/chams).
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
+        for _,slot in pairs(Highlights) do
+            if slot.fill then slot.fill.Enabled = false end
+            if slot.glow then slot.glow.Enabled = false end
+        end
         return
     end
 
@@ -477,7 +457,10 @@ local function updateESP()
     if not localRoot then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
+        for _,slot in pairs(Highlights) do
+            if slot.fill then slot.fill.Enabled = false end
+            if slot.glow then slot.glow.Enabled = false end
+        end
         return
     end
     local localPos = localRoot.Position
@@ -500,7 +483,6 @@ local function updateESP()
             updateHighlightDistance(plr, dist, false)
             continue
         end
-
         local sp = Camera:WorldToViewportPoint(root.Position)
         if sp.Z <= 0 then
             for _,o in pairs(d) do o.Visible=false end
@@ -550,12 +532,12 @@ local function hookPlayer(plr)
     createDrawings(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.2)
-        if Flags.Glow then applyGlow(plr) end
-        if Flags.Chams then applyChams(plr) end
+        applyFill(plr)
+        applyGlow(plr)
     end)
     plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
-    if Flags.Glow then task.wait(1); applyGlow(plr) end
-    if Flags.Chams then task.wait(1); applyChams(plr) end
+    applyFill(plr)
+    applyGlow(plr)
 end
 for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
@@ -591,14 +573,16 @@ RunService.Stepped:Connect(function()
 end)
 
 -- ===== MAIN LOOP =====
--- ESP-рендер. При ESP off или MaxDistance = 0 — гасим всё, включая Glow/Chams.
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
     if Flags.ESP and Flags.MaxDistance > 0 then
         updateESP()
     else
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
-                for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
-        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
+        for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
+        for _,slot in pairs(Highlights) do
+            if slot.fill then slot.fill.Enabled = false end
+            if slot.glow then slot.glow.Enabled = false end
+        end
     end
 end)
 
@@ -617,51 +601,51 @@ AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserIn
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
-VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+-- ---------- ESP COLOR ----------
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
+
+VisualsTab:AddColorPicker({Title="Fill Color", Icon="shirt", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    if Flags.Glow then
-        for _,hl in pairs(Highlights) do
-            if hl and hl.Parent and hl.Name~="ChamsHL" then hl.FillColor=c; hl.OutlineColor=c end
+    for _,slot in pairs(Highlights) do
+        if slot.fill and slot.fill.Parent then
+            slot.fill.FillColor = c
+            slot.fill.OutlineColor = c
         end
     end
 end})
+
+VisualsTab:AddColorPicker({Title="Glow Color", Icon="sparkles", Default=Flags.GlowColor, Callback=function(c)
+    Flags.GlowColor=c
+    for _,slot in pairs(Highlights) do
+        if slot.glow and slot.glow.Parent then
+            slot.glow.FillColor = c
+            slot.glow.OutlineColor = c
+        end
+    end
+end})
+
 VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
 VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
 VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
-VisualsTab:AddColorPicker({Title="Chams Color", Icon="shirt", Default=Flags.ChamsColor, Callback=function(c)
-    Flags.ChamsColor=c
-    for _,hl in pairs(Highlights) do if hl and hl.Name=="ChamsHL" then hl.FillColor=c end end
-end})
 
+-- ---------- ESP SYSTEM ----------
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Subtitle="Заливка модели цветом", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
-    -- При выключении ESP гасим все Highlight'ы сразу
+    for _,p in ipairs(Players:GetPlayers()) do applyFill(p) end
     if not s then
-        for p in pairs(Highlights) do clearHighlight(p) end
+        for _,slot in pairs(Highlights) do
+            if slot.glow then slot.glow.Enabled = false end
+        end
     end
 end})
-VisualsTab:AddToggle({Title="Glow", Icon="sparkles", Default=false, Callback=function(s)
+
+VisualsTab:AddToggle({Title="Glow", Subtitle="Обводка контура (совмещается с ESP)", Icon="sparkles", Default=false, Callback=function(s)
     Flags.Glow=s
-    if s then
-        for _,p in ipairs(Players:GetPlayers()) do applyGlow(p) end
-    else
-        for p in pairs(Highlights) do
-            if Highlights[p] and Highlights[p].Name~="ChamsHL" then clearHighlight(p) end
-        end
-    end
+    for _,p in ipairs(Players:GetPlayers()) do applyGlow(p) end
 end})
-VisualsTab:AddToggle({Title="Chams", Subtitle="Заливка модели цветом", Icon="shirt", Default=false, Callback=function(s)
-    Flags.Chams=s
-    if s then
-        for _,p in ipairs(Players:GetPlayers()) do applyChams(p) end
-    else
-        for p in pairs(Highlights) do
-            if Highlights[p] and Highlights[p].Name=="ChamsHL" then clearHighlight(p) end
-        end
-    end
-end})
+
 VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
 VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
 VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
@@ -671,12 +655,9 @@ VisualsTab:AddToggle({Title="Skeleton", Subtitle="R6 + R15", Icon="bone", Defaul
 VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Только реальное оружие, без Handle", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=0, Max=2000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
-    -- При смене дистанции пересоздаём/гасим Highlight'ы под новый лимит
-    if Flags.ESP and v > 0 then
-        if Flags.Glow then for _,p in ipairs(Players:GetPlayers()) do applyGlow(p) end end
-        if Flags.Chams then for _,p in ipairs(Players:GetPlayers()) do applyChams(p) end end
-    else
-        for p in pairs(Highlights) do clearHighlight(p) end
+    for _,p in ipairs(Players:GetPlayers()) do
+        applyFill(p)
+        applyGlow(p)
     end
 end})
 
@@ -690,7 +671,7 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
--- AutoRun: скорость фиксированная 20, слайдер убран
+-- AutoRun: фиксированная скорость 20, слайдер убран
 PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 
 -- Spider: ползунок 15-30
