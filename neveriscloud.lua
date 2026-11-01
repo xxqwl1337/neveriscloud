@@ -646,7 +646,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-        if Flags.Skeleton then updateSkeleton(plr, char)
+                if Flags.Skeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
@@ -841,7 +841,7 @@ SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 SettingsTab:AddSeparator()
 
--- CROSSHAIR SYSTEM
+-- CROSSHAIR SYSTEM (ВСЕ НАСТРОЙКИ)
 SettingsTab:AddLabel("CROSSHAIR SYSTEM", "crosshair")
 SettingsTab:AddSeparator()
 local crosshairToggle = SettingsTab:AddToggle({Title="Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
