@@ -863,66 +863,94 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
-local configNameBox = SettingsTab:AddTextBox({
-    Title = "Config Name", Placeholder = "Enter name...", Default = "default",
-})
-local initialList = listConfigs()
-if #initialList == 0 then initialList = {""} end
-local configList = SettingsTab:AddDropdown({Title = "Saved Configs", Options = initialList, Default = ""})
+-- ВАЖНО: сохраняем ссылки на элементы, чтобы ConfigManager знал что сохранять
+local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+    Flags.ESP=s
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+end})
+local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+    Flags.ESPMode = v
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+end})
 
-local function refreshConfigList()
-    local list = listConfigs()
-    if #list == 0 then list = {""} end
-    pcall(function() configList:SetOptions(list) end)
+-- Настройка папки конфигов
+Window.ConfigManager:SetFolder("cloudclient_configs")
+
+local configNameBox = SettingsTab:AddTextBox({
+    Title = "Config Name",
+    Placeholder = "Enter name...",
+    Default = "default",
+})
+
+local savedConfigs = SettingsTab:AddDropdown({
+    Title = "Saved Configs",
+    Options = Window.ConfigManager:GetConfigs(),
+})
+
+-- Собираем конфиг. Регистрируем все элементы, которые созданы ВЫШЕ.
+-- Если хочешь сохранять больше — добавь ссылки на элементы через `local x = Tab:Add...`
+local function buildConfig(name)
+    local cfg = Window.ConfigManager:CreateConfig(name)
+    cfg:RegisterElement("ESP", espToggle)
+    cfg:RegisterElement("ESPMode", espModeDropdown)
+    -- сюда добавляй другие элементы, если сделал на них `local x = ...`
+    return cfg
 end
 
-SettingsTab:AddButton({Title = "Save Config", Text = "Save", Icon = "save", Callback = function()
-    local ok, err = pcall(function()
-        local name = parseName(configNameBox:Get())
-        if name == "" or name == "nil" then
-            Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2}); return
-        end
-        local saved, serr = saveConfig(name)
-        if saved then
-            refreshConfigList()
+SettingsTab:AddButton({
+    Title = "Save Config",
+    Text = "Save",
+    Callback = function()
+        local ok, err = pcall(function()
+            local name = configNameBox:Get()
+            if not name or name == "" then error("empty name") end
+            buildConfig(name):Save()
+            savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
             Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
-        else
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(serr), Duration=3})
+        end)
+        if not ok then
+            warn("[config] save:", err)
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
         end
-    end)
-    if not ok then warn("[config] save crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
-end})
+    end,
+})
 
-SettingsTab:AddButton({Title = "Load Config", Text = "Load", Icon = "download", Callback = function()
-    local ok, err = pcall(function()
-        local name = parseName(configList:Get())
-        if name == "" or name == "nil" then
-            Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2}); return
-        end
-        local loaded, lerr = loadConfig(name)
-        if loaded then
-            for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+SettingsTab:AddButton({
+    Title = "Load Config",
+    Text = "Load",
+    Callback = function()
+        local ok, err = pcall(function()
+            local name = savedConfigs:Get()
+            if not name or name == "" then error("no config selected") end
+            configNameBox:Set(name)
+            buildConfig(name):Load()
+            for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
             Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
-        else
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(lerr), Duration=3})
+        end)
+        if not ok then
+            warn("[config] load:", err)
+            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
         end
-    end)
-    if not ok then warn("[config] load crash:", err); Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4}) end
-end})
+    end,
+})
 
-SettingsTab:AddButton({Title = "Delete Config", Text = "Delete", Icon = "trash-2", Callback = function()
-    local ok, err = pcall(function()
-        local name = parseName(configList:Get())
-        if name == "" or name == "nil" then return end
-        deleteConfig(name)
-        refreshConfigList()
-        Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
-    end)
-    if not ok then warn("[config] delete crash:", err) end
-end})
+SettingsTab:AddButton({
+    Title = "Delete Config",
+    Text = "Delete",
+    Risky = true,
+    Callback = function()
+        local ok, err = pcall(function()
+            local name = savedConfigs:Get()
+            if not name or name == "" then return end
+            Window.ConfigManager:DeleteConfig(name)
+            savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
+            Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+        end)
+        if not ok then warn("[config] delete:", err) end
+    end,
+})
 
 SettingsTab:AddSeparator()
-
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
