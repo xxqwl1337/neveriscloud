@@ -21,6 +21,28 @@ Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
 Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
+
+-- Принудительный порядок: Rust Decoy первым
+task.defer(function()
+    local tagContainer = Window.Gui and Window.Gui:FindFirstChild("TagContainer", true)
+    if tagContainer then
+        for _, tag in ipairs(tagContainer:GetChildren()) do
+            if tag:IsA("GuiObject") then
+                local label = tag:FindFirstChildOfClass("TextLabel")
+                local text = label and label.Text or tag.Name or ""
+                if text:find("Rust") then
+                    tag.LayoutOrder = -10
+                elseif text:find("Beta") then
+                    tag.LayoutOrder = -9
+                elseif text:find("v1.0") then
+                    tag.LayoutOrder = -8
+                elseif text:find("Premium") then
+                    tag.LayoutOrder = -7
+                end
+            end
+        end
+    end
+end)
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
