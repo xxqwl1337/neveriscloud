@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + ThirdPerson + Crosshair + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Config
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -32,10 +32,10 @@ local Flags = {
     TextColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0),
-    FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20, ThirdPerson = false,
+    FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
     FPSPing = false, Fullbright = false,
     Crosshair = false, CrosshairColor = Color3.fromRGB(255, 255, 255), CrosshairSize = 10,
-    CrosshairThickness = 1, CrosshairTransparency = 0,
+    CrosshairThickness = 1, CrosshairTransparency = 0, CrosshairDistance = 4, CrosshairDot = false,
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
@@ -144,17 +144,18 @@ RunService.RenderStepped:Connect(function()
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
--- ===== CROSSHAIR (4 ЛИНИИ) =====
+-- ===== CROSSHAIR (С ТОЧКОЙ) =====
 local crossTop    = Drawing.new("Line"); crossTop.Visible = false
 local crossBottom = Drawing.new("Line"); crossBottom.Visible = false
 local crossLeft   = Drawing.new("Line"); crossLeft.Visible = false
 local crossRight  = Drawing.new("Line"); crossRight.Visible = false
+local crossDot    = Drawing.new("Circle"); crossDot.Thickness = 2; crossDot.Filled = true; crossDot.Visible = false
 
 RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
         local cx, cy = Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2
         local sz = math.max(Flags.CrosshairSize, 3)
-        local gap = 4
+        local gap = Flags.CrosshairDistance
         local trans = 1 - (Flags.CrosshairTransparency / 100)
 
         crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, cy - gap - sz)
@@ -168,9 +169,20 @@ RunService.RenderStepped:Connect(function()
             line.Transparency = trans
             line.Visible = true
         end
+
+        if Flags.CrosshairDot then
+            crossDot.Position = Vector2.new(cx, cy)
+            crossDot.Radius = 2
+            crossDot.Color = Flags.CrosshairColor
+            crossDot.Transparency = trans
+            crossDot.Visible = true
+        else
+            crossDot.Visible = false
+        end
     else
         crossTop.Visible = false; crossBottom.Visible = false
         crossLeft.Visible = false; crossRight.Visible = false
+        crossDot.Visible = false
     end
 end)
 
@@ -216,31 +228,6 @@ local function startFreeCam()
         if move.Magnitude > 0 then freecamPos = freecamPos + move.Unit * speed * dt end
         Camera.CFrame = CFrame.new(freecamPos) * cf
     end)
-end
-
--- ===== THIRD PERSON (КАМЕРА СЗАДИ) =====
-local tpConn = nil
-local function updateThirdPerson()
-    if Flags.ThirdPerson and not tpConn then
-        tpConn = RunService.RenderStepped:Connect(function()
-            if not Flags.ThirdPerson then 
-                if tpConn then tpConn:Disconnect(); tpConn = nil end
-                return 
-            end
-            if Camera.CameraType == Enum.CameraType.Scriptable then return end
-            local char = LP.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local camPos = root.Position - (Camera.CFrame.LookVector * 12) + Vector3.new(0, 3, 0)
-                Camera.CFrame = CFrame.lookAt(camPos, root.Position)
-                Camera.CameraSubject = char:FindFirstChild("Humanoid")
-            end
-        end)
-    elseif not Flags.ThirdPerson and tpConn then
-        tpConn:Disconnect(); tpConn = nil
-        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-        if hum then Camera.CameraSubject = hum end
-    end
 end
 
 -- ===== AUTORUN =====
@@ -649,7 +636,7 @@ local function updateESP()
             if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
 
-                if Flags.WeaponESP then
+        if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
             if weaponName then
                 d.Weapon.Text = "["..weaponName.."]"
@@ -821,10 +808,6 @@ local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Spa
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
-local thirdPersonToggle = PlayerTab:AddToggle({Title="Third Person", Subtitle="Камера сзади персонажа", Icon="user", Default=false, Callback=function(s)
-    Flags.ThirdPerson=s
-    updateThirdPerson()
-end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 local autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 local spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
@@ -862,10 +845,12 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CROSSHAIR SYSTEM", "crosshair")
 SettingsTab:AddSeparator()
 local crosshairToggle = SettingsTab:AddToggle({Title="Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+local crosshairDotToggle = SettingsTab:AddToggle({Title="Dot (Точка)", Subtitle="Точка в центре прицела", Icon="circle-dot", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
 local crosshairColorPicker = SettingsTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-local crosshairSizeSlider = SettingsTab:AddSlider({Title="Size", Icon="ruler", Min=3, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
-local crosshairThickSlider = SettingsTab:AddSlider({Title="Thickness", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
-local crosshairTranspSlider = SettingsTab:AddSlider({Title="Transparency", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+local crosshairSizeSlider = SettingsTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=3, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+local crosshairDistSlider = SettingsTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
+local crosshairThickSlider = SettingsTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+local crosshairTranspSlider = SettingsTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
 
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
@@ -919,7 +904,6 @@ local function buildConfig(name)
     
     -- Player
     cfg:RegisterElement("FreeCam", freecamToggle)
-    cfg:RegisterElement("ThirdPerson", thirdPersonToggle)
     cfg:RegisterElement("AutoRun", autoRunToggle)
     cfg:RegisterElement("Spider", spiderToggle)
     cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
@@ -930,8 +914,10 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
     cfg:RegisterElement("Crosshair", crosshairToggle)
+    cfg:RegisterElement("CrosshairDot", crosshairDotToggle)
     cfg:RegisterElement("CrosshairColor", crosshairColorPicker)
     cfg:RegisterElement("CrosshairSize", crosshairSizeSlider)
+    cfg:RegisterElement("CrosshairDistance", crosshairDistSlider)
     cfg:RegisterElement("CrosshairThick", crosshairThickSlider)
     cfg:RegisterElement("CrosshairTransp", crosshairTranspSlider)
     
@@ -960,7 +946,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
         if Flags.FreeCam then startFreeCam() else stopFreeCam() end
-        updateThirdPerson()
         if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
         
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
