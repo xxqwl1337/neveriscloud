@@ -828,31 +828,7 @@ local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
--- СКРЫТЫЕ ЭЛЕМЕНТЫ ДЛЯ СОХРАНЕНИЯ ТЕМЫ И ЦВЕТА
-local themeSelector = SettingsTab:AddDropdown({
-    Title = "Theme Selector (hidden)", Icon = "swatch-book", Options = themeNames, Default = Window:GetTheme(),
-    Callback = function(s) Window:SetTheme(s) end
-})
-themeSelector:SetVisible(false) -- Скрываем с глаз
-
-local accentSelector = SettingsTab:AddDropdown({
-    Title = "Accent Selector (hidden)", Icon = "droplet", Options = {"White","Blue","Red","Green","Purple"}, Default = "White",
-    Callback = function(s)
-        local colors = {
-            White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
-            Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
-            Purple=Color3.fromRGB(170,110,240),
-        }
-        VantixUI:SetAccentColor(colors[s])
-    end
-})
-accentSelector:SetVisible(false) -- Скрываем с глаз
-
--- ВИДИМЫЕ ЭЛЕМЕНТЫ
-SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) 
-    Window:SetTheme(s)
-    themeSelector:Set(s) -- Синхронизируем скрытый
-end})
+SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
 SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
         White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
@@ -860,7 +836,6 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
         Purple=Color3.fromRGB(170,110,240),
     }
     VantixUI:SetAccentColor(colors[s])
-    accentSelector:Set(s) -- Синхронизируем скрытый
 end})
 
 SettingsTab:AddSeparator()
@@ -935,8 +910,6 @@ local function buildConfig(name)
     
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
-    cfg:RegisterElement("Theme", themeSelector)   -- ДОБАВЛЕНО В КОНФИГ
-    cfg:RegisterElement("Accent", accentSelector) -- ДОБАВЛЕНО В КОНФИГ
     
     return cfg
 end
@@ -987,11 +960,48 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
-local keybindFreecam = SettingsTab:AddKeybind({Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera", Callback = function() if Flags.FreeCam then stopFreeCam() else startFreeCam() end end})
-local keybindESP = SettingsTab:AddKeybind({Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye", Callback = function() Flags.ESP = not Flags.ESP; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-local keybindFullbright = SettingsTab:AddKeybind({Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun", Callback = function() Flags.Fullbright = not Flags.Fullbright; setFullbright(Flags.Fullbright) end})
-local keybindAutoRun = SettingsTab:AddKeybind({Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap", Callback = function() Flags.AutoRun = not Flags.AutoRun end})
-local keybindSpider = SettingsTab:AddKeybind({Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up", Callback = function() Flags.Spider = not Flags.Spider end})
+local keybindFreecam = SettingsTab:AddKeybind({
+    Title = "FreeCam Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "camera",
+    Callback = function() 
+        if Flags.FreeCam then stopFreeCam() else startFreeCam() end
+    end
+})
+
+local keybindESP = SettingsTab:AddKeybind({
+    Title = "ESP Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "eye",
+    Callback = function() 
+        Flags.ESP = not Flags.ESP
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    end
+})
+
+local keybindFullbright = SettingsTab:AddKeybind({
+    Title = "Fullbright Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "sun",
+    Callback = function() 
+        Flags.Fullbright = not Flags.Fullbright
+        setFullbright(Flags.Fullbright)
+    end
+})
+
+local keybindAutoRun = SettingsTab:AddKeybind({
+    Title = "AutoRun Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "zap",
+    Callback = function() Flags.AutoRun = not Flags.AutoRun end
+})
+
+local keybindSpider = SettingsTab:AddKeybind({
+    Title = "Spider Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "arrow-up",
+    Callback = function() Flags.Spider = not Flags.Spider end
+})
 
 SettingsTab:AddSeparator()
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
