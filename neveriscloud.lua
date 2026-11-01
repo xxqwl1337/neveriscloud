@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
-    ESP: один Highlight, режим переключается через дропдаун (Chams = заливка, Glow = обводка)
+    ESP: один Highlight, режим Chams (заливка) / Glow (обводка), один цвет ESPColor
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -29,7 +29,6 @@ local Flags = {
     Skeleton = false, WeaponESP = false,
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
-    GlowColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0),
     FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
@@ -297,7 +296,7 @@ end
 
 -- ===== ESP HIGHLIGHT (один объект: Chams или Glow) =====
 -- Chams: заливка модели цветом ESPColor
--- Glow:  обводка контура цветом GlowColor
+-- Glow:  обводка контура цветом ESPColor
 -- Roblox не даёт 2 Highlight на Instance, поэтому режим один.
 local function applyHighlight(plr)
     if plr == LP then return end
@@ -324,9 +323,9 @@ local function applyHighlight(plr)
         hl.OutlineColor = Flags.ESPColor
         hl.OutlineTransparency = 1
     else -- Glow
-        hl.FillColor = Flags.GlowColor
+        hl.FillColor = Flags.ESPColor
         hl.FillTransparency = 1
-        hl.OutlineColor = Flags.GlowColor
+        hl.OutlineColor = Flags.ESPColor
         hl.OutlineTransparency = 0
     end
 end
@@ -553,20 +552,12 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
 
-VisualsTab:AddColorPicker({Title="Fill Color (Chams)", Icon="shirt", Default=Flags.ESPColor, Callback=function(c)
+VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    if Flags.ESPMode=="Chams" then
-        for _,hl in pairs(Highlights) do
-            if hl and hl.Parent then hl.FillColor=c; hl.OutlineColor=c end
-        end
-    end
-end})
-
-VisualsTab:AddColorPicker({Title="Glow Color (Glow)", Icon="sparkles", Default=Flags.GlowColor, Callback=function(c)
-    Flags.GlowColor=c
-    if Flags.ESPMode=="Glow" then
-        for _,hl in pairs(Highlights) do
-            if hl and hl.Parent then hl.FillColor=c; hl.OutlineColor=c end
+    for _,hl in pairs(Highlights) do
+        if hl and hl.Parent then
+            hl.FillColor = c
+            hl.OutlineColor = c
         end
     end
 end})
