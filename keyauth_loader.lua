@@ -1,10 +1,18 @@
 --[[
-    Система ключей через GitHub (с таймером)
+    CLOUDCLIENT — Key System (Hardcoded)
 ]]
-local KEYS_URL = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/keys.txt"
 
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
+-- ===== БАЗА КЛЮЧЕЙ =====
+-- Формат: ["КЛЮЧ"] = Время_окончания (Unix Timestamp)
+-- 1767225600 = 1 Января 2026 (это ~30 дней с текущего момента)
+local ValidKeys = {
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 1767225600,
+    ["TEST-KEY-DEMO"] = 1767225600
+}
+
+-- ===== МЕНЮ АКТИВАЦИИ =====
 local Window = VantixUI:CreateWindow({
     Title = "cloudclient | Activation",
     Theme = "Vantix",
@@ -15,10 +23,10 @@ local Window = VantixUI:CreateWindow({
 
 local MainTab = Window:AddTab("Activation", "key")
 
-local status = MainTab:AddLabel("Введите ключ", "info")
+local status = MainTab:AddLabel("Введите ключ для доступа", "info")
 local keyBox = MainTab:AddTextBox({
     Title = "License Key",
-    Placeholder = "XXXX-XXXX-XXXX",
+    Placeholder = "XXXX-XXXX-XXXX-XXXX",
     Default = "",
 })
 
@@ -28,62 +36,44 @@ MainTab:AddButton({
     Icon = "key",
     Callback = function()
         local key = keyBox:Get()
+        
+        -- Проверка на пустоту
         if not key or key == "" then
-            status:Set("Введи ключ", "info")
+            status:Set("Пожалуйста, введите ключ", "info")
             return
         end
+        
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Скачиваем список ключей
-            local success, keysList = pcall(function()
-                return game:HttpGet(KEYS_URL .. "?t=" .. os.time())
-            end)
+            -- Ищем ключ в нашей базе
+            local expireTime = ValidKeys[key]
             
-            if not success or not keysList then
-                status:Set("Ошибка: нет связи с GitHub", "info")
-                return
-            end
-            
-            local found = false
-            local expireTime = 0
-            
-            -- Ищем ключ в списке
-            for line in keysList:gmatch("[^\r\n]+") do
-                local parts = {}
-                for part in string.gmatch(line, "([^|]+)") do
-                    table.insert(parts, part)
-                end
-                
-                if #parts >= 2 then
-                    local cleanKey = parts[1]:match("^%s*(.-)%s*$")
-                    local timeStr = parts[2]:match("^%s*(.-)%s*$")
-                    
-                    if cleanKey == key then
-                        found = true
-                        expireTime = tonumber(timeStr) or 0
-                        break
-                    end
-                end
-            end
-            
-            if not found then
+            if not expireTime then
                 status:Set("Неверный ключ!", "info")
                 return
             end
             
-            -- Проверка времени
-            local now = os.time()
-            if now > expireTime then
+            -- Проверяем, не истек ли срок
+            local currentTime = os.time()
+            if currentTime > expireTime then
                 status:Set("Срок действия ключа истек!", "info")
                 return
             end
             
-            -- Успех
+            -- Если всё ок
             status:Set("Активация успешна!", "info")
-            Window:Notify({ Title = "Success", Text = "Загрузка cloudclient...", Icon = "check", Duration = 2 })
+            Window:Notify({ 
+                Title = "Success", 
+                Text = "Загрузка cloudclient...", 
+                Icon = "check", 
+                Duration = 2 
+            })
+            
             task.wait(1)
             Window:Destroy()
+            
+            -- Запускаем основной скрипт
             loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
         end)
     end,
