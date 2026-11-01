@@ -1,6 +1,61 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Config
 ]]
+
+-- ===== ПРОВЕРКА КЛЮЧА =====
+local ValidKeys = {
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
+    ["TEST-KEY-DEMO"] = true
+}
+
+-- Если ключ еще не введен, показываем меню
+if not getgenv().CloudClientActivated then
+    local KeyUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+    local KeyWin = KeyUI:CreateWindow({
+        Title = "cloudclient | Activation",
+        Theme = "Vantix",
+        AccentColor = Color3.fromRGB(255, 255, 255),
+        LogoID = 110034487018208,
+        Size = {380, 260},
+    })
+    local KeyTab = KeyWin:AddTab("Activation", "key")
+    local KeyStatus = KeyTab:AddLabel("Введите ключ", "info")
+    local KeyBox = KeyTab:AddTextBox({ Title = "License Key", Placeholder = "XXXX-XXXX-XXXX", Default = "" })
+    
+    KeyTab:AddButton({
+        Title = "Activate",
+        Text = "Activate",
+        Icon = "key",
+        Callback = function()
+            local key = KeyBox:Get()
+            if not key or key == "" then KeyStatus:Set("Введи ключ", "info") return end
+            
+            KeyStatus:Set("Проверка...", "info")
+            
+            task.spawn(function()
+                if not ValidKeys[key] then
+                    KeyStatus:Set("Неверный ключ!", "info")
+                    return
+                end
+                
+                getgenv().CloudClientActivated = true
+                getgenv().CloudClientExpireTime = os.time() + 2592000 -- 30 дней
+                
+                KeyStatus:Set("Успех!", "info")
+                KeyWin:Notify({ Title = "Success", Text = "Загрузка...", Icon = "check", Duration = 2 })
+                task.wait(1)
+                KeyWin:Destroy()
+                
+                -- Перезапускаем скрипт, чтобы он пошел дальше
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
+            end)
+        end,
+    })
+    
+    return -- Останавливаем выполнение скрипта, пока не введут ключ
+end
+-- ===== КОНЕЦ ПРОВЕРКИ КЛЮЧА =====
+
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
