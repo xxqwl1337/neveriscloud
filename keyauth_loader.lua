@@ -1,7 +1,7 @@
 --[[
     Система ключей через GitHub Gist (с таймером)
 ]]
-local KEYS_URL = "https://gist.githubusercontent.com/xxqwl1337/b8c6e412ba933eee8307fa29035dcb2a/raw/fcf1d22780b8c4e99701a928b9813d642c3f1fe0/gistfile1.txt"
+local KEYS_URL = "https://gist.githubusercontent.com/xxqwl1337/b8c6e412ba933eee8307fa29035dcb2a/raw/3844b777fe27bc0955aa81cb95728226bff42c4f/gistfile1.txt"
 
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -35,7 +35,7 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Скачиваем список ключей (добавляем ?t=os.time(), чтобы не кэшировалось)
+            -- Скачиваем список ключей
             local success, keysList = pcall(function()
                 return game:HttpGet(KEYS_URL .. "?t=" .. os.time())
             end)
