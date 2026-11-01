@@ -1,6 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider
     Aimbot: Aim Assist двигает камеру (работает всегда), Silent Aim хукает Mouse.Hit, Aim Lock — rage
+    Config: сохранение Flags в cloudclient/configs/ через writefile
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -21,7 +22,6 @@ Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
 Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
@@ -36,17 +36,9 @@ local Flags = {
     SkeletonColor = Color3.fromRGB(0, 255, 0),
     FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
     FPSPing = false, Fullbright = false,
-    Aimbot = false,
-    AimAssist = true,
-    SilentAim = true,
-    AimlockMode = false,
-    AimPart = "Head",
-    AimSmooth = 5,
-    AimFOV = 120,
-    AimTeamCheck = true,
-    AimKey = Enum.UserInputType.MouseButton2,
-    AimPrediction = 0,
-    HitChance = 100,
+    Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
+    AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
+    AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -63,15 +55,12 @@ local function getAimPart(char)
     return char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
 end
 
--- Возвращает скорость части с фоллбеком на старый Velocity
 local function getVelocity(part)
     if not part then return Vector3.zero end
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
 -- ===== SILENT AIM =====
--- Подменяет Mouse.Hit/Target. Работает только если игра читает Mouse.Hit при выстреле.
--- Если хук не создался — warn, но Aim Assist всё равно наведёт камеру.
 local silentHookOk = pcall(function()
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -87,9 +76,7 @@ local silentHookOk = pcall(function()
         return oldIndex(self, key)
     end)
 end)
-if not silentHookOk then
-    warn("[cloudclient] Silent Aim hook FAILED — используй Aim Assist")
-end
+if not silentHookOk then warn("[cloudclient] Silent Aim hook FAILED — используй Aim Assist") end
 
 -- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
@@ -116,20 +103,16 @@ local function getClosestTarget()
 end
 
 -- ===== AIM ASSIST + AIM LOCK =====
--- Двигает камеру на цель. Aim Assist — плавно, Aim Lock — мгновенно.
--- Frame-rate independent lerp: alpha = 1 - (1-base)^(dt*60), не зависит от FPS.
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Value + 2, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then return end
     if not UIS:IsMouseButtonPressed(Flags.AimKey) then return end
     if not Flags.AimAssist and not Flags.AimlockMode then return end
-
     local camPos = Camera.CFrame.Position
     local targetPos = CurrentTargetPart.Position
     if Flags.AimPrediction > 0 then
         targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
     end
     local lookCF = CFrame.lookAt(camPos, targetPos)
-
     if Flags.AimlockMode then
         Camera.CFrame = lookCF
     else
@@ -283,45 +266,26 @@ local function updateSpider()
     end
 end
 
--- ===== FULLBRIGHT (оптимизированный, гасит туман/атмосферу/облака) =====
--- Проблема: античит/сервер может перезаписывать Lighting и Atmosphere каждый тик.
--- Решение: лёгкий тик раз в 0.25 сек, проверка "изменилось ли", запись только при отличии.
--- Гасим: FogEnd/FogStart, Brightness/ClockTime, Atmosphere (Haze/Density/Glare), Clouds.
+-- ===== FULLBRIGHT (гасит туман/атмосферу/облака) =====
 local origLight = {
-    Brightness     = Lighting.Brightness,
-    ClockTime      = Lighting.ClockTime,
-    FogEnd         = Lighting.FogEnd,
-    FogStart       = Lighting.FogStart,
-    GlobalShadows  = Lighting.GlobalShadows,
-    Ambient        = Lighting.Ambient,
-    OutdoorAmbient = Lighting.OutdoorAmbient,
+    Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime,
+    FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart,
+    GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient,
+    OutdoorAmbient=Lighting.OutdoorAmbient,
 }
-
 local FULLBRIGHT_VALUES = {
-    Brightness = 2,
-    ClockTime = 12,
-    FogEnd = 1e5,
-    FogStart = 0,
-    GlobalShadows = false,
-    Ambient = Color3.fromRGB(178, 178, 178),
-    OutdoorAmbient = Color3.fromRGB(178, 178, 178),
+    Brightness=2, ClockTime=12, FogEnd=1e5, FogStart=0,
+    GlobalShadows=false,
+    Ambient=Color3.fromRGB(178,178,178), OutdoorAmbient=Color3.fromRGB(178,178,178),
 }
-
--- Сохраняем оригинальные значения Atmosphere (если есть) и Clouds
-local origAtmosphere = nil
-local origClouds = nil
+local origAtmosphere, origClouds = nil, nil
 local function captureAtmosphere()
     origAtmosphere = {}
     for _, atm in ipairs(Lighting:GetChildren()) do
         if atm:IsA("Atmosphere") then
             table.insert(origAtmosphere, {
-                obj = atm,
-                Density = atm.Density,
-                Offset = atm.Offset,
-                Color = atm.Color,
-                Decay = atm.Decay,
-                Glare = atm.Glare,
-                Haze = atm.Haze,
+                obj=atm, Density=atm.Density, Offset=atm.Offset,
+                Color=atm.Color, Decay=atm.Decay, Glare=atm.Glare, Haze=atm.Haze,
             })
         end
     end
@@ -329,27 +293,18 @@ local function captureAtmosphere()
     for _, cl in ipairs(Lighting:GetChildren()) do
         if cl:IsA("Clouds") then
             table.insert(origClouds, {
-                obj = cl,
-                Cover = cl.Cover,
-                Density = cl.Density,
-                Color = cl.Color,
-                Enabled = cl.Enabled,
+                obj=cl, Cover=cl.Cover, Density=cl.Density,
+                Color=cl.Color, Enabled=cl.Enabled,
             })
         end
     end
 end
 captureAtmosphere()
 
--- Применяет fullbright: Lighting + Atmosphere + Clouds.
--- Записывает только если значение реально отличается (иначе лагает от property changes).
 local function applyFullbrightOnce()
-    -- Lighting
     for key, val in pairs(FULLBRIGHT_VALUES) do
-        if Lighting[key] ~= val then
-            pcall(function() Lighting[key] = val end)
-        end
+        if Lighting[key] ~= val then pcall(function() Lighting[key] = val end) end
     end
-    -- Atmosphere: гасим Haze, Density, Glare, Decay. Цвет — белый.
     for _, atm in ipairs(Lighting:GetChildren()) do
         if atm:IsA("Atmosphere") then
             if atm.Density ~= 0 then pcall(function() atm.Density = 0 end) end
@@ -359,7 +314,6 @@ local function applyFullbrightOnce()
             if atm.Color ~= Color3.fromRGB(255,255,255) then pcall(function() atm.Color = Color3.fromRGB(255,255,255) end) end
         end
     end
-    -- Clouds: убираем облака (Cover=0, Density=0)
     for _, cl in ipairs(Lighting:GetChildren()) do
         if cl:IsA("Clouds") then
             if cl.Cover ~= 0 then pcall(function() cl.Cover = 0 end) end
@@ -368,21 +322,15 @@ local function applyFullbrightOnce()
     end
 end
 
--- Восстанавливает оригинальные значения Lighting, Atmosphere, Clouds.
 local function restoreLighting()
-    for key, val in pairs(origLight) do
-        pcall(function() Lighting[key] = val end)
-    end
+    for key, val in pairs(origLight) do pcall(function() Lighting[key] = val end) end
     if origAtmosphere then
         for _, a in ipairs(origAtmosphere) do
             if a.obj and a.obj.Parent then
                 pcall(function()
-                    a.obj.Density = a.Density
-                    a.obj.Offset = a.Offset
-                    a.obj.Color = a.Color
-                    a.obj.Decay = a.Decay
-                    a.obj.Glare = a.Glare
-                    a.obj.Haze = a.Haze
+                    a.obj.Density=a.Density; a.obj.Offset=a.Offset
+                    a.obj.Color=a.Color; a.obj.Decay=a.Decay
+                    a.obj.Glare=a.Glare; a.obj.Haze=a.Haze
                 end)
             end
         end
@@ -391,20 +339,16 @@ local function restoreLighting()
         for _, c in ipairs(origClouds) do
             if c.obj and c.obj.Parent then
                 pcall(function()
-                    c.obj.Cover = c.Cover
-                    c.obj.Density = c.Density
-                    c.obj.Color = c.Color
-                    c.obj.Enabled = c.Enabled
+                    c.obj.Cover=c.Cover; c.obj.Density=c.Density
+                    c.obj.Color=c.Color; c.obj.Enabled=c.Enabled
                 end)
             end
         end
     end
 end
 
--- Публичный переключатель (вызывается из UI).
 local function setFullbright(state)
     if state then
-        -- при включении обновляем кэш атмосферы — вдруг добавили новую
         captureAtmosphere()
         applyFullbrightOnce()
     else
@@ -412,13 +356,10 @@ local function setFullbright(state)
     end
 end
 
--- Сторожевой тик: раз в 0.25 сек возвращаем значения, если античит сбросил.
 task.spawn(function()
     while true do
         task.wait(0.25)
-        if Flags.Fullbright then
-            applyFullbrightOnce()
-        end
+        if Flags.Fullbright then applyFullbrightOnce() end
     end
 end)
 
@@ -454,17 +395,13 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
--- ===== ESP HIGHLIGHT =====
 local function applyHighlight(plr)
     if plr == LP then return end
     local char = plr.Character
     local want = Flags.ESP and Flags.MaxDistance > 0
-
     if not want or not char or not isAlive(char) then
-        clearHighlight(plr)
-        return
+        clearHighlight(plr); return
     end
-
     local hl = Highlights[plr]
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
@@ -473,7 +410,6 @@ local function applyHighlight(plr)
         hl.Parent = char
         Highlights[plr] = hl
     end
-
     if Flags.ESPMode == "Chams" then
         hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0
         hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 1
@@ -587,7 +523,6 @@ end
 
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
-
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then hideAll(); return end
     local localPos = localRoot.Position
@@ -609,7 +544,6 @@ local function updateESP()
             updateHighlightDistance(plr, math.huge, false)
             continue
         end
-
         local dist = (root.Position - localPos).Magnitude
         if dist > Flags.MaxDistance then
             if d.Box.Visible then d.Box.Visible=false end
@@ -623,7 +557,6 @@ local function updateESP()
             updateHighlightDistance(plr, dist, false)
             continue
         end
-
         local sp = Camera:WorldToViewportPoint(root.Position)
         if sp.Z <= 0 then
             if d.Box.Visible then d.Box.Visible=false end
@@ -712,6 +645,79 @@ end
 for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(removeDrawings)
+
+-- ===== CONFIG SYSTEM =====
+local CONFIG_FOLDER = "cloudclient/configs/"
+pcall(function() makefolder("cloudclient"); makefolder(CONFIG_FOLDER) end)
+
+local function serialize(v, indent)
+    indent = indent or ""
+    local t = type(v)
+    if t == "boolean" or t == "number" then return tostring(v) end
+    if t == "string" then return string.format("%q", v) end
+    if t == "userdata" and typeof(v) == "Color3" then
+        return string.format("Color3.fromRGB(%d,%d,%d)", v.R*255, v.G*255, v.B*255)
+    end
+    if t == "userdata" and typeof(v) == "EnumItem" then
+        return string.format("Enum.%s.%s", v.EnumType.Name, v.Name)
+    end
+    if t == "table" then
+        local parts = {}
+        for k, val in pairs(v) do
+            local keyStr = type(k) == "string" and k or "["..tostring(k).."]"
+            table.insert(parts, indent.."  "..keyStr.." = "..serialize(val, indent.."  "))
+        end
+        return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
+    end
+        return "nil"
+end
+
+local function saveConfig(name)
+    if not name or name == "" or name == "nil" then return false, "empty name" end
+    local ok, err = pcall(function()
+        local data = "return "..serialize(Flags)
+        writefile(CONFIG_FOLDER..name..".lua", data)
+    end)
+    return ok, err
+end
+
+local function loadConfig(name)
+    if not name or name == "" or name == "nil" then return false, "empty name" end
+    local ok, err = pcall(function()
+        local src = readfile(CONFIG_FOLDER..name..".lua")
+        local chunk = loadstring(src)
+        if not chunk then error("invalid config") end
+        local data = chunk()
+        if type(data) ~= "table" then error("invalid data") end
+        for k, v in pairs(data) do
+            if Flags[k] ~= nil then Flags[k] = v end
+        end
+    end)
+    return ok, err
+end
+
+local function deleteConfig(name)
+    if not name or name == "" or name == "nil" then return false end
+    return pcall(function() delfile(CONFIG_FOLDER..name..".lua") end)
+end
+
+local function listConfigs()
+    local out = {}
+    pcall(function()
+        for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
+            local n = f:match("([^/\\]+)%.lua$")
+            if n then table.insert(out, n) end
+        end
+    end)
+    return out
+end
+
+-- Универсальный парсер имени из UI-элемента (защита от EnumItem)
+local function parseName(raw)
+    if type(raw) == "string" then return raw end
+    if typeof(raw) == "EnumItem" then return tostring(raw.Value) end
+    return tostring(raw)
+end
 
 -- ===== FPS/PING HUD =====
 local StatsService = game:GetService("Stats")
@@ -852,76 +858,6 @@ OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=func
     setFullbright(s)
 end})
 
--- ===== CONFIG SYSTEM =====
--- Сохраняет Flags в JSON-файл через writefile (Xeno поддерживает).
--- Папка: cloudclient/configs/. Имя файла = имя конфига.
-local CONFIG_FOLDER = "cloudclient/configs/"
-pcall(function() makefolder("cloudclient"); makefolder(CONFIG_FOLDER) end)
-
--- Рекурсивный сериализатор для Flags (только bool/number/string/Color3/EnumItem)
-local function serialize(v, indent)
-    indent = indent or ""
-    local t = type(v)
-    if t == "boolean" or t == "number" then return tostring(v) end
-    if t == "string" then return string.format("%q", v) end
-    if t == "userdata" and typeof(v) == "Color3" then
-        return string.format("Color3.fromRGB(%d,%d,%d)", v.R*255, v.G*255, v.B*255)
-    end
-    if t == "userdata" and typeof(v) == "EnumItem" then
-        return string.format("Enum.%s.%s", v.EnumType.Name, v.Name)
-    end
-    if t == "table" then
-        local parts = {}
-        for k, val in pairs(v) do
-            local keyStr = type(k) == "string" and k or "["..tostring(k).."]"
-            table.insert(parts, indent.."  "..keyStr.." = "..serialize(val, indent.."  "))
-        end
-        return "{\n"..table.concat(parts, ",\n").."\n"..indent.."}"
-    end
-    return "nil"
-end
-
-local function saveConfig(name)
-    if not name or name == "" then return false end
-    local ok, err = pcall(function()
-        local data = "return "..serialize(Flags)
-        writefile(CONFIG_FOLDER..name..".lua", data)
-    end)
-    return ok, err
-end
-
-local function loadConfig(name)
-    if not name or name == "" then return false end
-    local ok, err = pcall(function()
-        local src = readfile(CONFIG_FOLDER..name..".lua")
-        local chunk = loadstring(src)
-        if not chunk then error("invalid config") end
-        local data = chunk()
-        if type(data) ~= "table" then error("invalid data") end
-        for k, v in pairs(data) do
-            if Flags[k] ~= nil then Flags[k] = v end
-        end
-    end)
-    return ok, err
-end
-
-local function deleteConfig(name)
-    if not name or name == "" then return false end
-    local ok = pcall(function() delfile(CONFIG_FOLDER..name..".lua") end)
-    return ok
-end
-
-local function listConfigs()
-    local out = {}
-    local ok = pcall(function()
-        for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
-            local n = f:match("([^/\\]+)%.lua$")
-            if n then table.insert(out, n) end
-        end
-    end)
-    return ok and out or {}
-end
-
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
@@ -940,10 +876,11 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
 end})
 
 SettingsTab:AddSeparator()
-
 SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+SettingsTab:AddSeparator()
 
-SettingsTab:AddSeparator(); SettingsTab:AddLabel("CONFIG SYSTEM", "save"); SettingsTab:AddSeparator()
+SettingsTab:AddLabel("CONFIG SYSTEM", "save")
+SettingsTab:AddSeparator()
 
 local configNameBox = SettingsTab:AddTextBox({
     Title = "Config Name",
@@ -951,70 +888,79 @@ local configNameBox = SettingsTab:AddTextBox({
     Default = "default",
 })
 
+local initialList = listConfigs()
+if #initialList == 0 then initialList = {""} end
 local configList = SettingsTab:AddDropdown({
     Title = "Saved Configs",
-    Options = listConfigs(),
+    Options = initialList,
     Default = "",
 })
 
--- Обновляет список в дропдауне
 local function refreshConfigList()
     local list = listConfigs()
     if #list == 0 then list = {""} end
-    configList:SetOptions(list)
+    pcall(function() configList:SetOptions(list) end)
 end
 
 SettingsTab:AddButton({
-    Title = "Save Config",
-    Text = "Save",
-    Icon = "save",
+    Title = "Save Config", Text = "Save", Icon = "save",
     Callback = function()
-        local name = configNameBox:Get()
-        if not name or name == "" then
-            Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2})
-            return
+        local ok, err = pcall(function()
+            local name = parseName(configNameBox:Get())
+            if name == "" or name == "nil" then
+                Window:Notify({Title="Config", Text="Введи имя конфига", Duration=2})
+                return
+            end
+            local saved, serr = saveConfig(name)
+            if saved then
+                refreshConfigList()
+                Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+            else
+                Window:Notify({Title="Config", Text="Ошибка: "..tostring(serr), Duration=3})
+            end
+        end)
+        if not ok then
+            warn("[config] save crash:", err)
+            Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4})
         end
-        local ok, err = saveConfig(name)
-        if ok then
+    end,
+})
+
+SettingsTab:AddButton({
+    Title = "Load Config", Text = "Load", Icon = "download",
+    Callback = function()
+        local ok, err = pcall(function()
+            local name = parseName(configList:Get())
+            if name == "" or name == "nil" then
+                Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2})
+                return
+            end
+            local loaded, lerr = loadConfig(name)
+            if loaded then
+                for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+                Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+            else
+                Window:Notify({Title="Config", Text="Ошибка: "..tostring(lerr), Duration=3})
+            end
+        end)
+        if not ok then
+            warn("[config] load crash:", err)
+            Window:Notify({Title="Config", Text="Крэш: "..tostring(err), Duration=4})
+        end
+    end,
+})
+
+SettingsTab:AddButton({
+    Title = "Delete Config", Text = "Delete", Icon = "trash-2",
+    Callback = function()
+        local ok, err = pcall(function()
+            local name = parseName(configList:Get())
+            if name == "" or name == "nil" then return end
+            deleteConfig(name)
             refreshConfigList()
-            Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
-        else
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=3})
-        end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Load Config",
-    Text = "Load",
-    Icon = "download",
-    Callback = function()
-        local name = configList:Get()
-        if not name or name == "" then
-            Window:Notify({Title="Config", Text="Выбери конфиг", Duration=2})
-            return
-        end
-        local ok, err = loadConfig(name)
-        if ok then
-            -- применяем загруженные флаги к текущему состоянию
-            for _, p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-            Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
-        else
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=3})
-        end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Delete Config",
-    Text = "Delete",
-    Icon = "trash-2",
-    Callback = function()
-        local name = configList:Get()
-        if not name or name == "" then return end
-        deleteConfig(name)
-        refreshConfigList()
-        Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+            Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+        end)
+        if not ok then warn("[config] delete crash:", err) end
     end,
 })
 
