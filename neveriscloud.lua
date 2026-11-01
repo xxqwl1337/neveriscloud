@@ -4,6 +4,7 @@
     TextColor: отдельный цвет для Name/Distance/Health/Weapon
     ESP Distance: 100-1000
     Stats HUD: отдельная панель VantixUI с FPS/Ping/HP/Position
+    Weapon ESP: только реальное оружие/предмет, части тела и Handle отфильтрованы
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -604,7 +605,7 @@ AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=10
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
+AimbotTab:AddDropdown({Title="Target Part", Subtitle="Куда целится аимбот", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
 AimbotTab:AddToggle({Title="Team Check", Subtitle="Не наводится на союзников", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
 AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
 
@@ -612,6 +613,13 @@ AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserIn
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
+
+VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams (заливка) и Glow (обводка)", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+    Flags.ESPColor=c
+    for _,hl in pairs(Highlights) do
+        if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
+    end
+end})
 
 VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет для Chams (заливка) и Glow (обводка)", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
