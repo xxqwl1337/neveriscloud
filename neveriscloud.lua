@@ -1,6 +1,7 @@
 --[[
     CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
     ESP: один Highlight, режим Chams (заливка) / Glow (обводка), ОДИН цвет ESPColor на всё
+    Weapon ESP: только реальное оружие/предмет, части тела и Handle отфильтрованы
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -405,21 +406,46 @@ local function updateSkeleton(plr, char)
 end
 
 -- ===== WEAPON ESP =====
--- Служебные имена частей Tool, которые не считаем оружием (Handle/Grip/Attachment).
+-- Имена, которые НЕ считаем оружием: служебные части Tool, части тела персонажа,
+-- мусорные значения и технические объекты. Если имя попало сюда — пропускаем.
 local WEAPON_IGNORE = {
     Handle = true, Grip = true, Attachment = true, Attachment1 = true,
     ["LeftGrip"] = true, ["RightGrip"] = true, ["Tool"] = true,
+    Head = true, Torso = true, UpperTorso = true, LowerTorso = true,
+    ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
+    LeftUpperArm = true, RightUpperArm = true, LeftLowerArm = true, RightLowerArm = true,
+    LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true,
+    HumanoidRootPart = true, Humanoid = true,
+    [""] = true, ["None"] = true, ["Nil"] = true, ["Part"] = true, ["Mesh"] = true,
 }
 
--- Имя реального оружия в руках или nil (пропускает Handle и подобные).
+-- Проверяет, что имя осмысленное (не служебное, не цифры, не 1 символ).
+local function isMeaningfulName(name)
+    if not name or name == "" then return false end
+    if WEAPON_IGNORE[name] then return false end
+    if #name < 2 then return false end
+    if tonumber(name) then return false end
+    return true
+end
+
+-- Возвращает имя реального оружия/предмета в руках или nil.
+-- Порядок: имя Tool (если осмысленное) -> первая BasePart -> первая Model/MeshPart.
+-- Всё из WEAPON_IGNORE и короткие/цифровые имена пропускаются.
 local function getWeaponName(char)
     if not char then return nil end
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then return nil end
-    if not WEAPON_IGNORE[tool.Name] and tool.Name ~= "" then return tool.Name end
+
+    if isMeaningfulName(tool.Name) then return tool.Name end
+
     for _, child in ipairs(tool:GetChildren()) do
-        if child:IsA("BasePart") and not WEAPON_IGNORE[child.Name] then return child.Name end
+        if child:IsA("BasePart") and isMeaningfulName(child.Name) then return child.Name end
     end
+
+    for _, child in ipairs(tool:GetChildren()) do
+        if (child:IsA("Model") or child:IsA("MeshPart")) and isMeaningfulName(child.Name) then return child.Name end
+    end
+
     return nil
 end
 
@@ -433,8 +459,8 @@ end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
 -- Жёсткий гейт при ESP off или MaxDistance=0. Иначе для каждого игрока — дистанция,
--- Z>0 (за камерой скрываем), затем все включённые элементы (Box/Name/HP/Dist/Line/Weapon/Skeleton/Highlight).
--- onScreen игнорируется для основных элементов — он false и за краем экрана, из-за чего Box пропадал.
+-- Z>0 (за камерой скрываем), затем все включённые элементы.
+-- onScreen игнорируется для основных элементов — он false и за краем экрана.
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
@@ -622,8 +648,8 @@ VisualsTab:AddToggle({Title="Name", Subtitle="Ник игрока над гол�
 VisualsTab:AddToggle({Title="Health", Subtitle="HP и MaxHP под ногами", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
 VisualsTab:AddToggle({Title="Distance", Subtitle="Расстояние до игрока в метрах", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
 VisualsTab:AddToggle({Title="Line", Subtitle="Линия от центра низа экрана к игроку (snaplines)", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-VisualsTab:AddToggle({Title="Skeleton", Subtitle="Линии между костями скелета (R6 и R15)", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Показывает имя оружия в руках (без Handle)", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=0, Max=2000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
