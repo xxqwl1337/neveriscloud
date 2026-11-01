@@ -144,26 +144,33 @@ RunService.RenderStepped:Connect(function()
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
--- ===== CROSSHAIR (ФИКС БАГА) =====
-local crossH = Drawing.new("Line"); crossH.Visible = false
-local crossV = Drawing.new("Line"); crossV.Visible = false
+-- ===== CROSSHAIR (4 ЛИНИИ) =====
+local crossTop    = Drawing.new("Line"); crossTop.Visible = false
+local crossBottom = Drawing.new("Line"); crossBottom.Visible = false
+local crossLeft   = Drawing.new("Line"); crossLeft.Visible = false
+local crossRight  = Drawing.new("Line"); crossRight.Visible = false
 
 RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
         local cx, cy = Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2
-        local sz = math.max(Flags.CrosshairSize, 4) -- Защита от бага на маленьком размере
-        
-        crossH.From = Vector2.new(cx - sz, cy); crossH.To = Vector2.new(cx + sz, cy)
-        crossV.From = Vector2.new(cx, cy - sz); crossV.To = Vector2.new(cx, cy + sz)
-        
-        crossH.Color = Flags.CrosshairColor; crossV.Color = Flags.CrosshairColor
-        crossH.Thickness = Flags.CrosshairThickness; crossV.Thickness = Flags.CrosshairThickness
-        crossH.Transparency = 1 - (Flags.CrosshairTransparency / 100)
-        crossV.Transparency = 1 - (Flags.CrosshairTransparency / 100)
-        
-        crossH.Visible = true; crossV.Visible = true
+        local sz = math.max(Flags.CrosshairSize, 3)
+        local gap = 4
+        local trans = 1 - (Flags.CrosshairTransparency / 100)
+
+        crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, cy - gap - sz)
+        crossBottom.From = Vector2.new(cx, cy + gap); crossBottom.To = Vector2.new(cx, cy + gap + sz)
+        crossLeft.From = Vector2.new(cx - gap, cy); crossLeft.To = Vector2.new(cx - gap - sz, cy)
+        crossRight.From = Vector2.new(cx + gap, cy); crossRight.To = Vector2.new(cx + gap + sz, cy)
+
+        for _, line in ipairs({crossTop, crossBottom, crossLeft, crossRight}) do
+            line.Color = Flags.CrosshairColor
+            line.Thickness = Flags.CrosshairThickness
+            line.Transparency = trans
+            line.Visible = true
+        end
     else
-        crossH.Visible = false; crossV.Visible = false
+        crossTop.Visible = false; crossBottom.Visible = false
+        crossLeft.Visible = false; crossRight.Visible = false
     end
 end)
 
@@ -211,7 +218,7 @@ local function startFreeCam()
     end)
 end
 
--- ===== THIRD PERSON (ФИКС) =====
+-- ===== THIRD PERSON (КАМЕРА СЗАДИ) =====
 local tpConn = nil
 local function updateThirdPerson()
     if Flags.ThirdPerson and not tpConn then
@@ -224,9 +231,8 @@ local function updateThirdPerson()
             local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if root then
-                -- Отодвигаем камеру на 6 стадов назад от HRP
-                local camPos = root.Position - (Camera.CFrame.LookVector * 6) + Vector3.new(0, 2, 0)
-                Camera.CFrame = CFrame.new(camPos, root.Position)
+                local camPos = root.Position - (Camera.CFrame.LookVector * 12) + Vector3.new(0, 3, 0)
+                Camera.CFrame = CFrame.lookAt(camPos, root.Position)
                 Camera.CameraSubject = char:FindFirstChild("Humanoid")
             end
         end)
@@ -643,7 +649,7 @@ local function updateESP()
             if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
 
-        if Flags.WeaponESP then
+                if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
             if weaponName then
                 d.Weapon.Text = "["..weaponName.."]"
@@ -654,7 +660,7 @@ local function updateESP()
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
         if Flags.Skeleton then updateSkeleton(plr, char)
-                else
+        else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
         end
@@ -857,7 +863,7 @@ SettingsTab:AddLabel("CROSSHAIR SYSTEM", "crosshair")
 SettingsTab:AddSeparator()
 local crosshairToggle = SettingsTab:AddToggle({Title="Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
 local crosshairColorPicker = SettingsTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-local crosshairSizeSlider = SettingsTab:AddSlider({Title="Size", Icon="ruler", Min=2, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+local crosshairSizeSlider = SettingsTab:AddSlider({Title="Size", Icon="ruler", Min=3, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
 local crosshairThickSlider = SettingsTab:AddSlider({Title="Thickness", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = SettingsTab:AddSlider({Title="Transparency", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
 
