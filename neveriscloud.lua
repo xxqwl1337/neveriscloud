@@ -39,12 +39,6 @@ local Flags = {
     AimFOV = 120,
     -- Fullbright
     Fullbright = false,
-    -- Noclip / ThirdPerson
-    Noclip = false,
-    ThirdPerson = false,
-    -- Offscreen Arrows
-    OffscreenArrows = false,
-    ArrowColor = Color3.fromRGB(255, 0, 0),
 }
 
 -- ===== AIMBOT FOV CIRCLE =====
@@ -167,7 +161,6 @@ local function createDrawingsForPlayer(plr)
     d.Health = Drawing.new("Text"); d.Health.Size = 12; d.Health.Center = true; d.Health.Outline = true; d.Health.Visible = false
     d.Line = Drawing.new("Line"); d.Line.Thickness = 1; d.Line.Visible = false
     d.Distance = Drawing.new("Text"); d.Distance.Size = 12; d.Distance.Center = true; d.Distance.Outline = true; d.Distance.Visible = false
-    d.Arrow = Drawing.new("Triangle"); d.Arrow.Thickness = 2; d.Arrow.Filled = true; d.Arrow.Visible = false
     Drawings[plr] = d
 end
 
@@ -212,8 +205,6 @@ local function updateESP()
         return
     end
     local localPos = localRoot.Position
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
     for plr, d in pairs(Drawings) do
         local char = plr.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -227,72 +218,41 @@ local function updateESP()
             for _, obj in pairs(d) do obj.Visible = false end
             continue
         end
-        
         local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        if not onScreen then
+            for _, obj in pairs(d) do obj.Visible = false end
+            continue
+        end
+        local sx, sy = screenPos.X, screenPos.Y
         local headScreen, headOn = Camera:WorldToViewportPoint((char.Head and char.Head.Position or root.Position) + Vector3.new(0,1.5,0))
         local feetScreen, feetOn = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,2.5,0))
-        local sx, sy = screenPos.X, screenPos.Y
 
-        if onScreen then
-            if Flags.Box and headOn and feetOn then
-                local h = math.abs(headScreen.Y - feetScreen.Y); local w = h*0.5
-                d.Box.Size = Vector2.new(w,h); d.Box.Position = Vector2.new(sx-w/2, headScreen.Y)
-                d.Box.Color = Flags.BoxColor; d.Box.Visible = true
-            else d.Box.Visible = false end
+        if Flags.Box and headOn and feetOn then
+            local h = math.abs(headScreen.Y - feetScreen.Y); local w = h*0.5
+            d.Box.Size = Vector2.new(w,h); d.Box.Position = Vector2.new(sx-w/2, headScreen.Y)
+            d.Box.Color = Flags.BoxColor; d.Box.Visible = true
+        else d.Box.Visible = false end
 
-            if Flags.Name then
-                d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, headScreen.Y-18)
-                d.Name.Color = Flags.ESPColor; d.Name.Visible = true
-            else d.Name.Visible = false end
+        if Flags.Name then
+            d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, headScreen.Y-18)
+            d.Name.Color = Flags.ESPColor; d.Name.Visible = true
+        else d.Name.Visible = false end
 
-            if Flags.Health then
-                d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
-                d.Health.Position = Vector2.new(sx, feetScreen.Y+2)
-                d.Health.Color = Flags.ESPColor; d.Health.Visible = true
-            else d.Health.Visible = false end
+        if Flags.Health then
+            d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
+            d.Health.Position = Vector2.new(sx, feetScreen.Y+2)
+            d.Health.Color = Flags.ESPColor; d.Health.Visible = true
+        else d.Health.Visible = false end
 
-            if Flags.Distance then
-                d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, feetScreen.Y+18)
-                d.Distance.Color = Flags.ESPColor; d.Distance.Visible = true
-            else d.Distance.Visible = false end
+        if Flags.Distance then
+            d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, feetScreen.Y+18)
+            d.Distance.Color = Flags.ESPColor; d.Distance.Visible = true
+        else d.Distance.Visible = false end
 
-            if Flags.Line then
-                d.Line.From = Vector2.new(center.X, Camera.ViewportSize.Y)
-                d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; d.Line.Visible = true
-            else d.Line.Visible = false end
-            
-            d.Arrow.Visible = false
-        else
-            d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false
-            d.Distance.Visible = false; d.Line.Visible = false
-            
-            -- Offscreen Arrows
-            if Flags.OffscreenArrows then
-                local dir = (root.Position - Camera.CFrame.Position).Unit
-                local camDir = Camera.CFrame.LookVector
-                local dot = camDir:Dot(dir)
-                if dot < 0 then
-                    local screenDir = Vector2.new(dir.X, dir.Y)
-                    if screenDir.Magnitude > 0 then
-                        local angle = math.atan2(screenDir.Y, screenDir.X)
-                        local radius = math.min(Camera.ViewportSize.X, Camera.ViewportSize.Y) * 0.4
-                        local arrowPos = center + Vector2.new(math.cos(angle), math.sin(angle)) * radius
-                        
-                        local size = 10
-                        local angleDeg = math.deg(angle)
-                        d.Arrow.PointA = arrowPos + Vector2.new(math.cos(math.rad(angleDeg)), math.sin(math.rad(angleDeg))) * size
-                        d.Arrow.PointB = arrowPos + Vector2.new(math.cos(math.rad(angleDeg + 140)), math.sin(math.rad(angleDeg + 140))) * size
-                        d.Arrow.PointC = arrowPos + Vector2.new(math.cos(math.rad(angleDeg - 140)), math.sin(math.rad(angleDeg - 140))) * size
-                        d.Arrow.Color = Flags.ArrowColor
-                        d.Arrow.Visible = true
-                    end
-                else
-                    d.Arrow.Visible = false
-                end
-            else
-                d.Arrow.Visible = false
-            end
-        end
+        if Flags.Line then
+            d.Line.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+            d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; d.Line.Visible = true
+        else d.Line.Visible = false end
     end
 end
 
@@ -343,31 +303,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===== NOCLIP =====
-RunService.Stepped:Connect(function()
-    if Flags.Noclip then
-        local char = LP.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end
-end)
-
--- ===== THIRD PERSON =====
-local function setThirdPerson(state)
-    if state then
-        LP.CameraMaxZoomDistance = 50
-        LP.CameraMinZoomDistance = 25
-    else
-        LP.CameraMaxZoomDistance = 128
-        LP.CameraMinZoomDistance = 0.5
-    end
-end
-
 -- ===== ОСНОВНОЙ ЦИКЛ (ESP + Aimbot FOV Circle) =====
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
     -- ESP
@@ -396,11 +331,14 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Valu
             local cameraPos = Camera.CFrame.Position
             local targetPos = target.Position
             
+            -- Считаем, куда должна смотреть камера
             local lookCF = CFrame.new(cameraPos, targetPos)
             
             if Flags.AimSmooth >= 1.0 then
+                -- Мгновенная наводка (1.0)
                 Camera.CFrame = lookCF
             else
+                -- Плавная наводка
                 Camera.CFrame = Camera.CFrame:Lerp(lookCF, Flags.AimSmooth)
             end
         end
@@ -455,11 +393,6 @@ VisualsTab:AddToggle({ Title = "Name", Icon = "user", Default = false, Callback 
 VisualsTab:AddToggle({ Title = "Health", Icon = "heart", Default = false, Callback = function(s) Flags.Health = s end })
 VisualsTab:AddToggle({ Title = "Line", Icon = "move", Default = false, Callback = function(s) Flags.Line = s end })
 
--- NEW: OFFSCREEN ARROWS
-VisualsTab:AddSeparator()
-VisualsTab:AddToggle({ Title = "Offscreen Arrows", Subtitle = "Show arrows to players behind you", Icon = "navigation", Default = false, Callback = function(s) Flags.OffscreenArrows = s end })
-VisualsTab:AddColorPicker({ Title = "Arrow Color", Icon = "palette", Default = Flags.ArrowColor, Callback = function(c) Flags.ArrowColor = c end })
-
 -- ===== PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
 
@@ -467,27 +400,6 @@ PlayerTab:AddToggle({ Title = "FreeCam", Subtitle = "WASD + Space/Ctrl to fly ca
     Callback = function(s)
         Flags.FreeCam = s
         if s then startFreeCam() else stopFreeCam() end
-    end })
-
--- NEW: NOCLIP
-PlayerTab:AddToggle({ Title = "Noclip", Subtitle = "Walk through walls", Icon = "shield", Default = false,
-    Callback = function(s)
-        Flags.Noclip = s
-        if not s then
-            local char = LP.Character
-            if char then
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = true end
-                end
-            end
-        end
-    end })
-
--- NEW: THIRD PERSON
-PlayerTab:AddToggle({ Title = "Third Person", Subtitle = "Force third person view", Icon = "eye", Default = false,
-    Callback = function(s)
-        Flags.ThirdPerson = s
-        setThirdPerson(s)
     end })
 
 -- ===== OTHER =====
