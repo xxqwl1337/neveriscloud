@@ -1,13 +1,14 @@
 --[[
-    CLOUDCLIENT — Hardcoded Key System (Без файлов и таймеров)
+    CLOUDCLIENT — Key System (С таймером)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
--- ===== БАЗА КЛЮЧЕЙ =====
--- Ключи хранятся прямо тут. Удаляешь строку с ключом - ключ перестает работать.
+-- ===== БАЗА КЛЮЧЕЙ (С ДАТОЙ) =====
+-- Формат: ["КЛЮЧ"] = Время_окончания
+-- 1767225600 = 1 Января 2026 (можешь поменять на другую цифру)
 local ValidKeys = {
-    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
-    ["TEST-KEY-DEMO"] = true
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 1767225600,
+    ["TEST-KEY-DEMO"] = 1767225600
 }
 
 local Window = VantixUI:CreateWindow({
@@ -42,12 +43,22 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Проверяем только то, что написано в самой таблице выше
-            if not ValidKeys[key] then
+            local expireTime = ValidKeys[key]
+            
+            -- 1. Если ключа нет в базе
+            if not expireTime then
                 status:Set("Неверный ключ!", "info")
                 return
             end
             
+            -- 2. Проверка срока действия
+            local now = os.time()
+            if now > expireTime then
+                status:Set("Срок действия ключа истек!", "info")
+                return
+            end
+            
+            -- 3. Всё ок
             status:Set("Активация успешна!", "info")
             Window:Notify({ Title = "Success", Text = "Загрузка...", Icon = "check", Duration = 2 })
             task.wait(1)
