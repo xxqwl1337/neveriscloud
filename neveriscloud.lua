@@ -25,7 +25,7 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
-    ESPElements = {"Box", "Name"}, -- Box, Name, Health, Distance, Line, Skeleton, Weapon ESP
+    ESPElements = {"Box", "Name"}, -- Box, Name, Health, Distance, Line, Skeleton, Weapon
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
@@ -526,7 +526,7 @@ local function updateESP()
     local showDistance = hasElement("Distance")
     local showLine = hasElement("Line")
     local showSkeleton = hasElement("Skeleton")
-    local showWeapon = hasElement("Weapon ESP")
+    local showWeapon = hasElement("Weapon")
 
     for plr, d in pairs(Drawings) do
         local char = plr.Character
@@ -759,9 +759,9 @@ end})
 
 local espElementsDropdown = VisualsTab:AddMultiDropdown({
     Title = "ESP Elements",
-    Subtitle = "Выбери, что рисовать",
+    Subtitle = "Выбери, что рисовать на игроке",
     Icon = "layers",
-    Options = {"Box", "Name", "Health", "Distance", "Line", "Skeleton", "Weapon ESP"},
+    Options = {"Box", "Name", "Health", "Distance", "Line", "Skeleton", "Weapon"},
     Default = {"Box", "Name"},
     Callback = function(selected)
         Flags.ESPElements = selected
