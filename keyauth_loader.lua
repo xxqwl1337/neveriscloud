@@ -1,17 +1,15 @@
 --[[
-    CLOUDCLIENT — Key System (Без таймера)
+    CLOUDCLIENT — Hardcoded Key System (Без файлов и таймеров)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 -- ===== БАЗА КЛЮЧЕЙ =====
--- Просто список ключей. Есть в списке — пускает. Удалил из списка — не пускает.
+-- Ключи хранятся прямо тут. Удаляешь строку с ключом - ключ перестает работать.
 local ValidKeys = {
     ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
-    ["TEST-KEY-DEMO"] = true,
-    ["VIP-KEY-2026"] = true
+    ["TEST-KEY-DEMO"] = true
 }
 
--- ===== МЕНЮ АКТИВАЦИИ =====
 local Window = VantixUI:CreateWindow({
     Title = "cloudclient | Activation",
     Theme = "Vantix",
@@ -22,10 +20,10 @@ local Window = VantixUI:CreateWindow({
 
 local MainTab = Window:AddTab("Activation", "key")
 
-local status = MainTab:AddLabel("Введите ключ для доступа", "info")
+local status = MainTab:AddLabel("Введите ключ", "info")
 local keyBox = MainTab:AddTextBox({
     Title = "License Key",
-    Placeholder = "XXXX-XXXX-XXXX-XXXX",
+    Placeholder = "XXXX-XXXX-XXXX",
     Default = "",
 })
 
@@ -37,32 +35,23 @@ MainTab:AddButton({
         local key = keyBox:Get()
         
         if not key or key == "" then
-            status:Set("Пожалуйста, введите ключ", "info")
+            status:Set("Введи ключ", "info")
             return
         end
         
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Проверяем только наличие ключа в списке (без дат)
+            -- Проверяем только то, что написано в самой таблице выше
             if not ValidKeys[key] then
                 status:Set("Неверный ключ!", "info")
                 return
             end
             
-            -- Если всё ок
             status:Set("Активация успешна!", "info")
-            Window:Notify({ 
-                Title = "Success", 
-                Text = "Загрузка cloudclient...", 
-                Icon = "check", 
-                Duration = 2 
-            })
-            
+            Window:Notify({ Title = "Success", Text = "Загрузка...", Icon = "check", Duration = 2 })
             task.wait(1)
             Window:Destroy()
-            
-            -- Запускаем основной скрипт
             loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
         end)
     end,
