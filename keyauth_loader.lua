@@ -8,8 +8,8 @@ local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqw
 -- Формат: ["КЛЮЧ"] = Время_окончания (Unix Timestamp)
 -- 1767225600 = 1 Января 2026 (это ~30 дней с текущего момента)
 local ValidKeys = {
-    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 1767225600,
-    ["TEST-KEY-DEMO"] = 1767225600
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 2082758400, -- 1 января 2036
+    ["TEST-KEY-DEMO"] = 2082758400
 }
 
 -- ===== МЕНЮ АКТИВАЦИИ =====
