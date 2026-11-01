@@ -57,8 +57,12 @@ local function getVelocity(part)
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
+-- ЗАЩИЩЕННАЯ ФУНКЦИЯ (фикс бага с nil из MultiDropdown)
 local function hasElement(name)
-    for _, v in ipairs(Flags.ESPElements) do
+    if not Flags.ESPElements or type(Flags.ESPElements) ~= "table" then
+        return false
+    end
+    for _, v in pairs(Flags.ESPElements) do
         if v == name then return true end
     end
     return false
@@ -519,6 +523,7 @@ local function updateESP()
     local localPos = localRoot.Position
     local vs = Camera.ViewportSize
 
+    -- Кэшируем проверки элементов
     local showBox = hasElement("Boxes")
     local showName = hasElement("Names")
     local showHealth = hasElement("Health")
@@ -675,220 +680,225 @@ end
 task.spawn(function()
     while true do
         if Flags.FPSPing then
-            if not HudPanel then createHud() end
-            hudFrames = hudFrames + 1
-            local now = os.clock()
-            if now - hudLast >= 1 then
-                                    if fpsRow then fpsRow:Set(hudFrames) end
-                hudFrames, hudLast = 0, now
-                local ok, ping = pcall(function()
-                    return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
-                end)
-                if pingRow then pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
-            end
-            local char = LP.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            local hum  = char and char:FindFirstChildOfClass("Humanoid")
-            if root and posRow then
-                local p = root.Position
-                posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z))
-            end
-            if hum and hpRow then
-                hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)))
-            end
-            if statusRow then statusRow:Set(Flags.ESP and "ESP on" or "ESP off") end
-        elseif HudPanel then destroyHud() end
-        RunService.Heartbeat:Wait()
-    end
-end)
-
--- ===== AUTORUN / SPIDER TIMER =====
-RunService.Stepped:Connect(function()
-    applyAutoRun()
-    updateSpider()
-end)
-
--- ===== MAIN LOOP =====
-RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if Flags.ESP and Flags.MaxDistance > 0 then updateESP() else hideAll() end
-end)
-
--- ===== UI: AIMBOT =====
-local AimbotTab = Window:AddTab("Aimbot", "crosshair")
-
-AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
-AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
-AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
-AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
-AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
-AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
-
--- ===== UI: VISUALS =====
-local VisualsTab = Window:AddTab("Visuals", "eye")
-
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
-
-VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
-    Flags.ESPColor=c
-    for _,hl in pairs(Highlights) do
-        if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
-    end
-end})
-VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
-
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
-
-local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
-    Flags.ESP=s
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-end})
-local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
-    Flags.ESPMode = v
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-end})
-
-local espElementsDropdown = VisualsTab:AddMultiDropdown({
-    Title = "ESP Elements",
-    Subtitle = "Выбери, что рисовать",
-    Icon = "layers",
-    Options = {"Names", "Boxes", "Health", "Distance", "Lines", "Bones", "Tools"},
-    Default = {"Boxes", "Names"},
-    Callback = function(selected)
-        Flags.ESPElements = selected
-    end
-})
-
-VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
-    Flags.MaxDistance=v
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-end})
-
--- ===== UI: PLAYER =====
-local PlayerTab = Window:AddTab("Player", "user")
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
-    Flags.FreeCam=s
-    if s then startFreeCam() else stopFreeCam() end
-end})
-PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
-PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
-PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
-
--- ===== UI: OTHER =====
-local OtherTab = Window:AddTab("Other", "box")
-OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
-    Flags.Fullbright=s
-    setFullbright(s)
-end})
-
--- ===== UI: SETTINGS =====
-local SettingsTab = Window:AddTab("Settings", "settings")
-
-local themeNames = {}
-for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
-table.sort(themeNames)
-
-SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
-SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
-    local colors = {
-        White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
-        Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
-        Purple=Color3.fromRGB(170,110,240),
-    }
-    VantixUI:SetAccentColor(colors[s])
-end})
-
-SettingsTab:AddSeparator()
-SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
-SettingsTab:AddSeparator()
-
-SettingsTab:AddLabel("CONFIG SYSTEM", "save")
-SettingsTab:AddSeparator()
-
-Window.ConfigManager:SetFolder("cloudclient_configs")
-
-local configNameBox = SettingsTab:AddTextBox({
-    Title = "Config Name",
-    Placeholder = "Enter name...",
-    Default = "default",
-})
-
-local savedConfigs = SettingsTab:AddDropdown({
-    Title = "Saved Configs",
-    Options = Window.ConfigManager:GetConfigs(),
-})
-
-local function buildConfig(name)
-    local cfg = Window.ConfigManager:CreateConfig(name)
-    cfg:RegisterElement("ESP", espToggle)
-    cfg:RegisterElement("ESPMode", espModeDropdown)
-    cfg:RegisterElement("ESPElements", espElementsDropdown)
-    return cfg
-end
-
-SettingsTab:AddButton({
-    Title = "Save Config",
-    Text = "Save",
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = configNameBox:Get()
-            if not name or name == "" then error("empty name") end
-            buildConfig(name):Save()
-            savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-            Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
-        end)
-        if not ok then
-            warn("[config] save:", err)
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
+                            if not HudPanel then createHud() end
+                hudFrames = hudFrames + 1
+                local now = os.clock()
+                if now - hudLast >= 1 then
+                    if fpsRow then fpsRow:Set(hudFrames) end
+                    hudFrames, hudLast = 0, now
+                    local ok, ping = pcall(function()
+                        return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
+                    end)
+                    if pingRow then pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
+                end
+                local char = LP.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local hum  = char and char:FindFirstChildOfClass("Humanoid")
+                if root and posRow then
+                    local p = root.Position
+                    posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z))
+                end
+                if hum and hpRow then
+                    hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)))
+                end
+                if statusRow then statusRow:Set(Flags.ESP and "ESP on" or "ESP off") end
+            elseif HudPanel then destroyHud() end
+            RunService.Heartbeat:Wait()
         end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Load Config",
-    Text = "Load",
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = savedConfigs:Get()
-            if not name or name == "" then error("no config selected") end
-            configNameBox:Set(name)
-            buildConfig(name):Load()
-            for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-            Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
-        end)
-        if not ok then
-            warn("[config] load:", err)
-            Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
+    end)
+    
+    -- ===== AUTORUN / SPIDER TIMER =====
+    RunService.Stepped:Connect(function()
+        applyAutoRun()
+        updateSpider()
+    end)
+    
+    -- ===== MAIN LOOP =====
+    RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
+        if Flags.ESP and Flags.MaxDistance > 0 then updateESP() else hideAll() end
+    end)
+    
+    -- ===== UI: AIMBOT =====
+    local AimbotTab = Window:AddTab("Aimbot", "crosshair")
+    
+    AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
+    AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
+    AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+    AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+    AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
+    AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
+    AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
+    AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
+    AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
+    AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
+    AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
+    
+    -- ===== UI: VISUALS =====
+    local VisualsTab = Window:AddTab("Visuals", "eye")
+    
+    VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
+    
+    VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+        Flags.ESPColor=c
+        for _,hl in pairs(Highlights) do
+            if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
         end
-    end,
-})
-
-SettingsTab:AddButton({
-    Title = "Delete Config",
-    Text = "Delete",
-    Risky = true,
-    Callback = function()
-        local ok, err = pcall(function()
-            local name = savedConfigs:Get()
-            if not name or name == "" then return end
-            Window.ConfigManager:DeleteConfig(name)
-            savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-            Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
-        end)
-        if not ok then warn("[config] delete:", err) end
-    end,
-})
-
-SettingsTab:AddSeparator()
-SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
-    local sg = Window.Gui
-    if sg then sg.Enabled = not sg.Enabled end
-end})
+    end})
+    VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+    VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+    VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+    VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+    
+    VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
+    
+    local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+        Flags.ESP=s
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    end})
+    local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+        Flags.ESPMode = v
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    end})
+    
+    local espElementsDropdown = VisualsTab:AddMultiDropdown({
+        Title = "ESP Elements",
+        Subtitle = "Выбери, что рисовать",
+        Icon = "layers",
+        Options = {"Names", "Boxes", "Health", "Distance", "Lines", "Bones", "Tools"},
+        Default = {"Boxes", "Names"},
+        Callback = function(selected)
+            -- ЗАЩИТА ОТ БАГА: если selected == nil, ставим пустую таблицу
+            if type(selected) == "table" then
+                Flags.ESPElements = selected
+            else
+                Flags.ESPElements = {}
+            end
+        end
+    })
+    
+    VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
+        Flags.MaxDistance=v
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    end})
+    
+    -- ===== UI: PLAYER =====
+    local PlayerTab = Window:AddTab("Player", "user")
+    PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
+        Flags.FreeCam=s
+        if s then startFreeCam() else stopFreeCam() end
+    end})
+    PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
+    PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+    PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+    PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
+    
+    -- ===== UI: OTHER =====
+    local OtherTab = Window:AddTab("Other", "box")
+    OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
+        Flags.Fullbright=s
+        setFullbright(s)
+    end})
+    
+    -- ===== UI: SETTINGS =====
+    local SettingsTab = Window:AddTab("Settings", "settings")
+    
+    local themeNames = {}
+    for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
+    table.sort(themeNames)
+    
+    SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
+    SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+        local colors = {
+            White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
+            Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
+            Purple=Color3.fromRGB(170,110,240),
+        }
+        VantixUI:SetAccentColor(colors[s])
+    end})
+    
+    SettingsTab:AddSeparator()
+    SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+    SettingsTab:AddSeparator()
+    
+    SettingsTab:AddLabel("CONFIG SYSTEM", "save")
+    SettingsTab:AddSeparator()
+    
+    Window.ConfigManager:SetFolder("cloudclient_configs")
+    
+    local configNameBox = SettingsTab:AddTextBox({
+        Title = "Config Name",
+        Placeholder = "Enter name...",
+        Default = "default",
+    })
+    
+    local savedConfigs = SettingsTab:AddDropdown({
+        Title = "Saved Configs",
+        Options = Window.ConfigManager:GetConfigs(),
+    })
+    
+    local function buildConfig(name)
+        local cfg = Window.ConfigManager:CreateConfig(name)
+        cfg:RegisterElement("ESP", espToggle)
+        cfg:RegisterElement("ESPMode", espModeDropdown)
+        cfg:RegisterElement("ESPElements", espElementsDropdown)
+        return cfg
+    end
+    
+    SettingsTab:AddButton({
+        Title = "Save Config",
+        Text = "Save",
+        Callback = function()
+            local ok, err = pcall(function()
+                local name = configNameBox:Get()
+                if not name or name == "" then error("empty name") end
+                buildConfig(name):Save()
+                savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
+                Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+            end)
+            if not ok then
+                warn("[config] save:", err)
+                Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
+            end
+        end,
+    })
+    
+    SettingsTab:AddButton({
+        Title = "Load Config",
+        Text = "Load",
+        Callback = function()
+            local ok, err = pcall(function()
+                local name = savedConfigs:Get()
+                if not name or name == "" then error("no config selected") end
+                configNameBox:Set(name)
+                buildConfig(name):Load()
+                for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+                Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+            end)
+            if not ok then
+                warn("[config] load:", err)
+                Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4})
+            end
+        end,
+    })
+    
+    SettingsTab:AddButton({
+        Title = "Delete Config",
+        Text = "Delete",
+        Risky = true,
+        Callback = function()
+            local ok, err = pcall(function()
+                local name = savedConfigs:Get()
+                if not name or name == "" then return end
+                Window.ConfigManager:DeleteConfig(name)
+                savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
+                Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+            end)
+            if not ok then warn("[config] delete:", err) end
+        end,
+    })
+    
+    SettingsTab:AddSeparator()
+    SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
+        local sg = Window.Gui
+        if sg then sg.Enabled = not sg.Enabled end
+    end})
