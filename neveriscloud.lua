@@ -281,10 +281,10 @@ local function updateSpider()
     end
 end
 
--- ===== FULLBRIGHT (оптимизированный) =====
--- Проблема: античит/сервер может перезаписывать Lighting.ClockTime/Brightness каждый тик.
--- Решение: лёгкий тик раз в 0.25 сек, проверка "изменилось ли", и только тогда запись.
--- Не трогаем Lighting каждый кадр — иначе лагает от property changes.
+-- ===== FULLBRIGHT (оптимизированный, гасит туман/атмосферу/облака) =====
+-- Проблема: античит/сервер может перезаписывать Lighting и Atmosphere каждый тик.
+-- Решение: лёгкий тик раз в 0.25 сек, проверка "изменилось ли", запись только при отличии.
+-- Гасим: FogEnd/FogStart, Brightness/ClockTime, Atmosphere (Haze/Density/Glare), Clouds.
 local origLight = {
     Brightness     = Lighting.Brightness,
     ClockTime      = Lighting.ClockTime,
@@ -305,38 +305,112 @@ local FULLBRIGHT_VALUES = {
     OutdoorAmbient = Color3.fromRGB(178, 178, 178),
 }
 
--- Применяет fullbright, если какое-то значение отличается от целевого.
--- Возвращает true если что-то изменилось (полезно для отладки).
+-- Сохраняем оригинальные значения Atmosphere (если есть) и Clouds
+local origAtmosphere = nil
+local origClouds = nil
+local function captureAtmosphere()
+    origAtmosphere = {}
+    for _, atm in ipairs(Lighting:GetChildren()) do
+        if atm:IsA("Atmosphere") then
+            table.insert(origAtmosphere, {
+                obj = atm,
+                Density = atm.Density,
+                Offset = atm.Offset,
+                Color = atm.Color,
+                Decay = atm.Decay,
+                Glare = atm.Glare,
+                Haze = atm.Haze,
+            })
+        end
+    end
+    origClouds = {}
+    for _, cl in ipairs(Lighting:GetChildren()) do
+        if cl:IsA("Clouds") then
+            table.insert(origClouds, {
+                obj = cl,
+                Cover = cl.Cover,
+                Density = cl.Density,
+                Color = cl.Color,
+                Enabled = cl.Enabled,
+            })
+        end
+    end
+end
+captureAtmosphere()
+
+-- Применяет fullbright: Lighting + Atmosphere + Clouds.
+-- Записывает только если значение реально отличается (иначе лагает от property changes).
 local function applyFullbrightOnce()
-    local changed = false
+    -- Lighting
     for key, val in pairs(FULLBRIGHT_VALUES) do
         if Lighting[key] ~= val then
             pcall(function() Lighting[key] = val end)
-            changed = true
         end
     end
-    return changed
+    -- Atmosphere: гасим Haze, Density, Glare, Decay. Цвет — белый.
+    for _, atm in ipairs(Lighting:GetChildren()) do
+        if atm:IsA("Atmosphere") then
+            if atm.Density ~= 0 then pcall(function() atm.Density = 0 end) end
+            if atm.Haze ~= 0 then pcall(function() atm.Haze = 0 end) end
+            if atm.Glare ~= 0 then pcall(function() atm.Glare = 0 end) end
+            if atm.Decay ~= Color3.fromRGB(255,255,255) then pcall(function() atm.Decay = Color3.fromRGB(255,255,255) end) end
+            if atm.Color ~= Color3.fromRGB(255,255,255) then pcall(function() atm.Color = Color3.fromRGB(255,255,255) end) end
+        end
+    end
+    -- Clouds: убираем облака (Cover=0, Density=0)
+    for _, cl in ipairs(Lighting:GetChildren()) do
+        if cl:IsA("Clouds") then
+            if cl.Cover ~= 0 then pcall(function() cl.Cover = 0 end) end
+            if cl.Density ~= 0 then pcall(function() cl.Density = 0 end) end
+        end
+    end
 end
 
--- Восстанавливает оригинальные значения Lighting.
+-- Восстанавливает оригинальные значения Lighting, Atmosphere, Clouds.
 local function restoreLighting()
     for key, val in pairs(origLight) do
         pcall(function() Lighting[key] = val end)
+    end
+    if origAtmosphere then
+        for _, a in ipairs(origAtmosphere) do
+            if a.obj and a.obj.Parent then
+                pcall(function()
+                    a.obj.Density = a.Density
+                    a.obj.Offset = a.Offset
+                    a.obj.Color = a.Color
+                    a.obj.Decay = a.Decay
+                    a.obj.Glare = a.Glare
+                    a.obj.Haze = a.Haze
+                end)
+            end
+        end
+    end
+    if origClouds then
+        for _, c in ipairs(origClouds) do
+            if c.obj and c.obj.Parent then
+                pcall(function()
+                    c.obj.Cover = c.Cover
+                    c.obj.Density = c.Density
+                    c.obj.Color = c.Color
+                    c.obj.Enabled = c.Enabled
+                end)
+            end
+        end
     end
 end
 
 -- Публичный переключатель (вызывается из UI).
 local function setFullbright(state)
     if state then
+        -- при включении обновляем кэш атмосферы — вдруг добавили новую
+        captureAtmosphere()
         applyFullbrightOnce()
     else
         restoreLighting()
     end
 end
 
--- Лёгкий сторожевой тик: если fullbright включён — раз в 0.25 сек проверяем,
--- не сбросил ли античит значения. Если сбросил — возвращаем.
--- 0.25 сек достаточно, чтобы визуально незаметно, и не грузит CPU property changes.
+-- Сторожевой тик: раз в 0.25 сек возвращаем значения, если античит сбросил.
 task.spawn(function()
     while true do
         task.wait(0.25)
