@@ -159,7 +159,6 @@ RunService.RenderStepped:Connect(function()
         local gap = Flags.CrosshairDistance
         local trans = 1 - (Flags.CrosshairTransparency / 100)
 
-        -- Линии
         crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, cy - gap - sz)
         crossBottom.From = Vector2.new(cx, cy + gap); crossBottom.To = Vector2.new(cx, cy + gap + sz)
         crossLeft.From = Vector2.new(cx - gap, cy); crossLeft.To = Vector2.new(cx - gap - sz, cy)
@@ -172,7 +171,6 @@ RunService.RenderStepped:Connect(function()
             line.Visible = true
         end
 
-        -- Точка (идеальный центр)
         if Flags.CrosshairDot then
             crossDot.Position = Vector2.new(cx, cy)
             crossDot.Radius = Flags.CrosshairDotSize
@@ -649,7 +647,7 @@ local function updateESP()
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
 
-        if Flags.Skeleton then updateSkeleton(plr, char)
+                if Flags.Skeleton then updateSkeleton(plr, char)
         else
             local sk = Skeletons[plr]
             if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
