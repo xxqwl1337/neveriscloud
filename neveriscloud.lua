@@ -153,22 +153,14 @@ local crossRight  = Drawing.new("Line"); crossRight.Visible = false
 RunService.RenderStepped:Connect(function()
     if Flags.Crosshair then
         local cx, cy = math.floor(Camera.ViewportSize.X/2), math.floor(Camera.ViewportSize.Y/2)
-        
         local sz = math.max(Flags.CrosshairSize, 4)
         local gap = math.max(Flags.CrosshairDistance, 0)
         local trans = 1 - (Flags.CrosshairTransparency / 100)
 
-        crossTop.From = Vector2.new(cx, cy - gap)
-        crossTop.To   = Vector2.new(cx, math.max(cy - gap - sz, 0))
-        
-        crossBottom.From = Vector2.new(cx, cy + gap)
-        crossBottom.To   = Vector2.new(cx, cy + gap + sz)
-        
-        crossLeft.From = Vector2.new(cx - gap, cy)
-        crossLeft.To   = Vector2.new(math.max(cx - gap - sz, 0), cy)
-        
-        crossRight.From = Vector2.new(cx + gap, cy)
-        crossRight.To   = Vector2.new(cx + gap + sz, cy)
+        crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, math.max(cy - gap - sz, 0))
+        crossBottom.From = Vector2.new(cx, cy + gap); crossBottom.To = Vector2.new(cx, cy + gap + sz)
+        crossLeft.From = Vector2.new(cx - gap, cy); crossLeft.To = Vector2.new(math.max(cx - gap - sz, 0), cy)
+        crossRight.From = Vector2.new(cx + gap, cy); crossRight.To = Vector2.new(cx + gap + sz, cy)
 
         for _, line in ipairs({crossTop, crossBottom, crossLeft, crossRight}) do
             line.Color = Flags.CrosshairColor
@@ -961,6 +953,55 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
     end)
     if not ok then warn("[config] delete:", err) end
 end})
+
+SettingsTab:AddSeparator()
+
+-- ===== KEYBINDS (В САМОМ НИЗУ) =====
+SettingsTab:AddLabel("KEYBINDS", "keyboard")
+SettingsTab:AddSeparator()
+
+local keybindFreecam = SettingsTab:AddKeybind({
+    Title = "FreeCam Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "camera",
+    Callback = function() 
+        if Flags.FreeCam then stopFreeCam() else startFreeCam() end
+    end
+})
+
+local keybindESP = SettingsTab:AddKeybind({
+    Title = "ESP Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "eye",
+    Callback = function() 
+        Flags.ESP = not Flags.ESP
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    end
+})
+
+local keybindFullbright = SettingsTab:AddKeybind({
+    Title = "Fullbright Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "sun",
+    Callback = function() 
+        Flags.Fullbright = not Flags.Fullbright
+        setFullbright(Flags.Fullbright)
+    end
+})
+
+local keybindAutoRun = SettingsTab:AddKeybind({
+    Title = "AutoRun Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "zap",
+    Callback = function() Flags.AutoRun = not Flags.AutoRun end
+})
+
+local keybindSpider = SettingsTab:AddKeybind({
+    Title = "Spider Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "arrow-up",
+    Callback = function() Flags.Spider = not Flags.Spider end
+})
 
 SettingsTab:AddSeparator()
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
