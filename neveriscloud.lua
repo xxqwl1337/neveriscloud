@@ -1,6 +1,7 @@
---[[
+\--[[
     CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
     ESP: один Highlight, режим Chams (заливка) / Glow (обводка), ОДИН цвет ESPColor на всё
+    Weapon ESP: только реальное оружие/предмет, части тела и Handle отфильтрованы
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -405,21 +406,46 @@ local function updateSkeleton(plr, char)
 end
 
 -- ===== WEAPON ESP =====
--- Служебные имена частей Tool, которые не считаем оружием (Handle/Grip/Attachment).
+-- Имена, которые НЕ считаем оружием: служебные части Tool, части тела персонажа,
+-- мусорные значения и технические объекты. Если имя попало сюда — пропускаем.
 local WEAPON_IGNORE = {
     Handle = true, Grip = true, Attachment = true, Attachment1 = true,
     ["LeftGrip"] = true, ["RightGrip"] = true, ["Tool"] = true,
+    Head = true, Torso = true, UpperTorso = true, LowerTorso = true,
+    ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
+    LeftUpperArm = true, RightUpperArm = true, LeftLowerArm = true, RightLowerArm = true,
+    LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true,
+    HumanoidRootPart = true, Humanoid = true,
+    [""] = true, ["None"] = true, ["Nil"] = true, ["Part"] = true, ["Mesh"] = true,
 }
 
--- Имя реального оружия в руках или nil (пропускает Handle и подобные).
+-- Проверяет, что имя осмысленное (не служебное, не цифры, не 1 символ).
+local function isMeaningfulName(name)
+    if not name or name == "" then return false end
+    if WEAPON_IGNORE[name] then return false end
+    if #name < 2 then return false end
+    if tonumber(name) then return false end
+    return true
+end
+
+-- Возвращает имя реального оружия/предмета в руках или nil.
+-- Порядок: имя Tool (если осмысленное) -> первая BasePart -> первая Model/MeshPart.
+-- Всё из WEAPON_IGNORE и короткие/цифровые имена пропускаются.
 local function getWeaponName(char)
     if not char then return nil end
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then return nil end
-    if not WEAPON_IGNORE[tool.Name] and tool.Name ~= "" then return tool.Name end
+
+    if isMeaningfulName(tool.Name) then return tool.Name end
+
     for _, child in ipairs(tool:GetChildren()) do
-        if child:IsA("BasePart") and not WEAPON_IGNORE[child.Name] then return child.Name end
+        if child:IsA("BasePart") and isMeaningfulName(child.Name) then return child.Name end
     end
+
+    for _, child in ipairs(tool:GetChildren()) do
+        if (child:IsA("Model") or child:IsA("MeshPart")) and isMeaningfulName(child.Name) then return child.Name end
+    end
+
     return nil
 end
 
@@ -433,8 +459,8 @@ end
 
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
 -- Жёсткий гейт при ESP off или MaxDistance=0. Иначе для каждого игрока — дистанция,
--- Z>0 (за камерой скрываем), затем все включённые элементы (Box/Name/HP/Dist/Line/Weapon/Skeleton/Highlight).
--- onScreen игнорируется для основных элементов — он false и за краем экрана, из-за чего Box пропадал.
+-- Z>0 (за камерой скрываем), затем все включённые элементы.
+-- onScreen игнорируется для основных элементов — он false и за краем экрана.
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
@@ -582,9 +608,9 @@ AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=10
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-AimbotTab:AddDropdown({Title="Target Part", Subtitle="Куда целится аимбот", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
+AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
 AimbotTab:AddToggle({Title="Team Check", Subtitle="Не наводится на союзников по команде", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
-AimbotTab:AddKeybind({Title="Aim Key", Subtitle="Кнопка активации аимбота", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
+AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
 
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
@@ -601,13 +627,13 @@ VisualsTab:AddColorPicker({Title="ESP Color", Subtitle="Общий цвет дл
     end
 end})
 
-VisualsTab:AddColorPicker({Title="Box Color", Subtitle="Цвет бокса вокруг игрока", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-VisualsTab:AddColorPicker({Title="Line Color", Subtitle="Цвет линии от низа экрана к игроку", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-VisualsTab:AddColorPicker({Title="Skeleton Color", Subtitle="Цвет линий скелета (кость к кости)", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-VisualsTab:AddToggle({Title="ESP", Subtitle="Главный тоггл подсветки игроков (без него ничего не рисуется)", Icon="eye", Default=false, Callback=function(s)
+VisualsTab:AddToggle({Title="ESP", Subtitle="Главный тоггл подсветки игроков", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -617,13 +643,13 @@ VisualsTab:AddDropdown({Title="ESP Mode", Subtitle="Chams = заливка мо�
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
-VisualsTab:AddToggle({Title="Box", Subtitle="Рамка вокруг модели игрока", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-VisualsTab:AddToggle({Title="Name", Subtitle="Ник игрока над головой", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-VisualsTab:AddToggle({Title="Health", Subtitle="HP и MaxHP под ногами", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-VisualsTab:AddToggle({Title="Distance", Subtitle="Расстояние до игрока в метрах", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-VisualsTab:AddToggle({Title="Line", Subtitle="Линия от центра низа экрана к игроку (snaplines)", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-VisualsTab:AddToggle({Title="Skeleton", Subtitle="Линии между костями скелета (R6 и R15)", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-VisualsTab:AddToggle({Title="Weapon ESP", Subtitle="Показывает имя оружия в руках (без Handle)", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=0, Max=2000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
@@ -657,8 +683,8 @@ local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
-SettingsTab:AddDropdown({Title="Theme", Subtitle="Тема оформления меню", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
-SettingsTab:AddDropdown({Title="Accent Color", Subtitle="Акцентный цвет элементов меню", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+SettingsTab:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=Window:GetTheme(), Callback=function(s) Window:SetTheme(s) end})
+SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = {
         White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255),
         Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
