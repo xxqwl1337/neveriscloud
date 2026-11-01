@@ -186,10 +186,12 @@ local function stopFreeCam()
     if savedMouseBehavior then UIS.MouseBehavior = savedMouseBehavior; savedMouseBehavior = nil end
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = savedWS; hum.JumpPower = savedJP end
+    Flags.FreeCam = false
 end
 
 local function startFreeCam()
     if freecamConn then return end
+    Flags.FreeCam = true
     savedCamType = Camera.CameraType; Camera.CameraType = Enum.CameraType.Scriptable
     savedMouseBehavior = UIS.MouseBehavior; UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
     freecamPos = Camera.CFrame.Position
@@ -793,7 +795,6 @@ end})
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
 local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
-    Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
@@ -957,13 +958,24 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         local name = savedConfigs:Get()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
+        
+        -- СБРОС ВСЕГО
+        Flags.ESP = false; Flags.Box = false; Flags.Name = false; Flags.Health = false
+        Flags.Distance = false; Flags.Line = false; Flags.Skeleton = false; Flags.WeaponESP = false
+        Flags.Fullbright = false; Flags.AutoRun = false; Flags.Spider = false; Flags.FreeCam = false
+        Flags.FPSPing = false; Flags.Aimbot = false; Flags.Crosshair = false
+        
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        setFullbright(false)
+        stopFreeCam()
+        if HudPanel then destroyHud() end
+        
+        -- ЗАГРУЗКА КОНФИГА
         buildConfig(name):Load()
         
         -- ПРИНУДИТЕЛЬНОЕ ПРИМЕНЕНИЕ ТЕМЫ И АКЦЕНТА
         local loadedTheme = themeSelector:Get()
-        if loadedTheme and loadedTheme ~= "" then
-            Window:SetTheme(loadedTheme)
-        end
+        if loadedTheme and loadedTheme ~= "" then Window:SetTheme(loadedTheme) end
         
         local loadedAccent = accentSelector:Get()
         if loadedAccent and loadedAccent ~= "" then
@@ -972,16 +984,14 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
                 Red=Color3.fromRGB(230,70,70),     Green=Color3.fromRGB(80,210,120),
                 Purple=Color3.fromRGB(170,110,240),
             }
-            if colors[loadedAccent] then
-                VantixUI:SetAccentColor(colors[loadedAccent])
-            end
+            if colors[loadedAccent] then VantixUI:SetAccentColor(colors[loadedAccent]) end
         end
         
-        -- Синхронизация визуала
+        -- СИНХРОНИЗАЦИЯ ВИЗУАЛА
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-        if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
+        if Flags.Fullbright then setFullbright(true) end
         if Flags.FreeCam then startFreeCam() else stopFreeCam() end
-        if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
+        if Flags.FPSPing then if not HudPanel then createHud() end else if HudPanel then destroyHud() end end
         
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
@@ -1005,11 +1015,22 @@ SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
-local keybindFreecam = SettingsTab:AddKeybind({Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera", Callback = function() if Flags.FreeCam then stopFreeCam() else startFreeCam() end end})
-local keybindESP = SettingsTab:AddKeybind({Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye", Callback = function() Flags.ESP = not Flags.ESP; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-local keybindFullbright = SettingsTab:AddKeybind({Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun", Callback = function() Flags.Fullbright = not Flags.Fullbright; setFullbright(Flags.Fullbright) end})
-local keybindAutoRun = SettingsTab:AddKeybind({Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap", Callback = function() Flags.AutoRun = not Flags.AutoRun end})
-local keybindSpider = SettingsTab:AddKeybind({Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up", Callback = function() Flags.Spider = not Flags.Spider end})
+local keybindFreecam = SettingsTab:AddKeybind({Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera", Callback = function() 
+    Flags.FreeCam = not Flags.FreeCam
+    if Flags.FreeCam then startFreeCam() else stopFreeCam() end
+end})
+local keybindESP = SettingsTab:AddKeybind({Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye", Callback = function() 
+    Flags.ESP = not Flags.ESP; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end 
+end})
+local keybindFullbright = SettingsTab:AddKeybind({Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun", Callback = function() 
+    Flags.Fullbright = not Flags.Fullbright; setFullbright(Flags.Fullbright) 
+end})
+local keybindAutoRun = SettingsTab:AddKeybind({Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap", Callback = function() 
+    Flags.AutoRun = not Flags.AutoRun 
+end})
+local keybindSpider = SettingsTab:AddKeybind({Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up", Callback = function() 
+    Flags.Spider = not Flags.Spider 
+end})
 
 SettingsTab:AddSeparator()
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
