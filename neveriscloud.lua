@@ -694,7 +694,7 @@ RunService.Stepped:Connect(function()
     updateSpider()
 end)
 
--- ===== MAIN LOOP (ИСПРАВЛЕНО: RenderStepped + pcall) =====
+-- ===== MAIN LOOP =====
 RunService.RenderStepped:Connect(function()
     if not Flags.ESP or Flags.MaxDistance <= 0 then 
         hideAll() 
@@ -710,17 +710,17 @@ end)
 -- ===== UI: AIMBOT =====
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 
-AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
-AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
-AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
-AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
-AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
-AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
+local aimbotToggle = AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
+local aimAssistToggle = AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
+local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+local aimSmoothSlider = AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
+local aimFovSlider = AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
+local aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
+local aimChanceSlider = AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
+local aimPartDropdown = AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
+local teamCheckToggle = AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
+local aimKeyBind = AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
 
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
@@ -757,25 +757,25 @@ local lineToggle = VisualsTab:AddToggle({Title="Line", Icon="move", Default=fals
 local skeletonToggle = VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
 local weaponToggle = VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 
-VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
+local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
-PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
+local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
-PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
-PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
+local autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+local spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
-OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
+local fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
     Flags.Fullbright=s
     setFullbright(s)
 end})
@@ -798,7 +798,7 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
 end})
 
 SettingsTab:AddSeparator()
-SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 SettingsTab:AddSeparator()
 
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
@@ -819,6 +819,19 @@ local savedConfigs = SettingsTab:AddDropdown({
 
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
+    
+    cfg:RegisterElement("Aimbot", aimbotToggle)
+    cfg:RegisterElement("AimAssist", aimAssistToggle)
+    cfg:RegisterElement("SilentAim", silentAimToggle)
+    cfg:RegisterElement("Aimlock", aimlockToggle)
+    cfg:RegisterElement("AimSmooth", aimSmoothSlider)
+    cfg:RegisterElement("AimFOV", aimFovSlider)
+    cfg:RegisterElement("AimPrediction", aimPredSlider)
+    cfg:RegisterElement("HitChance", aimChanceSlider)
+    cfg:RegisterElement("AimPart", aimPartDropdown)
+    cfg:RegisterElement("TeamCheck", teamCheckToggle)
+    cfg:RegisterElement("AimKey", aimKeyBind)
+    
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
     cfg:RegisterElement("Box", boxToggle)
@@ -828,11 +841,21 @@ local function buildConfig(name)
     cfg:RegisterElement("Line", lineToggle)
     cfg:RegisterElement("Skeleton", skeletonToggle)
     cfg:RegisterElement("Weapon", weaponToggle)
+    cfg:RegisterElement("ESPDistance", espDistSlider)
     cfg:RegisterElement("ESPColor", espColorPicker)
     cfg:RegisterElement("TextColor", textColorPicker)
     cfg:RegisterElement("BoxColor", boxColorPicker)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
+    
+    cfg:RegisterElement("FreeCam", freecamToggle)
+    cfg:RegisterElement("AutoRun", autoRunToggle)
+    cfg:RegisterElement("Spider", spiderToggle)
+    cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
+    
+    cfg:RegisterElement("Fullbright", fullbrightToggle)
+    cfg:RegisterElement("StatsHUD", statsHudToggle)
+    
     return cfg
 end
 
