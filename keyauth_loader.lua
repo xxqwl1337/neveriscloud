@@ -1,15 +1,14 @@
 --[[
-    CLOUDCLIENT — Key System (Hardcoded)
+    CLOUDCLIENT — Key System (Без таймера)
 ]]
-
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 -- ===== БАЗА КЛЮЧЕЙ =====
--- Формат: ["КЛЮЧ"] = Время_окончания (Unix Timestamp)
--- 1767225600 = 1 Января 2026 (это ~30 дней с текущего момента)
+-- Просто список ключей. Если ключ есть в списке - пускает. Если удалить - не пускает.
 local ValidKeys = {
-    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 2082758400, -- 1 января 2036
-    ["TEST-KEY-DEMO"] = 2082758400
+    ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = true,
+    ["TEST-KEY-DEMO"] = true,
+    ["VIP-KEY-2026"] = true
 }
 
 -- ===== МЕНЮ АКТИВАЦИИ =====
@@ -37,7 +36,6 @@ MainTab:AddButton({
     Callback = function()
         local key = keyBox:Get()
         
-        -- Проверка на пустоту
         if not key or key == "" then
             status:Set("Пожалуйста, введите ключ", "info")
             return
@@ -46,18 +44,9 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Ищем ключ в нашей базе
-            local expireTime = ValidKeys[key]
-            
-            if not expireTime then
+            -- Проверяем только наличие ключа в списке (без дат)
+            if not ValidKeys[key] then
                 status:Set("Неверный ключ!", "info")
-                return
-            end
-            
-            -- Проверяем, не истек ли срок
-            local currentTime = os.time()
-            if currentTime > expireTime then
-                status:Set("Срок действия ключа истек!", "info")
                 return
             end
             
