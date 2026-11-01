@@ -43,6 +43,9 @@ local Flags = {
 
 local CurrentTarget, CurrentTargetPart = nil, nil
 
+-- [FIX] Ссылки на элементы UI, объявленные позже — нужны для синхронизации из keybind-коллбеков
+local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
+
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
     if not char then return false end
@@ -58,6 +61,13 @@ end
 local function getVelocity(part)
     if not part then return Vector3.zero end
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
+end
+
+-- [FIX] Универсальный помощник синхронизации UI-элемента (не падает, если нет :Set)
+local function syncUI(element, state)
+    if element and element.Set then
+        pcall(function() element:Set(state) end)
+    end
 end
 
 -- ===== SILENT AIM =====
@@ -186,6 +196,8 @@ local function stopFreeCam()
     if savedMouseBehavior then UIS.MouseBehavior = savedMouseBehavior; savedMouseBehavior = nil end
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = savedWS; hum.JumpPower = savedJP end
+    -- [FIX] Всегда синхронизируем флаг состояния с фактическим выключением
+    Flags.FreeCam = false
 end
 
 local function startFreeCam()
@@ -216,7 +228,18 @@ local function startFreeCam()
         if move.Magnitude > 0 then freecamPos = freecamPos + move.Unit * speed * dt end
         Camera.CFrame = CFrame.new(freecamPos) * cf
     end)
+    -- [FIX] Синхронизируем флаг состояния с фактическим включением
+    Flags.FreeCam = true
 end
+
+-- [FIX] При респавне персонажа корректно гасим freecam, чтобы не летать мёртвым
+LP.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    if freecamConn then
+        stopFreeCam()
+        syncUI(freecamToggle, false)
+    end
+end)
 
 -- ===== AUTORUN =====
 local defaultWalkSpeed = 16
@@ -624,7 +647,7 @@ local function updateESP()
             if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
 
-        if Flags.WeaponESP then
+                if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
             if weaponName then
                 d.Weapon.Text = "["..weaponName.."]"
@@ -644,18 +667,7 @@ local function updateESP()
     end
 end
 
--- ===== ХУКИ ИГРОКОВ =====
-local function hookPlayer(plr)
-    if plr == LP then return end
-    createDrawings(plr)
-    plr.CharacterAdded:Connect(function()
-        task.wait(0.2)
-        applyHighlight(plr)
-    end)
-    plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
-    applyHighlight(plr)
-end
-
+-- [FIX] Убран дубликат объявления hookPlayer (был скопирован дважды)
 -- ===== ХУКИ ИГРОКОВ =====
 local function hookPlayer(plr)
     if plr == LP then return end
@@ -780,7 +792,7 @@ local skelColorPicker = VisualsTab:AddColorPicker({Title="Skeleton Color", Icon=
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
 
-local espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -804,18 +816,18 @@ end})
 
 -- ===== UI: PLAYER =====
 local PlayerTab = Window:AddTab("Player", "user")
-local freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
+freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s)
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
-local autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-local spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
 local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
-local fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
+fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
     Flags.Fullbright=s
     setFullbright(s)
 end})
@@ -870,6 +882,81 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
+-- [FIX] Keybinds объявлены ДО buildConfig, чтобы их можно было зарегистрировать в конфиге
+SettingsTab:AddSeparator()
+SettingsTab:AddLabel("KEYBINDS", "keyboard")
+SettingsTab:AddSeparator()
+
+local keybindFreecam = SettingsTab:AddKeybind({
+    Title = "FreeCam Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "camera",
+    Callback = function() 
+        -- [FIX] Работаем по фактическому состоянию freecamConn, а не по флагу
+        if freecamConn then
+            stopFreeCam()
+            syncUI(freecamToggle, false)
+        else
+            startFreeCam()
+            syncUI(freecamToggle, true)
+        end
+    end
+})
+
+local keybindESP = SettingsTab:AddKeybind({
+    Title = "ESP Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "eye",
+    Callback = function() 
+        Flags.ESP = not Flags.ESP
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        syncUI(espToggle, Flags.ESP)
+    end
+})
+
+local keybindFullbright = SettingsTab:AddKeybind({
+    Title = "Fullbright Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "sun",
+    Callback = function() 
+        Flags.Fullbright = not Flags.Fullbright
+        setFullbright(Flags.Fullbright)
+        syncUI(fullbrightToggle, Flags.Fullbright)
+    end
+})
+
+local keybindAutoRun = SettingsTab:AddKeybind({
+    Title = "AutoRun Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "zap",
+    Callback = function() 
+        Flags.AutoRun = not Flags.AutoRun 
+        syncUI(autoRunToggle, Flags.AutoRun)
+    end
+})
+
+local keybindSpider = SettingsTab:AddKeybind({
+    Title = "Spider Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "arrow-up",
+    Callback = function() 
+        Flags.Spider = not Flags.Spider 
+        syncUI(spiderToggle, Flags.Spider)
+    end
+})
+
+-- [FIX] Hide UI keybind вынесен в переменную, чтобы его можно было сохранить в конфиг
+local keybindHideUI = SettingsTab:AddKeybind({
+    Title = "Hide UI Keybind",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.Delete,
+    Callback = function()
+        local sg = Window.Gui
+        if sg then sg.Enabled = not sg.Enabled end
+    end
+})
+
+-- ===== CONFIG =====
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
     
@@ -923,6 +1010,14 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
     
+    -- [FIX] Keybinds теперь сохраняются в конфиг
+    cfg:RegisterElement("KeybindFreecam",    keybindFreecam)
+    cfg:RegisterElement("KeybindESP",        keybindESP)
+    cfg:RegisterElement("KeybindFullbright", keybindFullbright)
+    cfg:RegisterElement("KeybindAutoRun",    keybindAutoRun)
+    cfg:RegisterElement("KeybindSpider",     keybindSpider)
+    cfg:RegisterElement("KeybindHideUI",     keybindHideUI)
+    
     return cfg
 end
 
@@ -948,6 +1043,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
         if Flags.FreeCam then startFreeCam() else stopFreeCam() end
+        -- [FIX] Синхронизируем UI-тогглы после загрузки конфига
+        syncUI(freecamToggle, Flags.FreeCam)
+        syncUI(espToggle, Flags.ESP)
+        syncUI(fullbrightToggle, Flags.Fullbright)
+        syncUI(autoRunToggle, Flags.AutoRun)
+        syncUI(spiderToggle, Flags.Spider)
         if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
         
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
@@ -967,56 +1068,3 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
 end})
 
 SettingsTab:AddSeparator()
-
--- ===== KEYBINDS (В САМОМ НИЗУ) =====
-SettingsTab:AddLabel("KEYBINDS", "keyboard")
-SettingsTab:AddSeparator()
-
-local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "camera",
-    Callback = function() 
-        if Flags.FreeCam then stopFreeCam() else startFreeCam() end
-    end
-})
-
-local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "eye",
-    Callback = function() 
-        Flags.ESP = not Flags.ESP
-        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-    end
-})
-
-local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "sun",
-    Callback = function() 
-        Flags.Fullbright = not Flags.Fullbright
-        setFullbright(Flags.Fullbright)
-    end
-})
-
-local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "zap",
-    Callback = function() Flags.AutoRun = not Flags.AutoRun end
-})
-
-local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "arrow-up",
-    Callback = function() Flags.Spider = not Flags.Spider end
-})
-
-SettingsTab:AddSeparator()
-SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
-    local sg = Window.Gui
-    if sg then sg.Enabled = not sg.Enabled end
-end})
