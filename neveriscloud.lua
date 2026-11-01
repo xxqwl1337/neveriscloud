@@ -281,16 +281,70 @@ local function updateSpider()
     end
 end
 
--- ===== FULLBRIGHT =====
-local origLight = {Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime, FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart, GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient}
-local function setFullbright(state)
-    if state then
-        Lighting.Brightness=2; Lighting.ClockTime=12; Lighting.FogEnd=1e5; Lighting.FogStart=0
-        Lighting.GlobalShadows=false; Lighting.Ambient=Color3.fromRGB(178,178,178); Lighting.OutdoorAmbient=Color3.fromRGB(178,178,178)
-    else
-        for k,v in pairs(origLight) do Lighting[k] = v end
+-- ===== FULLBRIGHT (оптимизированный) =====
+-- Проблема: античит/сервер может перезаписывать Lighting.ClockTime/Brightness каждый тик.
+-- Решение: лёгкий тик раз в 0.25 сек, проверка "изменилось ли", и только тогда запись.
+-- Не трогаем Lighting каждый кадр — иначе лагает от property changes.
+local origLight = {
+    Brightness     = Lighting.Brightness,
+    ClockTime      = Lighting.ClockTime,
+    FogEnd         = Lighting.FogEnd,
+    FogStart       = Lighting.FogStart,
+    GlobalShadows  = Lighting.GlobalShadows,
+    Ambient        = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+}
+
+local FULLBRIGHT_VALUES = {
+    Brightness = 2,
+    ClockTime = 12,
+    FogEnd = 1e5,
+    FogStart = 0,
+    GlobalShadows = false,
+    Ambient = Color3.fromRGB(178, 178, 178),
+    OutdoorAmbient = Color3.fromRGB(178, 178, 178),
+}
+
+-- Применяет fullbright, если какое-то значение отличается от целевого.
+-- Возвращает true если что-то изменилось (полезно для отладки).
+local function applyFullbrightOnce()
+    local changed = false
+    for key, val in pairs(FULLBRIGHT_VALUES) do
+        if Lighting[key] ~= val then
+            pcall(function() Lighting[key] = val end)
+            changed = true
+        end
+    end
+    return changed
+end
+
+-- Восстанавливает оригинальные значения Lighting.
+local function restoreLighting()
+    for key, val in pairs(origLight) do
+        pcall(function() Lighting[key] = val end)
     end
 end
+
+-- Публичный переключатель (вызывается из UI).
+local function setFullbright(state)
+    if state then
+        applyFullbrightOnce()
+    else
+        restoreLighting()
+    end
+end
+
+-- Лёгкий сторожевой тик: если fullbright включён — раз в 0.25 сек проверяем,
+-- не сбросил ли античит значения. Если сбросил — возвращаем.
+-- 0.25 сек достаточно, чтобы визуально незаметно, и не грузит CPU property changes.
+task.spawn(function()
+    while true do
+        task.wait(0.25)
+        if Flags.Fullbright then
+            applyFullbrightOnce()
+        end
+    end
+end)
 
 -- ===== ESP DRAWINGS =====
 local Drawings, Highlights, Skeletons, WeaponLabels = {}, {}, {}, {}
