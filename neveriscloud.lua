@@ -1,6 +1,6 @@
 --[[
-    CLOUDCLIENT — Silent Aim + ESP (Chams/Glow) + FreeCam + AutoRun/Spider
-    Оптимизация: меньше подписей, кэш Drawing, ранний выход, минимум проекций в кадр
+    CLOUDCLIENT — Aimbot (Assist + Silent + Lock) + ESP + FreeCam + AutoRun/Spider
+    Aimbot: Aim Assist двигает камеру (работает всегда), Silent Aim хукает Mouse.Hit, Aim Lock — rage
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -34,11 +34,20 @@ local Flags = {
     SkeletonColor = Color3.fromRGB(0, 255, 0),
     FreeCam = false, AutoRun = false, Spider = false, SpiderSpeed = 20,
     FPSPing = false, Fullbright = false,
-    Aimbot = false, AimPart = "Head", AimSmooth = 1, AimFOV = 120, AimTeamCheck = true,
-    AimKey = Enum.UserInputType.MouseButton2, AimlockMode = false, AimPrediction = 0, HitChance = 100,
+    Aimbot = false,
+    AimAssist = true,
+    SilentAim = true,
+    AimlockMode = false,
+    AimPart = "Head",
+    AimSmooth = 5,
+    AimFOV = 120,
+    AimTeamCheck = true,
+    AimKey = Enum.UserInputType.MouseButton2,
+    AimPrediction = 0,
+    HitChance = 100,
 }
 
-local CurrentTargetPart = nil
+local CurrentTarget, CurrentTargetPart = nil, nil
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -52,15 +61,23 @@ local function getAimPart(char)
     return char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
 end
 
+-- Возвращает скорость части с фоллбеком на старый Velocity
+local function getVelocity(part)
+    if not part then return Vector3.zero end
+    return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
+end
+
 -- ===== SILENT AIM =====
+-- Подменяет Mouse.Hit/Target. Работает только если игра читает Mouse.Hit при выстреле.
+-- Если хук не создался — warn, но Aim Assist всё равно наведёт камеру.
 local silentHookOk = pcall(function()
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if self == Mouse and Flags.Aimbot and not Flags.AimlockMode and CurrentTargetPart then
+        if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
             if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
             local targetPos = CurrentTargetPart.Position
-            if Flags.AimPrediction > 0 and CurrentTargetPart.Velocity then
-                targetPos = targetPos + (CurrentTargetPart.Velocity * Flags.AimPrediction)
+            if Flags.AimPrediction > 0 then
+                targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
             end
             if key == "Hit" then return CFrame.new(targetPos)
             elseif key == "Target" then return CurrentTargetPart end
@@ -68,7 +85,9 @@ local silentHookOk = pcall(function()
         return oldIndex(self, key)
     end)
 end)
-if not silentHookOk then warn("[cloudclient] hookmetamethod failed — Silent Aim недоступен") end
+if not silentHookOk then
+    warn("[cloudclient] Silent Aim hook FAILED — используй Aim Assist")
+end
 
 -- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
@@ -94,18 +113,28 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIMLOCK =====
-RunService:BindToRenderStep("CloudClientAimlock", Enum.RenderPriority.Camera.Value + 2, function(dt)
-    if not Flags.Aimbot or not Flags.AimlockMode then return end
-    if not UIS:IsMouseButtonPressed(Flags.AimKey) or not CurrentTargetPart then return end
+-- ===== AIM ASSIST + AIM LOCK =====
+-- Двигает камеру на цель. Aim Assist — плавно, Aim Lock — мгновенно.
+-- Frame-rate independent lerp: alpha = 1 - (1-base)^(dt*60), не зависит от FPS.
+RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Value + 2, function(dt)
+    if not Flags.Aimbot or not CurrentTargetPart then return end
+    if not UIS:IsMouseButtonPressed(Flags.AimKey) then return end
+    if not Flags.AimAssist and not Flags.AimlockMode then return end
+
     local camPos = Camera.CFrame.Position
     local targetPos = CurrentTargetPart.Position
-    if Flags.AimPrediction > 0 and CurrentTargetPart.Velocity then
-        targetPos = targetPos + (CurrentTargetPart.Velocity * Flags.AimPrediction)
+    if Flags.AimPrediction > 0 then
+        targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
     end
     local lookCF = CFrame.lookAt(camPos, targetPos)
-    local alpha = 1 - (1 - (1/math.max(1, Flags.AimSmooth))) ^ (dt * 60)
-    Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
+
+    if Flags.AimlockMode then
+        Camera.CFrame = lookCF
+    else
+        local base = 1 / math.max(1, Flags.AimSmooth)
+        local alpha = 1 - (1 - base) ^ (dt * 60)
+        Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
+    end
 end)
 
 -- ===== ОБНОВЛЕНИЕ ЦЕЛИ =====
@@ -310,7 +339,7 @@ local function applyHighlight(plr)
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
         hl = Instance.new("Highlight")
-        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.DepthMode = Enum.HighlightDepthMode.Occlusion
         hl.Parent = char
         Highlights[plr] = hl
     end
@@ -624,9 +653,12 @@ end)
 
 -- ===== UI: AIMBOT =====
 local AimbotTab = Window:AddTab("Aimbot", "crosshair")
+
 AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-AimbotTab:AddToggle({Title="Aimlock Mode", Icon="eye", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=1, Callback=function(v) Flags.AimSmooth=v end})
+AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель — работает всегда", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
+AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit — может не работать в некоторых играх", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Мгновенный лок без сглаживания", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+AimbotTab:AddSlider({Title="Smoothness (1=snap)", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
