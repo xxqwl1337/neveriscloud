@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Silent Aim + ESP (Mode: Chams/Glow) + FreeCam + AutoRun/Spider
-    ESP: один Highlight, режим Chams (заливка) / Glow (обводка), один цвет ESPColor
+    ESP: один Highlight, режим Chams (заливка) / Glow (обводка), один цвет ESPColor на всё
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -294,10 +294,7 @@ local function removeDrawings(plr)
     if WeaponLabels[plr] then pcall(function() WeaponLabels[plr]:Remove() end); WeaponLabels[plr]=nil end
 end
 
--- ===== ESP HIGHLIGHT (один объект: Chams или Glow) =====
--- Chams: заливка модели цветом ESPColor
--- Glow:  обводка контура цветом ESPColor
--- Roblox не даёт 2 Highlight на Instance, поэтому режим один.
+-- ===== ESP HIGHLIGHT (один цвет ESPColor, режим Chams/Glow) =====
 local function applyHighlight(plr)
     if plr == LP then return end
     local char = plr.Character
