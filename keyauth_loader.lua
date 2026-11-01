@@ -1,11 +1,8 @@
 --[[
-    KeyAuth Loader (Рабочая версия для Xeno)
+    Система ключей через GitHub Gist (с таймером)
 ]]
-local APP_NAME = "clientsound"
-local OWNER_ID = "uXkNMViDLi" 
-local VERSION  = "1.0"
+local KEYS_URL = "ВСТАВЬ_СЮДА_ССЫЛКУ_RAW_ИЗ_ШАГА_1"
 
--- 1. ЗАГРУЖАЕМ МЕНЮ (оно появится сразу, даже если KeyAuth лежит)
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 local Window = VantixUI:CreateWindow({
@@ -25,30 +22,6 @@ local keyBox = MainTab:AddTextBox({
     Default = "",
 })
 
--- 2. ФУНКЦИЯ ЗАПРОСА (через секретный параметр для keyauth.cc)
-local function apiRequest(params)
-    local query = ""
-    for k, v in pairs(params) do
-        query = query .. k .. "=" .. tostring(v) .. "&"
-    end
-    query = query:sub(1, -2)
-    
-    -- Пробуем напрямую к keyauth.cc
-    local success, res = pcall(function()
-        return game:HttpGet("https://keyauth.cc/api/1.2/?" .. query)
-    end)
-    
-    if not success or not res then 
-        return nil 
-    end
-    
-    local succ, decoded = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(res)
-    end)
-    return succ and decoded or nil
-end
-
--- 3. КНОПКА АКТИВАЦИИ
 MainTab:AddButton({
     Title = "Activate",
     Text = "Activate",
@@ -62,46 +35,56 @@ MainTab:AddButton({
         status:Set("Проверка...", "info")
         
         task.spawn(function()
-            -- Инициализация
-            local init = apiRequest({
-                type = "init",
-                ver = VERSION,
-                name = APP_NAME,
-                secret = OWNER_ID, 
-            })
+            -- Скачиваем список ключей (добавляем ?t=os.time(), чтобы не кэшировалось)
+            local success, keysList = pcall(function()
+                return game:HttpGet(KEYS_URL .. "?t=" .. os.time())
+            end)
             
-            if not init then
-                status:Set("Ошибка: KeyAuth заблокирован", "info")
+            if not success or not keysList then
+                status:Set("Ошибка: нет связи с GitHub", "info")
                 return
             end
             
-            if not init.success then
-                status:Set("Ошибка Init: " .. tostring(init.message or "Unknown"), "info")
+            local found = false
+            local expireTime = 0
+            
+            -- Ищем ключ в списке
+            for line in keysList:gmatch("[^\r\n]+") do
+                local parts = {}
+                for part in string.gmatch(line, "([^|]+)") do
+                    table.insert(parts, part)
+                end
+                
+                if #parts >= 2 then
+                    local cleanKey = parts[1]:match("^%s*(.-)%s*$")
+                    local timeStr = parts[2]:match("^%s*(.-)%s*$")
+                    
+                    if cleanKey == key then
+                        found = true
+                        expireTime = tonumber(timeStr) or 0
+                        break
+                    end
+                end
+            end
+            
+            if not found then
+                status:Set("Неверный ключ!", "info")
                 return
             end
             
-            -- Проверка ключа
-            local hwid = "unknown"
-            pcall(function() hwid = game:GetService("RbxAnalyticsService"):GetClientId() end)
-            
-            local login = apiRequest({
-                type = "license",
-                key = key,
-                sessionid = init.sessionid,
-                hwid = hwid,
-            })
-            
-            if login and login.success then
-                status:Set("Активация успешна!", "info")
-                Window:Notify({ Title = "Success", Text = "Загрузка cloudclient...", Icon = "check", Duration = 2 })
-                task.wait(1)
-                Window:Destroy()
-                -- Запуск основного скрипта
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
-            else
-                local msg = login and login.message or "Неверный ключ"
-                status:Set("Ошибка: " .. tostring(msg), "info")
+            -- Проверка времени
+            local now = os.time()
+            if now > expireTime then
+                status:Set("Срок действия ключа истек!", "info")
+                return
             end
+            
+            -- Успех
+            status:Set("Активация успешна!", "info")
+            Window:Notify({ Title = "Success", Text = "Загрузка cloudclient...", Icon = "check", Duration = 2 })
+            task.wait(1)
+            Window:Destroy()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neveriscloud.lua?t=" .. os.time()))()
         end)
     end,
 })
