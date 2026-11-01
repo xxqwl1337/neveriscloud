@@ -875,8 +875,35 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         local name = savedConfigs:Get()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
+        
+        -- Загружаем сам конфиг
         buildConfig(name):Load()
+        
+        -- ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ВСЕГО
+        -- 1. Пересоздаем Highlight для всех игроков
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        
+        -- 2. Применяем Fullbright
+        if Flags.Fullbright then 
+            setFullbright(true) 
+        else 
+            setFullbright(false) 
+        end
+        
+        -- 3. Включаем/выключаем FreeCam
+        if Flags.FreeCam then 
+            startFreeCam() 
+        else 
+            stopFreeCam() 
+        end
+        
+        -- 4. Включаем/выключаем HUD
+        if not Flags.FPSPing and HudPanel then 
+            destroyHud() 
+        elseif Flags.FPSPing and not HudPanel then 
+            createHud() 
+        end
+        
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
     if not ok then warn("[config] load:", err); Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
