@@ -4,6 +4,7 @@
     Weapon ESP: фильтр Handle/служебных частей тулов
     AutoRun: фиксированная скорость 20 (дефолт при выключении), Spider: 15-30
     ESP: если игрок виден — рисуются все включённые элементы (box/name/hp/dist/line)
+    Glow/Chams: подчиняются ESP Distance (MaxDistance) и видимости
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -449,17 +450,44 @@ local function getWeaponName(char)
     return nil
 end
 
+-- ===== ОБНОВЛЕНИЕ HIGHLIGHT ПО ДИСТАНЦИИ =====
+-- Скрывает Glow/Chams, если цель дальше MaxDistance или не видна.
+-- Вызывается из updateESP для каждой цели.
+local function updateHighlightDistance(plr, char, dist, visible)
+    local hl = Highlights[plr]
+    if not hl or not hl.Parent then return end
+
+    local shouldShow = Flags.ESP and visible and dist <= Flags.MaxDistance
+
+    -- Glow
+    if hl.Name ~= "ChamsHL" then
+        if not Flags.Glow then
+            hl.Enabled = false
+        else
+            hl.Enabled = shouldShow
+        end
+    -- Chams
+    else
+        if not Flags.Chams then
+            hl.Enabled = false
+        else
+            hl.Enabled = shouldShow
+        end
+    end
+end
+
 -- ===== ОСНОВНОЙ ESP ЦИКЛ =====
 -- Обновляет все включённые элементы ESP для каждого игрока.
 -- ВАЖНО: если игрок вообще виден (Z > 0), рисуем ВСЕ включённые элементы —
--- бокс, имя, HP, дистанцию, линию, weapon, skeleton. Проверка onScreen игнорируется,
--- иначе бокс пропадал у целей, частично уходящих за край viewport'а.
+-- бокс, имя, HP, дистанцию, линию, weapon, skeleton, а также Glow/Chams.
+-- Glow/Chams подчиняются ESP Distance через updateHighlightDistance.
 local function updateESP()
     local localChar = LP.Character
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     if not localRoot then
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
+        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
         return
     end
     local localPos = localRoot.Position
@@ -472,12 +500,14 @@ local function updateESP()
         if not root or not hum or hum.Health <= 0 then
             for _,o in pairs(d) do o.Visible=false end
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            updateHighlightDistance(plr, char, math.huge, false)
             continue
         end
         local dist = (root.Position - localPos).Magnitude
         if dist > Flags.MaxDistance then
             for _,o in pairs(d) do o.Visible=false end
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            updateHighlightDistance(plr, char, dist, false)
             continue
         end
 
@@ -487,6 +517,7 @@ local function updateESP()
         if sp.Z <= 0 then
             for _,o in pairs(d) do o.Visible=false end
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
+            updateHighlightDistance(plr, char, dist, false)
             continue
         end
 
@@ -524,6 +555,9 @@ local function updateESP()
         if Flags.Skeleton then updateSkeleton(plr, char) else
             if Skeletons[plr] then for _,l in pairs(Skeletons[plr].lines) do l.Visible=false end end
         end
+
+        -- Glow / Chams: показываем только если цель в радиусе MaxDistance и видна
+        updateHighlightDistance(plr, char, dist, true)
     end
 end
 
@@ -577,11 +611,14 @@ RunService.Stepped:Connect(function()
 end)
 
 -- ===== MAIN LOOP =====
--- Основной ESP-рендер: если ESP выключен — гасим все Drawing, не тратя CPU.
+-- Основной ESP-рендер: если ESP выключен — гасим все Drawing и Highlight (Glow/Chams).
 RunService:BindToRenderStep("CloudClientMain", Enum.RenderPriority.Camera.Value + 1, function()
-    if Flags.ESP then updateESP() else
+    if Flags.ESP then
+        updateESP()
+    else
         for _,d in pairs(Drawings) do for _,o in pairs(d) do o.Visible=false end end
         for _,sk in pairs(Skeletons) do for _,l in pairs(sk.lines) do l.Visible=false end end
+        for _,hl in pairs(Highlights) do if hl and hl.Parent then hl.Enabled = false end end
     end
 end)
 
