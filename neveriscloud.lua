@@ -2,6 +2,7 @@
     CLOUDCLIENT — Silent Aim + ESP (Skeleton/Weapon/Chams) + FreeCam + AutoRun/Spider
     Aimbot: hookmetamethod (Silent) + CFrame.lookAt (Aimlock)
     Weapon ESP: фильтр Handle/служебных частей тулов
+    AutoRun: фиксированная скорость 20, Spider: 15-30
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
@@ -32,7 +33,7 @@ local Flags = {
     ESPColor = Color3.fromRGB(255,255,255), BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
     SkeletonColor = Color3.fromRGB(0, 255, 0), ChamsColor = Color3.fromRGB(255, 0, 255),
     -- Player
-    FreeCam = false, AutoRun = false, AutoRunSpeed = 16, Spider = false, SpiderSpeed = 30,
+    FreeCam = false, AutoRun = false, AutoRunSpeed = 20, Spider = false, SpiderSpeed = 20,
     -- Misc
     FPSPing = false, Fullbright = false,
     -- Aimbot
@@ -194,15 +195,13 @@ end
 
 -- ===== AUTORUN =====
 -- Автоматически ведёт персонажа вперёд в направлении камеры (Humanoid:Move).
--- Не двигает сам CFrame — сервер видит нормальное движение. Тоггл включает постоянный бег.
+-- Скорость фиксированная — 20 (флаг AutoRunSpeed).
 local function applyAutoRun()
     if not Flags.AutoRun then return end
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-    -- WalkSpeed принудительно ставим, чтобы обойти серверную установку 16
     hum.WalkSpeed = Flags.AutoRunSpeed
-    -- Направление движения: горизонтальная проекция LookVector камеры
     local look = Camera.CFrame.LookVector
     local dir = Vector3.new(look.X, 0, look.Z)
     if dir.Magnitude > 0.01 then
@@ -414,23 +413,19 @@ local WEAPON_IGNORE = {
 }
 
 -- Возвращает имя реального оружия у персонажа или nil.
--- Проверяет Tool и его потомков: если Tool имеет оружие-подобную часть/имя — вернёт имя.
 -- Пропускает Handle и служебные объекты, чтобы не показывать «Handle» когда берут предмет.
 local function getWeaponName(char)
     if not char then return nil end
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then return nil end
-    -- Если имя тула не служебное — берём его (это и есть «оружие»)
     if not WEAPON_IGNORE[tool.Name] and tool.Name ~= "" then
         return tool.Name
     end
-    -- Иначе ищем внутри Tool осмысленное имя (не Handle и не Attachment)
     for _, child in ipairs(tool:GetChildren()) do
         if child:IsA("BasePart") and not WEAPON_IGNORE[child.Name] then
             return child.Name
         end
     end
-    -- Всё служебное — не показываем вовсе
     return nil
 end
 
@@ -482,7 +477,7 @@ local function updateESP()
             d.Box.Color = Flags.BoxColor; d.Box.Visible = true
         else d.Box.Visible = false end
 
-        -- Name / Health / Distance / Line — стандартные тексты
+        -- Name / Health / Distance / Line
         if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = Flags.ESPColor; d.Name.Visible = true else d.Name.Visible = false end
         if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = Flags.ESPColor; d.Health.Visible = true else d.Health.Visible = false end
         if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = Flags.ESPColor; d.Distance.Visible = true else d.Distance.Visible = false end
@@ -582,7 +577,6 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 -- Цвета
 VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    -- Применяем сразу к существующим Glow (не Chams)
     if Flags.Glow then
         for _,hl in pairs(Highlights) do
             if hl and hl.Parent and hl.Name~="ChamsHL" then hl.FillColor=c; hl.OutlineColor=c end
@@ -594,7 +588,6 @@ VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineCo
 VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 VisualsTab:AddColorPicker({Title="Chams Color", Icon="shirt", Default=Flags.ChamsColor, Callback=function(c)
     Flags.ChamsColor=c
-    -- Применяем сразу к существующим Chams
     for _,hl in pairs(Highlights) do if hl and hl.Name=="ChamsHL" then hl.FillColor=c end end
 end})
 
@@ -607,7 +600,6 @@ VisualsTab:AddToggle({Title="Glow", Icon="sparkles", Default=false, Callback=fun
     if s then
         for _,p in ipairs(Players:GetPlayers()) do applyGlow(p) end
     else
-        -- Убираем только Glow, не трогаем Chams
         for p in pairs(Highlights) do
             if Highlights[p] and Highlights[p].Name~="ChamsHL" then clearHighlight(p) end
         end
@@ -618,7 +610,6 @@ VisualsTab:AddToggle({Title="Chams", Subtitle="Заливка модели цв�
     if s then
         for _,p in ipairs(Players:GetPlayers()) do applyChams(p) end
     else
-        -- Убираем только Chams, не трогаем Glow
         for p in pairs(Highlights) do
             if Highlights[p] and Highlights[p].Name=="ChamsHL" then clearHighlight(p) end
         end
@@ -643,13 +634,15 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
--- AutoRun: постоянно ведёт персонажа вперёд в направлении камеры
-PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-PlayerTab:AddSlider({Title="AutoRun Speed", Icon="footprints", Min=1, Max=200, Default=16, Callback=function(v) Flags.AutoRunSpeed=v end})
+-- AutoRun: всегда скорость 20, слайдер убран
+PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автоматический бег вперёд (speed 20)", Icon="zap", Default=false, Callback=function(s)
+    Flags.AutoRun=s
+    Flags.AutoRunSpeed=20
+end})
 
--- Spider: лазание по стенам через BodyVelocity
+-- Spider: ползунок 15-30
 PlayerTab:AddToggle({Title="Spider", Subtitle="Лазать по стенам (W/Space вверх, S/Ctrl вниз)", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
-PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=5, Max=200, Default=30, Callback=function(v) Flags.SpiderSpeed=v end})
+PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
@@ -661,7 +654,6 @@ end})
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- Тема
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
@@ -678,12 +670,10 @@ end})
 
 SettingsTab:AddSeparator()
 
--- Счётчик FPS/Ping
 SettingsTab:AddToggle({Title="FPS / Ping Counter", Icon="activity", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
 SettingsTab:AddSeparator()
 
--- Кейбинд скрытия UI
 SettingsTab:AddKeybind({Title="Hide UI Keybind", Icon="keyboard", Default=Enum.KeyCode.Delete, Callback=function()
     local sg = Window.Gui
     if sg then sg.Enabled = not sg.Enabled end
