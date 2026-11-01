@@ -25,7 +25,7 @@ Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", 
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
-    ESPElements = {"Box", "Name"}, -- Box, Name, Health, Distance, Line, Skeleton, Weapon
+    ESPElements = {"Boxes", "Names"},
     MaxDistance = 1000,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
@@ -514,19 +514,18 @@ end
 
 local function updateESP()
     if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
-
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then hideAll(); return end
     local localPos = localRoot.Position
     local vs = Camera.ViewportSize
 
-    local showBox = hasElement("Box")
-    local showName = hasElement("Name")
+    local showBox = hasElement("Boxes")
+    local showName = hasElement("Names")
     local showHealth = hasElement("Health")
     local showDistance = hasElement("Distance")
-    local showLine = hasElement("Line")
-    local showSkeleton = hasElement("Skeleton")
-    local showWeapon = hasElement("Weapon")
+    local showLine = hasElement("Lines")
+    local showSkeleton = hasElement("Bones")
+    local showWeapon = hasElement("Tools")
 
     for plr, d in pairs(Drawings) do
         local char = plr.Character
@@ -642,7 +641,6 @@ local function hookPlayer(plr)
     plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
     applyHighlight(plr)
 end
-
 for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(removeDrawings)
@@ -681,7 +679,7 @@ task.spawn(function()
             hudFrames = hudFrames + 1
             local now = os.clock()
             if now - hudLast >= 1 then
-                if fpsRow then fpsRow:Set(hudFrames) end
+                                    if fpsRow then fpsRow:Set(hudFrames) end
                 hudFrames, hudLast = 0, now
                 local ok, ping = pcall(function()
                     return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
@@ -759,10 +757,10 @@ end})
 
 local espElementsDropdown = VisualsTab:AddMultiDropdown({
     Title = "ESP Elements",
-    Subtitle = "Выбери, что рисовать на игроке",
+    Subtitle = "Выбери, что рисовать",
     Icon = "layers",
-    Options = {"Box", "Name", "Health", "Distance", "Line", "Skeleton", "Weapon"},
-    Default = {"Box", "Name"},
+    Options = {"Names", "Boxes", "Health", "Distance", "Lines", "Bones", "Tools"},
+    Default = {"Boxes", "Names"},
     Callback = function(selected)
         Flags.ESPElements = selected
     end
