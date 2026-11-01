@@ -22,27 +22,65 @@ Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
 Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 
--- Принудительный порядок: Rust Decoy первым
-task.defer(function()
-    local tagContainer = Window.Gui and Window.Gui:FindFirstChild("TagContainer", true)
-    if tagContainer then
-        for _, tag in ipairs(tagContainer:GetChildren()) do
-            if tag:IsA("GuiObject") then
-                local label = tag:FindFirstChildOfClass("TextLabel")
-                local text = label and label.Text or tag.Name or ""
-                if text:find("Rust") then
-                    tag.LayoutOrder = -10
-                elseif text:find("Beta") then
-                    tag.LayoutOrder = -9
-                elseif text:find("v1.0") then
-                    tag.LayoutOrder = -8
-                elseif text:find("Premium") then
-                    tag.LayoutOrder = -7
-                end
+-- Принудительный порядок тегов: Rust Decoy первым, потом Beta/v1.0/Premium.
+-- Ждём 1 сек, чтобы библиотека достроила TagContainer и UIListLayout.
+task.spawn(function()
+    task.wait(1)
+    local function findTags(inst)
+        for _, c in ipairs(inst:GetChildren()) do
+            if c.Name == "TagContainer" then return c end
+            if c:IsA("GuiObject") then
+                local r = findTags(c)
+                if r then return r end
             end
         end
     end
+    local tc = Window.Gui and findTags(Window.Gui)
+    if not tc then return end
+
+    -- Собираем теги по тексту label
+    local tags = {}
+    for _, tag in ipairs(tc:GetChildren()) do
+        if tag:IsA("GuiObject") then
+            local lbl = tag:FindFirstChildOfClass("TextLabel")
+            local txt = (lbl and lbl.Text) or tag.Name or ""
+            if txt:find("Rust") then
+                tags[1] = tag
+            elseif txt:find("Beta") then
+                tags[2] = tag
+            elseif txt:find("v1.0") then
+                tags[3] = tag
+            elseif txt:find("Premium") then
+                tags[4] = tag
+            end
+        end
+    end
+
+    -- Ставим LayoutOrder по порядку
+    for i = 1, 4 do
+        if tags[i] then tags[i].LayoutOrder = i end
+    end
+
+    -- Если UIListLayout не сортирует по LayoutOrder (SortOrder = Name или что-то ещё),
+    -- переставляем физически: detach + reattach в нужном порядке
+    local layout = tc:FindFirstChildOfClass("UIListLayout")
+    if layout and layout.SortOrder ~= Enum.SortOrder.LayoutOrder then
+        local all = {}
+        for _, c in ipairs(tc:GetChildren()) do
+            if c:IsA("GuiObject") then table.insert(all, c) end
+        end
+        for _, c in ipairs(all) do c.Parent = nil end
+        for i = 1, 4 do
+            if tags[i] then tags[i].Parent = tc end
+        end
+        for _, c in ipairs(all) do
+            local isInOrder = false
+            for i = 1, 4 do if tags[i] == c then isInOrder = true; break end end
+            if not isInOrder then c.Parent = tc end
+        end
+    end
 end)
+
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
