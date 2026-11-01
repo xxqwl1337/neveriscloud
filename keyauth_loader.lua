@@ -1,11 +1,10 @@
 --[[
-    CLOUDCLIENT — Key System (С таймером)
+    CLOUDCLIENT — Key System (С таймером и передачей данных)
 ]]
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 -- ===== БАЗА КЛЮЧЕЙ (С ДАТОЙ) =====
--- Формат: ["КЛЮЧ"] = Время_окончания
--- 1767225600 = 1 Января 2026 (можешь поменять на другую цифру)
+-- 1767225600 = 1 Января 2026
 local ValidKeys = {
     ["KEYAUTH-JmXl4r-4Te4Yv-We7tcT-U1hzqU-Pvkpuc-eztXLy"] = 1767225600,
     ["TEST-KEY-DEMO"] = 1767225600
@@ -58,7 +57,10 @@ MainTab:AddButton({
                 return
             end
             
-            -- 3. Всё ок
+            -- 3. Всё ок, передаем данные в основной скрипт
+            getgenv().CloudClientExpireTime = expireTime
+            getgenv().CloudClientKey = key
+            
             status:Set("Активация успешна!", "info")
             Window:Notify({ Title = "Success", Text = "Загрузка...", Icon = "check", Duration = 2 })
             task.wait(1)
