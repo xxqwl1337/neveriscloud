@@ -667,15 +667,12 @@ task.spawn(function()
             if now - hudLast >= 1 then
                 if fpsRow then fpsRow:Set(hudFrames) end
                 hudFrames, hudLast = 0, now
-                local ok, ping = pcall
-                                    if fpsRow then fpsRow:Set(hudFrames) end
-                hudFrames, hudLast = 0, now
                 local ok, ping = pcall(function()
                     return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
                 end)
                 if pingRow then pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
             end
-            local char = LP.Character
+                        local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local hum  = char and char:FindFirstChildOfClass("Humanoid")
             if root and posRow then
@@ -697,7 +694,7 @@ RunService.Stepped:Connect(function()
     updateSpider()
 end)
 
--- ===== MAIN LOOP (ИСПРАВЛЕНО: RenderStepped + pcall, чтобы ESP не отваливался) =====
+-- ===== MAIN LOOP (ИСПРАВЛЕНО: RenderStepped + pcall) =====
 RunService.RenderStepped:Connect(function()
     if not Flags.ESP or Flags.MaxDistance <= 0 then 
         hideAll() 
