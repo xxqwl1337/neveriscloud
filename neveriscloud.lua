@@ -17,6 +17,7 @@ local Window = VantixUI:CreateWindow({
     Title = "cloudclient", Theme = "Vantix", AccentColor = Color3.fromRGB(255, 255, 255),
     LogoID = 110034487018208, Size = {820, 480},
 })
+Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
 Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
