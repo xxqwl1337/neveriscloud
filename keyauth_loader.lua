@@ -1,7 +1,7 @@
 --[[
-    Система ключей через GitHub Gist (с таймером)
+    Система ключей через GitHub (с таймером)
 ]]
-local KEYS_URL = "https://gist.githubusercontent.com/xxqwl1337/b8c6e412ba933eee8307fa29035dcb2a/raw/3844b777fe27bc0955aa81cb95728226bff42c4f/gistfile1.txt"
+local KEYS_URL = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/keys.txt"
 
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
