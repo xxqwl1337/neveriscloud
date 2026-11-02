@@ -189,7 +189,7 @@ end
 -- ===== END KEY SYSTEM =====
 
 -- ===== ИНИЦИАЛИЗАЦИЯ БИБЛИОТЕКИ =====
-CC.Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+CC.Lib = loadstring(game:HttpGet("https://cdn.jsdelivr.net/gh/xxqwl1337/neveriscloud@main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -220,6 +220,7 @@ Flags.TextColor = Color3.fromRGB(255, 255, 255)
 Flags.BoxColor = Color3.fromRGB(255,255,255); Flags.LineColor = Color3.fromRGB(255,255,255)
 Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
 Flags.FreeCam = false
+Flags.CameraZoom = false; Flags.ZoomFOV = 70
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
 Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
@@ -298,6 +299,9 @@ CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.
 CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
+CC.Refs.defaultFOV = Camera.FieldOfView
+CC.Refs.zoomConn = nil
+CC.Refs.currentFOV = Camera.FieldOfView
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
@@ -387,6 +391,31 @@ end
 
 local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
+end
+
+-- ===== CAMERA ZOOM =====
+local function stopCameraZoom()
+    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
+    if Camera then
+        Camera.FieldOfView = CC.Refs.defaultFOV or 70
+    end
+    Flags.CameraZoom = false
+end
+
+local function startCameraZoom()
+    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect() end
+    if not Flags.CameraZoom then
+        if Camera then Camera.FieldOfView = CC.Refs.defaultFOV or 70 end
+        return
+    end
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
+        if not Flags.CameraZoom then stopCameraZoom(); return end
+        if Camera then
+            local targetFOV = Flags.ZoomFOV or 70
+            -- Lerp для плавности, чтобы камера не дёргалась
+            Camera.FieldOfView = Camera.FieldOfView + (targetFOV - Camera.FieldOfView) * 0.2
+        end
+    end)
 end
 
 -- ===== ХИТБОКС =====
@@ -1217,6 +1246,10 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
 UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind", Icon = "keyboard", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
 
+UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Приближает камеру", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s; startCameraZoom() end})
+UI.Elements.cameraZoomSlider = UI.Tabs.Misc:AddSlider({Title="Zoom (FOV)", Icon="maximize", Min=30, Max=140, Default=70, Callback=function(v) Flags.ZoomFOV=v end})
+UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Callback = function() UI.Elements.cameraZoomToggle:Set(not Flags.CameraZoom) end})
+
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
 
@@ -1304,6 +1337,8 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
 
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
+    cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
+    cfg:RegisterElement("ZoomFOV", UI.Elements.cameraZoomSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
@@ -1312,6 +1347,7 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
 
     cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
+    cfg:RegisterElement("BindCameraZoom", UI.Elements.keybindCameraZoom)
     cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
     cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
     cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
@@ -1360,6 +1396,7 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
 
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
         else if CC.Refs.freecamConn then stopFreeCam() end end
+        if Flags.CameraZoom then startCameraZoom() else stopCameraZoom() end
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
