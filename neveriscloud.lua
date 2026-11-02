@@ -253,6 +253,14 @@ local function syncUI(element, state)
     end
 end
 
+local function syncBind(element, key)
+    if element and element.Set then
+        pcall(function() element:Set(key) end)
+    elseif element and element.set then
+        pcall(function() element.set(key) end)
+    end
+end
+
 -- ===== HITBOX EXPANDER =====
 local OriginalHitboxSizes = {}
 
@@ -392,7 +400,7 @@ if hookfunction then
     end)
 end
 
--- ===== ПОИСК ЦЕЛИ (ближайший в мире, но в FOV) =====
+-- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
@@ -424,7 +432,7 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK (только при зажатой кнопке) =====
+-- ===== AIM ASSIST + AIM LOCK =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then
         if Camera.CameraType == Enum.CameraType.Scriptable then
@@ -462,7 +470,7 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
     end
 end)
 
--- ===== TRIGGER BOT (ИСПРАВЛЕН: закрывает UI, эмулирует клик) =====
+-- ===== TRIGGER BOT =====
 local triggerLastShot = 0
 local triggerRayParams = RaycastParams.new()
 triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -482,6 +490,7 @@ local function tryTriggerShot()
     if not Flags.TriggerBot then return end
     if not CurrentTargetPart then return end
     if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
+    if Window.Gui and Window.Gui.Enabled then return end
 
     triggerRayParams.FilterDescendantsInstances = {LP.Character}
     local origin = Camera.CFrame.Position
@@ -498,30 +507,20 @@ local function tryTriggerShot()
 
     local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
     if tool then
-        pcall(function() tool:Activate() end)
-        return
-    end
-
-    if Window.Gui and Window.Gui.Enabled then
-        Window.Gui.Enabled = false
-        task.wait(0.02)
-        if mouse1click then pcall(mouse1click) end
-        task.wait(0.02)
-        Window.Gui.Enabled = true
+        tool:Activate()
         return
     end
 
     if mouse1click then
         pcall(mouse1click)
-        return
+    else
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
+            task.wait(0.01)
+            vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
+        end)
     end
-
-    pcall(function()
-        local vim = game:GetService("VirtualInputManager")
-        vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
-        task.wait(0.01)
-        vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
-    end)
 end
 
 RunService.RenderStepped:Connect(function()
@@ -1516,6 +1515,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
+        -- [FIX] Сброс флагов функций (как было)
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1527,14 +1527,28 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
+        -- [FIX] Сброс всех биндов в "пусто" перед загрузкой, чтобы они не протекали между конфигами
+        syncBind(keybindFreecam, Enum.KeyCode.Unknown)
+        syncBind(keybindESP, Enum.KeyCode.Unknown)
+        syncBind(keybindFullbright, Enum.KeyCode.Unknown)
+        syncBind(keybindAutoRun, Enum.KeyCode.Unknown)
+        syncBind(keybindSpider, Enum.KeyCode.Unknown)
+        syncBind(keybindTrigger, Enum.KeyCode.Unknown)
+        syncBind(keybindHitbox, Enum.KeyCode.Unknown)
+        syncBind(keybindNoRecoil, Enum.KeyCode.Unknown)
+        syncBind(keybindHideUI, Enum.KeyCode.Unknown)
+
         buildConfig(name):Load()
 
+        -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         syncUI(espToggle, Flags.ESP)
 
+        -- Fullbright
         setFullbright(Flags.Fullbright)
         syncUI(fullbrightToggle, Flags.Fullbright)
 
+        -- FreeCam
         if Flags.FreeCam then
             if not freecamConn then startFreeCam() end
         else
@@ -1542,22 +1556,29 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         end
         syncUI(freecamToggle, Flags.FreeCam)
 
+        -- AutoRun
         syncUI(autoRunToggle, Flags.AutoRun)
 
+        -- Spider
         syncUI(spiderToggle, Flags.Spider)
         if not Flags.Spider then clearSpiderVelocity() end
 
+        -- No Recoil
         syncUI(noRecoilToggle, Flags.NoRecoil)
         if not Flags.NoRecoil then resetNoRecoilState() end
 
+        -- Trigger Bot
         syncUI(triggerBotToggle, Flags.TriggerBot)
 
+        -- Hitbox
         syncUI(hitboxToggle, Flags.HitboxEnabled)
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
 
+        -- Sky
         syncUI(skyColorToggle, Flags.SkyColorEnabled)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
 
+        -- Stats HUD
         if not Flags.FPSPing and HudPanel then
             destroyHud()
         elseif Flags.FPSPing and not HudPanel then
@@ -1645,6 +1666,7 @@ local keybindSpider = SettingsTab:AddKeybind({
 
 local keybindTrigger = SettingsTab:AddKeybind({
     Title = "Trigger Bot Keybind",
+    Subtitle = "По умолчанию пусто",
     Icon = "crosshair",
     Callback = function()
         Flags.TriggerBot = not Flags.TriggerBot
@@ -1654,6 +1676,7 @@ local keybindTrigger = SettingsTab:AddKeybind({
 
 local keybindHitbox = SettingsTab:AddKeybind({
     Title = "Hitbox Keybind",
+    Subtitle = "По умолчанию пусто",
     Icon = "box",
     Callback = function()
         Flags.HitboxEnabled = not Flags.HitboxEnabled
@@ -1664,6 +1687,7 @@ local keybindHitbox = SettingsTab:AddKeybind({
 
 local keybindNoRecoil = SettingsTab:AddKeybind({
     Title = "No Recoil Keybind",
+    Subtitle = "По умолчанию пусто",
     Icon = "target",
     Callback = function()
         Flags.NoRecoil = not Flags.NoRecoil
@@ -1674,6 +1698,7 @@ local keybindNoRecoil = SettingsTab:AddKeybind({
 
 local keybindHideUI = SettingsTab:AddKeybind({
     Title = "Hide UI Keybind",
+    Subtitle = "По умолчанию пусто",
     Icon = "keyboard",
     Default = Enum.KeyCode.Delete,
     Callback = function()
