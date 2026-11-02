@@ -714,7 +714,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL =====
+-- ===== NO RECOIL (ИСПРАВЛЕН: держит и вертикаль, и горизонталь) =====
 local noRecoilActive = false
 local savedRecoilCFrame = nil
 local lastShotTime = 0
@@ -725,6 +725,7 @@ local function resetNoRecoilState()
     lastShotTime = 0
 end
 
+-- Сохраняем CFrame в момент нажатия ЛКМ (до выстрела и отдачи)
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -733,6 +734,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+-- Постоянная проверка во время стрельбы
 RunService.RenderStepped:Connect(function()
     if not Flags.NoRecoil then
         if noRecoilActive then
@@ -744,17 +746,22 @@ RunService.RenderStepped:Connect(function()
     end
     noRecoilActive = true
 
+    -- Держим камеру только 0.15 секунды после выстрела
     if os.clock() - lastShotTime > 0.15 then return end
     if not savedRecoilCFrame then return end
 
     local current = Camera.CFrame
-    local currentPitch = math.asin(math.clamp(current.LookVector.Y, -1, 1))
-    local savedPitch   = math.asin(math.clamp(savedRecoilCFrame.LookVector.Y, -1, 1))
-    local pitchDiff = currentPitch - savedPitch
+    -- Смотрим, куда сейчас смотрит камера и куда смотрела до выстрела
+    local currentLook = current.LookVector
+    local savedLook   = savedRecoilCFrame.LookVector
 
-    if pitchDiff > math.rad(0.5) then
-        local yaw = math.atan2(-current.LookVector.X, -current.LookVector.Z)
-        Camera.CFrame = CFrame.new(current.Position) * CFrame.fromEulerAnglesYXZ(savedPitch, yaw, 0)
+    -- Вычисляем угол отклонения (и по X, и по Y)
+    local dot = currentLook:Dot(savedLook)
+    -- Если камера ушла от исходной точки (отдача)
+    if dot < 0.9999 then
+        -- Возвращаем камеру в исходную позицию (и по вертикали, и по горизонтали),
+        -- НО позицию (место, где камера находится в мире) берём текущую.
+        Camera.CFrame = CFrame.new(current.Position) * savedRecoilCFrame.Rotation
     end
 end)
 
