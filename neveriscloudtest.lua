@@ -717,14 +717,18 @@ UIS.InputBegan:Connect(function(input, gpe)
         releaseAutoRunKey()
     end
     
-    -- Если нажат Shift, а AutoRun включен -> выключаем AutoRun (как в Расте)
+    -- Если нажат Shift, а AutoRun включен -> выключаем AutoRun
     if input.KeyCode == Enum.KeyCode.LeftShift and Flags.AutoRun then
         Flags.AutoRun = false
-        -- Синхронизируем тоггл в UI (если он есть)
-        if UI.Elements.autoRunToggle then
-            UI.Elements.autoRunToggle:Set(false)
-        end
         releaseAutoRunKey()
+        
+        -- Принудительно обновляем тоггл в UI
+        if UI.Elements.autoRunToggle then
+            -- Используем pcall, чтобы не крашнуть если метод Set недоступен
+            pcall(function()
+                UI.Elements.autoRunToggle:Set(false)
+            end)
+        end
     end
 end)
 
