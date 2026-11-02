@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.5.1 (Loot + Misc tabs)
+    Version: 0.5.2 (Misc > Player catalog, Other empty)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.5.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.5.2", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -1261,10 +1261,6 @@ UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="r
 -- ===== UI: PLAYER =====
 UI.Tabs.Player = UI.Window:AddTab("Player", "user")
 
-UI.Elements.freecamToggle = UI.Tabs.Player:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
-
-UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("COMBAT", "crosshair"); UI.Tabs.Player:AddSeparator()
-
 UI.Elements.noRecoilToggle = UI.Tabs.Player:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
 
 UI.Elements.rapidFireToggle = UI.Tabs.Player:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
@@ -1310,11 +1306,13 @@ UI.Elements.crosshairDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance (О
 UI.Elements.crosshairThickSlider = UI.Tabs.Visuals:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
 
--- ===== UI: OTHER =====
+-- ===== UI: OTHER (ПУСТАЯ) =====
 UI.Tabs.Other = UI.Window:AddTab("Other", "box")
-UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
+UI.Tabs.Other:AddSeparator()
+UI.Tabs.Other:AddLabel("NOTHING HERE YET", "info")
+UI.Tabs.Other:AddSeparator()
 
--- ===== UI: LOOT (НОВАЯ ВКЛАДКА) =====
+-- ===== UI: LOOT =====
 UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
 
 UI.Tabs.Loot:AddSeparator()
@@ -1334,33 +1332,23 @@ UI.Tabs.Loot:AddToggle({Title="Ammo", Icon="box", Default=true, Callback=functio
 UI.Tabs.Loot:AddToggle({Title="Medical", Icon="heart", Default=true, Callback=function(s) print("Medical filter:", s) end})
 UI.Tabs.Loot:AddToggle({Title="Resources", Icon="gem", Default=false, Callback=function(s) print("Resources filter:", s) end})
 
--- ===== UI: MISC (НОВАЯ ВКЛАДКА) =====
+-- ===== UI: MISC (ТЕПЕРЬ С КАТАЛОГОМ PLAYER И FREECAM) =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "wrench")
 
 UI.Tabs.Misc:AddSeparator()
-UI.Tabs.Misc:AddLabel("UTILITIES", "wrench")
+UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
-UI.Tabs.Misc:AddToggle({Title="Anti-AFK", Icon="clock", Default=false, Callback=function(s) print("AntiAFK:", s) end})
-UI.Tabs.Misc:AddToggle({Title="Anti-Fling", Icon="shield", Default=false, Callback=function(s) print("AntiFling:", s) end})
-UI.Tabs.Misc:AddToggle({Title="Instant ProximityPrompt", Icon="zap", Default=false, Callback=function(s) print("InstantPrompt:", s) end})
-
-UI.Tabs.Misc:AddSeparator()
-UI.Tabs.Misc:AddLabel("SERVER", "server")
-UI.Tabs.Misc:AddSeparator()
-
-UI.Tabs.Misc:AddButton({Title="Rejoin Server", Text="Rejoin", Callback=function()
-    game:GetService("TeleportService"):Teleport(game.PlaceId, LP)
-end})
-
-UI.Tabs.Misc:AddButton({Title="Server Hop", Text="Hop", Callback=function()
-    print("Server hop (not implemented)")
-end})
-
-UI.Tabs.Misc:AddButton({Title="Copy Job ID", Text="Copy", Callback=function()
-    if setclipboard then setclipboard(game.JobId) end
-    UI.Window:Notify({Title="Copied", Text="Job ID: "..game.JobId, Duration=2})
-end})
+UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({
+    Title = "FreeCam",
+    Subtitle = "WASD + Space/Ctrl",
+    Icon = "camera",
+    Default = false,
+    Callback = function(s)
+        Flags.FreeCam = s
+        if s then startFreeCam() else stopFreeCam() end
+    end
+})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
