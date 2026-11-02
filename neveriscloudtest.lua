@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.3.0 (Table Architecture)
+    Version: 0.3.1 (Stealth Spider Fix)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (Защита от лимита 200 local) =====
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.3.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.3.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -723,13 +723,16 @@ LP.CharacterAdded:Connect(function()
     CC.Refs.autoRunKeyHeld = false
 end)
 
--- ===== SPIDER =====
+-- ===== SPIDER (STEALTH REWORK v0.3.1) =====
 local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
 
 local function clearSpiderVelocity()
-    if CC.Refs.spiderBV then CC.Refs.spiderBV:Destroy(); CC.Refs.spiderBV = nil end
+    if CC.Refs.spiderBV then
+        pcall(function() CC.Refs.spiderBV:Destroy() end)
+        CC.Refs.spiderBV = nil
+    end
 end
 
 local function updateSpider()
@@ -739,19 +742,21 @@ local function updateSpider()
     if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
     if not Flags.Spider then clearSpiderVelocity(); return end
 
+    -- Проверка: есть ли стена рядом (в радиусе 3 studs)
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
     local dirs = { Camera.CFrame.LookVector, -Camera.CFrame.LookVector, Camera.CFrame.RightVector, -Camera.CFrame.RightVector }
-    local hit = nil
+    local wallFound = false
     for _, dir in ipairs(dirs) do
         local flat = Vector3.new(dir.X, 0, dir.Z)
         if flat.Magnitude > 0.01 then
-            local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
-            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
+            local res = workspace:Raycast(origin, flat.Unit * 3, spiderRayParams)
+            if res and res.Instance and res.Instance.CanCollide then wallFound = true; break end
         end
     end
-    if not hit then clearSpiderVelocity(); return end
+    if not wallFound then clearSpiderVelocity(); return end
 
+    -- Направление (вверх/вниз)
     local up = 0
     if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
     elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -Flags.SpiderSpeed
@@ -760,11 +765,13 @@ local function updateSpider()
     if up ~= 0 then
         if not CC.Refs.spiderBV then
             CC.Refs.spiderBV = Instance.new("BodyVelocity")
-            CC.Refs.spiderBV.MaxForce = Vector3.new(0, math.huge, 0)
-            CC.Refs.spiderBV.P = 5000
+            CC.Refs.spiderBV.MaxForce = Vector3.new(0, 5000, 0) -- Ограниченная сила
+            CC.Refs.spiderBV.P = 800 -- Мягче
             CC.Refs.spiderBV.Parent = hrp
         end
-        CC.Refs.spiderBV.Velocity = Vector3.new(0, up, 0)
+        -- Плавное изменение скорости (без рывков)
+        local targetVel = Vector3.new(0, up, 0)
+        CC.Refs.spiderBV.Velocity = CC.Refs.spiderBV.Velocity:Lerp(targetVel, 0.3)
     else
         clearSpiderVelocity()
     end
@@ -1334,82 +1341,21 @@ UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybi
 
 UI.buildConfig = function(name)
     local cfg = UI.Window.ConfigManager:CreateConfig(name)
-
-    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle)
-    cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle)
-    cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle)
-    cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
-    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider)
-    cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider)
-    cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider)
-    cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
-    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown)
-    cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle)
-    cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
-
-    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle)
-    cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider)
-    cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider)
-    cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
-
-    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
-    cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider)
-    cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
-
-    cfg:RegisterElement("ESP", UI.Elements.espToggle)
-    cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown)
-    cfg:RegisterElement("Box", UI.Elements.boxToggle)
-    cfg:RegisterElement("Name", UI.Elements.nameToggle)
-    cfg:RegisterElement("Health", UI.Elements.healthToggle)
-    cfg:RegisterElement("Distance", UI.Elements.distToggle)
-    cfg:RegisterElement("Line", UI.Elements.lineToggle)
-    cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle)
-    cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
-    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
-    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
-    cfg:RegisterElement("TextColor", UI.Elements.textColorPicker)
-    cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker)
-    cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
-    cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
-
-    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle)
-    cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker)
-    cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider)
-    cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider)
-    cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider)
-    cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
-
-    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle)
-    cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker)
-    cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
-
-    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle)
-    cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
-
-    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle)
-    cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
-
-    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
-    cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
-    cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
-    cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
-    cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle)
-    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
-    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
-
-    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
-    cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
-
-    cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
-    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
-    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
-    cfg:RegisterElement("BindAutoRun",    UI.Elements.keybindAutoRun)
-    cfg:RegisterElement("BindSpider",     UI.Elements.keybindSpider)
-    cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
-    cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
-    cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
-    cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
-
+    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle); cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle); cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle); cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
+    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider); cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider); cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider); cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
+    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown); cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle); cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
+    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle); cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider); cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider); cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
+    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle); cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider); cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
+    cfg:RegisterElement("ESP", UI.Elements.espToggle); cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown); cfg:RegisterElement("Box", UI.Elements.boxToggle); cfg:RegisterElement("Name", UI.Elements.nameToggle)
+    cfg:RegisterElement("Health", UI.Elements.healthToggle); cfg:RegisterElement("Distance", UI.Elements.distToggle); cfg:RegisterElement("Line", UI.Elements.lineToggle); cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle); cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
+    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider); cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker); cfg:RegisterElement("TextColor", UI.Elements.textColorPicker); cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker); cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker); cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
+    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle); cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker); cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider); cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider); cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider); cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
+    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle); cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker); cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
+    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle); cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
+    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle); cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
+    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle); cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle); cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle); cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider); cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle); cfg:RegisterElement("Spider", UI.Elements.spiderToggle); cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
+    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle); cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
+    cfg:RegisterElement("BindFreecam", UI.Elements.keybindFreecam); cfg:RegisterElement("BindESP", UI.Elements.keybindESP); cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright); cfg:RegisterElement("BindAutoRun", UI.Elements.keybindAutoRun); cfg:RegisterElement("BindSpider", UI.Elements.keybindSpider); cfg:RegisterElement("BindTrigger", UI.Elements.keybindTrigger); cfg:RegisterElement("BindHitbox", UI.Elements.keybindHitbox); cfg:RegisterElement("BindNoRecoil", UI.Elements.keybindNoRecoil); cfg:RegisterElement("BindHideUI", UI.Elements.keybindHideUI)
     return cfg
 end
 
@@ -1418,7 +1364,6 @@ UI.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save")
 UI.Tabs.Settings:AddSeparator()
 
 UI.Window.ConfigManager:SetFolder("cloudclient_configs")
-
 UI.Elements.configNameBox = UI.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" })
 UI.Elements.savedConfigs = UI.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = UI.Window.ConfigManager:GetConfigs() })
 
