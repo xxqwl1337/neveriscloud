@@ -1,9 +1,9 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.3.1 (Stealth Spider Fix)
+    Version: 0.4.0 (Stable AutoRun + Stealth Spider)
 ]]
 
--- ===== ГЛАВНАЯ ТАБЛИЦА (Защита от лимита 200 local) =====
+-- ===== ГЛАВНАЯ ТАБЛИЦА =====
 _G.CC = {
     Flags = {},
     UI = { Tabs = {}, Elements = {} },
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.3.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.4.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -236,7 +236,7 @@ Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
 Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
 
--- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
+-- ===== ССЫЛКИ =====
 CC.Refs.CurrentTarget = nil
 CC.Refs.CurrentTargetPart = nil
 CC.Refs.rapidFireConn = nil
@@ -687,8 +687,8 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (SHIFT EMULATOR) =====
-local function releaseAutoRunKey()
+-- ===== AUTORUN (СТАБИЛЬНЫЙ, НЕ СБИВАЕТСЯ) =====
+local function forceReleaseAutoRun()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
             CC.Refs.autoRunVIM:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
@@ -698,16 +698,21 @@ local function releaseAutoRunKey()
 end
 
 local function applyAutoRun()
+    -- Если тоггл выключен — отпускаем Shift и выходим
     if not Flags.AutoRun then
-        releaseAutoRunKey()
+        forceReleaseAutoRun()
         return
     end
+
+    -- Проверяем персонажа
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
-        releaseAutoRunKey()
+        forceReleaseAutoRun()
         return
     end
+
+    -- Держим Shift зажатым, если он ещё не зажат
     if not CC.Refs.autoRunKeyHeld then
         local ok = pcall(function()
             CC.Refs.autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
@@ -718,12 +723,13 @@ local function applyAutoRun()
     end
 end
 
+-- При респавне сбрасываем флаг, чтобы в следующем кадре заново зажать Shift
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
     CC.Refs.autoRunKeyHeld = false
 end)
 
--- ===== SPIDER (STEALTH REWORK v0.3.1) =====
+-- ===== SPIDER (МАКСИМАЛЬНО СКРЫТНЫЙ) =====
 local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
@@ -742,19 +748,22 @@ local function updateSpider()
     if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
     if not Flags.Spider then clearSpiderVelocity(); return end
 
-    -- Проверка: есть ли стена рядом (в радиусе 3 studs)
+    -- Строгая проверка стены ТОЛЬКО вперед (куда смотрит камера)
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
-    local dirs = { Camera.CFrame.LookVector, -Camera.CFrame.LookVector, Camera.CFrame.RightVector, -Camera.CFrame.RightVector }
+    local lookDir = Camera.CFrame.LookVector
+    local flatLook = Vector3.new(lookDir.X, 0, lookDir.Z)
     local wallFound = false
-    for _, dir in ipairs(dirs) do
-        local flat = Vector3.new(dir.X, 0, dir.Z)
-        if flat.Magnitude > 0.01 then
-            local res = workspace:Raycast(origin, flat.Unit * 3, spiderRayParams)
-            if res and res.Instance and res.Instance.CanCollide then wallFound = true; break end
-        end
+    
+    if flatLook.Magnitude > 0.01 then
+        local res = workspace:Raycast(origin, flatLook.Unit * 3, spiderRayParams)
+        if res and res.Instance and res.Instance.CanCollide then wallFound = true end
     end
-    if not wallFound then clearSpiderVelocity(); return end
+
+    if not wallFound then
+        clearSpiderVelocity()
+        return
+    end
 
     -- Направление (вверх/вниз)
     local up = 0
@@ -765,13 +774,13 @@ local function updateSpider()
     if up ~= 0 then
         if not CC.Refs.spiderBV then
             CC.Refs.spiderBV = Instance.new("BodyVelocity")
-            CC.Refs.spiderBV.MaxForce = Vector3.new(0, 5000, 0) -- Ограниченная сила
-            CC.Refs.spiderBV.P = 800 -- Мягче
+            CC.Refs.spiderBV.MaxForce = Vector3.new(0, 3000, 0) -- Еще мягче
+            CC.Refs.spiderBV.P = 500 -- Еще мягче
             CC.Refs.spiderBV.Parent = hrp
         end
-        -- Плавное изменение скорости (без рывков)
+        -- Плавно меняем скорость, чтобы не было резких рывков
         local targetVel = Vector3.new(0, up, 0)
-        CC.Refs.spiderBV.Velocity = CC.Refs.spiderBV.Velocity:Lerp(targetVel, 0.3)
+        CC.Refs.spiderBV.Velocity = CC.Refs.spiderBV.Velocity:Lerp(targetVel, 0.25)
     else
         clearSpiderVelocity()
     end
