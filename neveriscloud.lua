@@ -222,6 +222,14 @@ local Flags = {
     WeaponColorEnabled = false,
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
+    
+    AspectRatioEnabled = false,
+    AspectRatio = 1.0,
+    
+    ParticlesEnabled = false,
+    ParticleType = "Snow",
+    ParticleColor = Color3.fromRGB(255, 255, 255),
+    ParticleSpeed = 1,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -229,6 +237,7 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
+local weaponColorToggle, aspectToggle, particlesToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -262,6 +271,81 @@ local function isAimHeld()
     end
     return false
 end
+
+-- ===== ASPECT RATIO =====
+local aspectConn = nil
+local function applyAspectRatio()
+    if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
+    if not Flags.AspectRatioEnabled then return end
+    aspectConn = RunService.RenderStepped:Connect(function()
+        if not Flags.AspectRatioEnabled then
+            if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
+            return
+        end
+        local ratio = Flags.AspectRatio or 1.0
+        if ratio <= 0 then return end
+        local baseFOV = 70
+        Camera.FieldOfView = baseFOV / ratio
+    end)
+end
+
+-- ===== PARTICLES (WEATHER) =====
+local particleEmitter = nil
+local function updateParticles()
+    if not Flags.ParticlesEnabled then
+        if particleEmitter then
+            particleEmitter:Destroy()
+            particleEmitter = nil
+        end
+        return
+    end
+    
+    if not particleEmitter then
+        local char = LP.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        particleEmitter = Instance.new("ParticleEmitter")
+        particleEmitter.Parent = hrp
+        particleEmitter.Rate = 100
+        particleEmitter.Lifetime = NumberRange.new(1, 3)
+        particleEmitter.Speed = NumberRange.new(5, 10)
+        particleEmitter.SpreadAngle = Vector2.new(180, 180)
+        particleEmitter.Rotation = NumberRange.new(0, 360)
+        particleEmitter.RotSpeed = NumberRange.new(0, 90)
+        particleEmitter.LightEmission = 1
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+    end
+    
+    particleEmitter.Color = ColorSequence.new(Flags.ParticleColor)
+    particleEmitter.Speed = NumberRange.new(5 * Flags.ParticleSpeed, 10 * Flags.ParticleSpeed)
+    
+    if Flags.ParticleType == "Snow" then
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        particleEmitter.Lifetime = NumberRange.new(2, 4)
+        particleEmitter.Rate = 80
+        particleEmitter.Size = NumberSequence.new(0.5)
+    elseif Flags.ParticleType == "Rain" then
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        particleEmitter.Lifetime = NumberRange.new(0.5, 1)
+        particleEmitter.Rate = 300
+        particleEmitter.Size = NumberSequence.new(0.2)
+    elseif Flags.ParticleType == "Fireflies" then
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        particleEmitter.Lifetime = NumberRange.new(1, 3)
+        particleEmitter.Rate = 30
+        particleEmitter.Size = NumberSequence.new(0.3)
+    end
+end
+
+RunService.Heartbeat:Connect(function()
+    if Flags.ParticlesEnabled then updateParticles() end
+end)
+
+LP.CharacterAdded:Connect(function()
+    task.wait(1)
+    if Flags.ParticlesEnabled then updateParticles() end
+end)
 
 -- ===== WEAPON COLOR =====
 local OriginalWeaponProps = {}
@@ -334,6 +418,7 @@ local function startWeaponColor()
         if not Flags.WeaponColorEnabled then
             for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
             lastWeaponModels = {}
+            if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
             return
         end
         local currentModels = findWeaponModels()
@@ -552,7 +637,7 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
     end
 end)
 
--- ===== TRIGGER BOT (FIXED) =====
+-- ===== TRIGGER BOT =====
 local triggerLastShot = 0
 local triggerRayParams = RaycastParams.new()
 triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -587,27 +672,23 @@ local function tryTriggerShot()
     if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
     if Window.Gui and Window.Gui.Enabled then return end
 
-    -- проверка: цель в FOV
     if not isCrosshairOnTarget(CurrentTargetPart) then return end
 
-    -- проверка: прямая видимость
     triggerRayParams.FilterDescendantsInstances = {LP.Character}
     local origin = Camera.CFrame.Position
     local dir = (CurrentTargetPart.Position - origin)
-    if dir.Magnitude > 1000 then return end -- слишком далеко
+    if dir.Magnitude > 1000 then return end
     local ray = workspace:Raycast(origin, dir, triggerRayParams)
     if ray and ray.Instance then
         local hitChar = ray.Instance:FindFirstAncestorOfClass("Model")
         if hitChar ~= CurrentTargetPart.Parent then return end
     end
 
-    -- ищем оружие (Tool или Model)
     local tool = findTriggerTool()
     if not tool then return end
 
     triggerLastShot = os.clock()
 
-    -- пробуем стрелять через Tool:Activate, иначе через mouse1click
     if tool:IsA("Tool") then
         tool:Activate()
     else
@@ -1562,7 +1643,7 @@ local VisualsTab = Window:AddTab("Visuals", "palette")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
 
-local weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
     Flags.WeaponColorEnabled=s
     if s then
         startWeaponColor()
@@ -1611,6 +1692,33 @@ local crosshairSizeSlider = VisualsTab:AddSlider({Title="Size (Длина лин
 local crosshairDistSlider = VisualsTab:AddSlider({Title="Distance (Отступ)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
 local crosshairThickSlider = VisualsTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = VisualsTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("OTHER", "settings"); VisualsTab:AddSeparator()
+
+aspectToggle = VisualsTab:AddToggle({Title="Aspect Ratio", Icon="monitor", Default=false, Callback=function(s)
+    Flags.AspectRatioEnabled=s
+    applyAspectRatio()
+end})
+local aspectSlider = VisualsTab:AddSlider({Title="Stretch (Растяг)", Icon="move", Min=0.5, Max=2.0, Default=1.0, Callback=function(v)
+    Flags.AspectRatio = v
+end})
+
+particlesToggle = VisualsTab:AddToggle({Title="Particles (Weather)", Icon="sparkles", Default=false, Callback=function(s)
+    Flags.ParticlesEnabled = s
+    updateParticles()
+end})
+local particlesDropdown = VisualsTab:AddDropdown({Title="Particle Type", Icon="cloud", Options={"Snow", "Rain", "Fireflies"}, Default="Snow", Callback=function(v)
+    Flags.ParticleType = v
+    updateParticles()
+end})
+local particlesColorPicker = VisualsTab:AddColorPicker({Title="Particle Color", Icon="palette", Default=Flags.ParticleColor, Callback=function(c)
+    Flags.ParticleColor = c
+    updateParticles()
+end})
+local particlesSpeedSlider = VisualsTab:AddSlider({Title="Particle Speed", Icon="gauge", Min=0.1, Max=3, Default=1, Callback=function(v)
+    Flags.ParticleSpeed = v
+    updateParticles()
+end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
@@ -1722,6 +1830,14 @@ local function buildConfig(name)
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
+    cfg:RegisterElement("AspectRatio", aspectToggle)
+    cfg:RegisterElement("AspectValue", aspectSlider)
+
+    cfg:RegisterElement("ParticlesEnabled", particlesToggle)
+    cfg:RegisterElement("ParticleType", particlesDropdown)
+    cfg:RegisterElement("ParticleColor", particlesColorPicker)
+    cfg:RegisterElement("ParticleSpeed", particlesSpeedSlider)
+
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("NoRecoil", noRecoilToggle)
     cfg:RegisterElement("RapidFire", rapidFireToggle)
@@ -1791,6 +1907,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        Flags.AspectRatioEnabled = false
+        Flags.AspectRatio        = 1.0
+        Flags.ParticlesEnabled   = false
+        Flags.ParticleType       = "Snow"
+        Flags.ParticleColor      = Color3.fromRGB(255, 255, 255)
+        Flags.ParticleSpeed      = 1
 
         buildConfig(name):Load()
 
@@ -1805,6 +1927,13 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        applyAspectRatio()
+        updateParticles()
+        if not Flags.WeaponColorEnabled then
+            for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            lastWeaponModels = {}
+            if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
+        end
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
