@@ -4,11 +4,9 @@
 
 -- ===== KEY SYSTEM =====
 local KEY_LIST = {
-    -- ["КЛЮЧ"] = { name = "кто", expires = <unix timestamp или 0> }
     ["CLOUD-FOX-0001"]  = { name = "Fox",   expires = 0 },
     ["CLOUD-JACK-0002"] = { name = "Jack",  expires = 0 },
     ["CLOUD-FRND-0003"] = { name = "Друг1", expires = 0 },
-    -- пример с датой (2026-01-01): ["CLOUD-TEMP-0004"] = { name = "Temp", expires = 1767225600 },
 }
 
 local KEY_FILE = "cloudclient_key.txt"
@@ -312,7 +310,7 @@ local function updateHitboxes()
     end
 end
 
--- ===== SILENT AIM (РАСШИРЕННЫЙ) =====
+-- ===== SILENT AIM =====
 local silentHookOk = pcall(function()
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -479,7 +477,6 @@ local function tryTriggerShot()
     end
 end
 
--- ===== ОБНОВЛЕНИЕ ЦЕЛИ + TRIGGER =====
 RunService.RenderStepped:Connect(function()
     if Flags.Aimbot or Flags.TriggerBot then
         local _, part = getClosestTarget()
@@ -1322,7 +1319,7 @@ local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Пр�
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- ===== 1. КЛЮЧ (просто строка, без каталога) =====
+-- ===== 1. КЛЮЧ (просто строка) =====
 local keyInfoLabel = SettingsTab:AddLabel(
     string.format("Ключ: %s | до: %s",
         _G.CloudKeyState.key or "—",
@@ -1351,7 +1348,7 @@ end})
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
--- ===== 4. SYSTEM CONFIG (Save/Load/Delete) =====
+-- ===== 4. SYSTEM CONFIG =====
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("SYSTEM CONFIG", "save")
 SettingsTab:AddSeparator()
@@ -1369,7 +1366,6 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
--- buildConfig объявлен ДО кнопок, чтобы Save/Load/Delete могли его дёргать
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
@@ -1467,17 +1463,38 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         local name = savedConfigs:Get()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
+
+        -- [FIX] Сбрасываем ВСЕ флаги в дефолт ПЕРЕД Load,
+        -- чтобы отсутствующие в конфиге ключи не унаследовали старое состояние
+        Flags.HitboxEnabled      = false
+        Flags.HitboxSize         = 2.0
+        Flags.HitboxTransparency = 50
+        Flags.TriggerBot         = false
+        Flags.TriggerDelay       = 0
+        Flags.TriggerFOV         = 5
+        Flags.TriggerTeamCheck   = true
+        Flags.NoRecoil           = false
+        Flags.SkyColorEnabled    = false
+        Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        Flags.ESP                = false
+        Flags.Fullbright         = false
+        Flags.FreeCam            = false
+        Flags.AutoRun            = false
+        Flags.Spider             = false
+        Flags.FPSPing            = false
+        Flags.Crosshair          = false
+
         buildConfig(name):Load()
 
-        -- ===== ESP =====
+        -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         syncUI(espToggle, Flags.ESP)
 
-        -- ===== Fullbright =====
+        -- Fullbright
         setFullbright(Flags.Fullbright)
         syncUI(fullbrightToggle, Flags.Fullbright)
 
-        -- ===== FreeCam =====
+        -- FreeCam
         if Flags.FreeCam then
             if not freecamConn then startFreeCam() end
         else
@@ -1485,33 +1502,29 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         end
         syncUI(freecamToggle, Flags.FreeCam)
 
-        -- ===== AutoRun =====
+        -- AutoRun
         syncUI(autoRunToggle, Flags.AutoRun)
 
-        -- ===== Spider =====
+        -- Spider
         syncUI(spiderToggle, Flags.Spider)
         if not Flags.Spider then clearSpiderVelocity() end
 
-        -- ===== No Recoil =====
+        -- No Recoil
         syncUI(noRecoilToggle, Flags.NoRecoil)
         if not Flags.NoRecoil then resetNoRecoilState() end
 
-        -- ===== Trigger Bot =====
+        -- Trigger Bot
         syncUI(triggerBotToggle, Flags.TriggerBot)
 
-        -- ===== Hitbox Expander =====
+        -- Hitbox
         syncUI(hitboxToggle, Flags.HitboxEnabled)
-        if Flags.HitboxEnabled then
-            updateHitboxes()
-        else
-            restoreAllHitboxes()
-        end
+        if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
 
-        -- ===== Sky Color =====
+        -- Sky
         syncUI(skyColorToggle, Flags.SkyColorEnabled)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
 
-        -- ===== Stats HUD =====
+        -- Stats HUD
         if not Flags.FPSPing and HudPanel then
             destroyHud()
         elseif Flags.FPSPing and not HudPanel then
