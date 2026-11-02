@@ -201,7 +201,7 @@ local Flags = {
     ESP = false, ESPMode = "Chams",
     Box = false, Distance = false, Name = false, Health = false, Line = false,
     Skeleton = false, WeaponESP = false,
-    MaxDistance = 600, -- [FIX] Дефолт 600
+    MaxDistance = 600,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
@@ -253,25 +253,8 @@ local function syncUI(element, state)
     end
 end
 
-local function syncBind(element, key)
-    if element and element.Set then
-        pcall(function() element:Set(key) end)
-    elseif element and element.set then
-        pcall(function() element.set(key) end)
-    end
-end
-
-local function getBind(element)
-    if element and element.Get then return element:Get()
-    elseif element and element.get then return element.get()
-    elseif element and element.Value then return element.Value
-    end
-    return nil
-end
-
--- ===== HITBOX EXPANDER =====
+-- ===== ХИТБОКС =====
 local OriginalHitboxSizes = {}
-
 local function restoreHitbox(char)
     if not char then return end
     for part, size in pairs(OriginalHitboxSizes) do
@@ -284,13 +267,11 @@ local function restoreHitbox(char)
         if part and not part.Parent then OriginalHitboxSizes[part] = nil end
     end
 end
-
 local function restoreAllHitboxes()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Character then restoreHitbox(plr.Character) end
     end
 end
-
 local function applyHitbox(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -317,7 +298,6 @@ local function applyHitbox(char)
         end
     end
 end
-
 local function updateHitboxes()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and plr.Character then
@@ -942,11 +922,9 @@ local function applyHighlight(plr)
         hl.Parent = char
         Highlights[plr] = hl
     end
-    -- Принудительно ставим AlwaysOnTop, если игра перебила
     if hl.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     end
-
     if Flags.ESPMode == "Chams" then
         hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0
         hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 1
@@ -1529,14 +1507,13 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] 1. Принудительно запоминаем бинды ДО загрузки
-        local bindsSnapshot = {
+        -- [FIX] 1. Очищаем ВСЕ бинды принудительно ПЕРЕД загрузкой
+        local bindsTable = {
             keybindFreecam, keybindESP, keybindFullbright, keybindAutoRun,
             keybindSpider, keybindTrigger, keybindHitbox, keybindNoRecoil, keybindHideUI
         }
-        local oldKeys = {}
-        for i, b in ipairs(bindsSnapshot) do
-            oldKeys[i] = getBind(b)
+        for _, b in ipairs(bindsTable) do
+            syncBind(b, Enum.KeyCode.Unknown)
         end
 
         -- [FIX] 2. Сброс флагов функций
@@ -1552,15 +1529,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
         buildConfig(name):Load()
-
-        -- [FIX] 3. Чистим "протекшие" бинды (те, что не изменились при загрузке)
-        for i, b in ipairs(bindsSnapshot) do
-            local newKey = getBind(b)
-            if newKey == oldKeys[i] then
-                -- Если бинд не изменился, значит в конфиге его не было. Сбрасываем в пусто.
-                syncBind(b, Enum.KeyCode.Unknown)
-            end
-        end
 
         -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
