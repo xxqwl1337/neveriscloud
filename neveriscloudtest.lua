@@ -687,66 +687,47 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (ПРОСТОЙ И РАБОЧИЙ) =====
-local function releaseAutoRunKey()
-    if CC.Refs.autoRunKeyHeld then
-        pcall(function()
-            CC.Refs.autoRunVIM:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
-        end)
-        CC.Refs.autoRunKeyHeld = false
-    end
-end
+-- ===== AUTORUN (Вариант 3: Скорость + Движение) =====
+local defaultWalkSpeed = 16
 
-local function forceAutoRunKey()
-    if not CC.Refs.autoRunKeyHeld then
-        local ok = pcall(function()
-            CC.Refs.autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-        end)
-        if ok then
-            CC.Refs.autoRunKeyHeld = true
+local function captureDefaultWalkSpeed()
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then defaultWalkSpeed = hum.WalkSpeed end
+end
+captureDefaultWalkSpeed()
+
+LP.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    captureDefaultWalkSpeed()
+end)
+
+local function applyAutoRun()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+
+    if Flags.AutoRun then
+        -- Ставим скорость (25 studs/sec — как спринт)
+        if hum.WalkSpeed <= defaultWalkSpeed then
+            hum.WalkSpeed = 25
+        end
+        -- Двигаем вперёд по направлению камеры
+        local look = Camera.CFrame.LookVector
+        local dir = Vector3.new(look.X, 0, look.Z)
+        if dir.Magnitude > 0.01 then
+            hum:Move(dir.Unit, false)
+        end
+    else
+        -- Возвращаем скорость, если AutoRun выключен
+        if hum.WalkSpeed > defaultWalkSpeed then
+            hum.WalkSpeed = defaultWalkSpeed
         end
     end
 end
 
--- Основной цикл
-local function applyAutoRun()
-    if not Flags.AutoRun then
-        releaseAutoRunKey()
-        return
-    end
-
-    local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then
-        releaseAutoRunKey()
-        return
-    end
-
-    -- Если игрок физически зажал Shift -> выключаем AutoRun
-    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
-        Flags.AutoRun = false
-        releaseAutoRunKey()
-        -- Откладываем обновление UI, чтобы не было конфликта
-        task.defer(function()
-            if UI.Elements.autoRunToggle then
-                pcall(function()
-                    UI.Elements.autoRunToggle:Set(false)
-                end)
-            end
-        end)
-        return
-    end
-
-    -- Если не в приседе, держим Shift
-    if not UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-        forceAutoRunKey()
-    end
-end
-
--- Сброс при респавне
-LP.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    CC.Refs.autoRunKeyHeld = false
+-- Вызов в цикле
+RunService.Stepped:Connect(function()
+    applyAutoRun()
 end)
 
 -- ===== SPIDER (LinearVelocity + Плавность) =====
