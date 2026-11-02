@@ -699,7 +699,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (ИСПРАВЛЕН: БЕЗ ЛАГОВ И С ПОЛНЫМ ГАШЕНИЕМ) =====
+-- ===== NO RECOIL (ИСПРАВЛЕН: БЕЗ ЛАГОВ ПРИ ХОДЬБЕ) =====
 local noRecoilActive = false
 local savedRecoilCFrame = nil
 local lastShotTime = 0
@@ -713,8 +713,8 @@ end
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Сохраняем CFrame только если в руках есть оружие (Tool)
-        -- Это убирает лаги персонажа при обычном клике
+        -- Сохраняем CFrame ТОЛЬКО если в руках оружие (Tool)
+        -- Это убирает лаги персонажа при обычном клике без оружия
         local char = LP.Character
         local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then
@@ -1527,7 +1527,7 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== СВОЯ СИСТЕМА БИНДОВ =====
+-- ===== СВОЯ СИСТЕМА БИНДОВ (НЕЗАВИСИМО ОТ КОНФИГОВ) =====
 local function getBindName(b)
     local k = b:Get()
     if k and k ~= Enum.KeyCode.Unknown then
@@ -1618,7 +1618,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
 
         -- [FIX] Принудительно применяем бинды из файла ПОСЛЕ загрузки конфига,
         -- чтобы ConfigManager их не перебил.
-        task.wait(0.1) 
+        task.wait(0.1)
         loadBinds()
 
         -- ESP
@@ -1768,7 +1768,7 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end
 })
 
--- Фоновый цикл для сохранения биндов при их изменении
+-- Фоновый цикл для автосохранения биндов при их изменении
 task.spawn(function()
     local bindCache = {}
     while true do
