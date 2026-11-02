@@ -687,7 +687,7 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (С ИНТЕРАКТИВНОЙ ОБРАБОТКОЙ CTRL) =====
+-- ===== AUTORUN (С ИНТЕРАКТИВНОЙ ОБРАБОТКОЙ CTRL + ОТКЛЮЧЕНИЕ ПО SHIFT) =====
 local function releaseAutoRunKey()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
@@ -708,11 +708,22 @@ local function forceAutoRunKey()
     end
 end
 
--- Слушаем нажатие/отпускание Ctrl
+-- Слушаем нажатие клавиш
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
+    
+    -- Если нажат Ctrl -> отпускаем Shift, чтобы не сбрасывать бег
     if input.KeyCode == Enum.KeyCode.LeftControl then
-        -- Игрок присел -> отпускаем Shift, чтобы игра не сбросила бег
+        releaseAutoRunKey()
+    end
+    
+    -- Если нажат Shift, а AutoRun включен -> выключаем AutoRun (как в Расте)
+    if input.KeyCode == Enum.KeyCode.LeftShift and Flags.AutoRun then
+        Flags.AutoRun = false
+        -- Синхронизируем тоггл в UI (если он есть)
+        if UI.Elements.autoRunToggle then
+            UI.Elements.autoRunToggle:Set(false)
+        end
         releaseAutoRunKey()
     end
 end)
