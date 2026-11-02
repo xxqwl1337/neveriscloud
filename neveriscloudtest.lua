@@ -220,7 +220,8 @@ Flags.TextColor = Color3.fromRGB(255, 255, 255)
 Flags.BoxColor = Color3.fromRGB(255,255,255); Flags.LineColor = Color3.fromRGB(255,255,255)
 Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
 Flags.FreeCam = false
-Flags.CameraZoom = false; Flags.ZoomFOV = 70
+Flags.CameraZoom = false
+Flags.ZoomActive = false
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
 Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
@@ -301,7 +302,6 @@ CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 CC.Refs.defaultFOV = Camera.FieldOfView
 CC.Refs.zoomConn = nil
-CC.Refs.currentFOV = Camera.FieldOfView
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
@@ -394,29 +394,20 @@ local function applyAspectRatio()
 end
 
 -- ===== CAMERA ZOOM =====
-local function stopCameraZoom()
-    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
-    if Camera then
-        Camera.FieldOfView = CC.Refs.defaultFOV or 70
-    end
-    Flags.CameraZoom = false
-end
-
-local function startCameraZoom()
-    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect() end
-    if not Flags.CameraZoom then
-        if Camera then Camera.FieldOfView = CC.Refs.defaultFOV or 70 end
-        return
-    end
-    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
-        if not Flags.CameraZoom then stopCameraZoom(); return end
-        if Camera then
-            local targetFOV = Flags.ZoomFOV or 70
-            -- Lerp для плавности, чтобы камера не дёргалась
-            Camera.FieldOfView = Camera.FieldOfView + (targetFOV - Camera.FieldOfView) * 0.2
+local function applyCameraZoom()
+    if CC.Refs.zoomConn then return end
+    CC.Refs.defaultFOV = 70
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or CC.Refs.defaultFOV
+        local current = Camera.FieldOfView
+        if math.abs(target - current) > 0.1 then
+            Camera.FieldOfView = current + (target - current) * (dt * 15)
+        else
+            Camera.FieldOfView = target
         end
     end)
 end
+applyCameraZoom()
 
 -- ===== ХИТБОКС =====
 local function restoreHitbox(char)
@@ -1246,9 +1237,8 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
 UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind", Icon = "keyboard", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
 
-UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Приближает камеру", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s; startCameraZoom() end})
-UI.Elements.cameraZoomSlider = UI.Tabs.Misc:AddSlider({Title="Zoom (FOV)", Icon="maximize", Min=30, Max=140, Default=70, Callback=function(v) Flags.ZoomFOV=v end})
-UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Callback = function() UI.Elements.cameraZoomToggle:Set(not Flags.CameraZoom) end})
+UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
+UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt, Callback = function() end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
@@ -1278,6 +1268,26 @@ UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot K
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
+
+-- Обработчик зажатия бинда зума
+local ZoomKeyCode = Enum.KeyCode.LeftAlt
+local function updateZoomKey(key)
+    ZoomKeyCode = key
+end
+
+-- Слушаем кнопку зума
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if Flags.CameraZoom and ZoomKeyCode and input.KeyCode == ZoomKeyCode then
+        Flags.ZoomActive = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(input, gpe)
+    if input.KeyCode == ZoomKeyCode then
+        Flags.ZoomActive = false
+    end
+end)
 
 UI.buildConfig = function(name)
     local cfg = UI.Window.ConfigManager:CreateConfig(name)
@@ -1338,7 +1348,6 @@ UI.buildConfig = function(name)
 
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
     cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
-    cfg:RegisterElement("ZoomFOV", UI.Elements.cameraZoomSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
@@ -1396,7 +1405,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
 
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
         else if CC.Refs.freecamConn then stopFreeCam() end end
-        if Flags.CameraZoom then startCameraZoom() else stopCameraZoom() end
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
