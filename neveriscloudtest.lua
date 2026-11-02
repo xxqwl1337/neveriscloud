@@ -1,14 +1,14 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.5.4 (Misc + Loot cleared)
+    Архитектура: Табличная (_G.CC)
 ]]
 
--- ===== ГЛАВНАЯ ТАБЛИЦА =====
+-- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
 _G.CC = {
-    Flags = {},
-    UI = { Tabs = {}, Elements = {} },
-    Refs = {},
-    Lib = nil
+    Flags = {},      -- Настройки (вкл/выкл)
+    UI = { Tabs = {}, Elements = {} }, -- Все кнопки, слайдеры и вкладки
+    Refs = {},       -- Ссылки на объекты (соединения, парты и т.д.)
+    Lib = nil        -- Библиотека UI
 }
 
 local CC = _G.CC
@@ -188,7 +188,7 @@ local function keyRemainingText()
 end
 -- ===== END KEY SYSTEM =====
 
--- ===== ИНИЦИАЛИЗАЦИЯ =====
+-- ===== ИНИЦИАЛИЗАЦИЯ БИБЛИОТЕКИ =====
 CC.Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.5.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -235,39 +235,6 @@ Flags.WeaponColorEnabled = false
 Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
 Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
-
--- ===== ССЫЛКИ =====
-CC.Refs.CurrentTarget = nil
-CC.Refs.CurrentTargetPart = nil
-CC.Refs.rapidFireConn = nil
-CC.Refs.weaponColorConn = nil
-CC.Refs.lastWeaponModels = {}
-CC.Refs.aspectConn = nil
-CC.Refs.OriginalHitboxSizes = {}
-CC.Refs.OriginalWeaponProps = {}
-CC.Refs.freecamConn = nil
-CC.Refs.freecamMouseConn = nil
-CC.Refs.savedCamType = nil
-CC.Refs.savedMouseBehavior = nil
-CC.Refs.savedWS = 16; CC.Refs.savedJP = 50
-CC.Refs.freecamPos = Vector3.new(0,0,0)
-CC.Refs.freecamYaw = 0; CC.Refs.freecamPitch = 0
-CC.Refs.spiderBV = nil
-CC.Refs.noRecoilConn = nil
-CC.Refs.noRecoilShotConn = nil
-CC.Refs.lockedCamCF = nil
-CC.Refs.recoilActive = false
-CC.Refs.recoilLastInput = 0
-CC.Refs.savedMotorTransforms = {}
-CC.Refs.origLight = { Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime, FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart, GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient }
-CC.Refs.origAtmosphere = nil; CC.Refs.origClouds = nil
-CC.Refs.origSky = nil; CC.Refs.customSky = nil
-CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.WeaponLabels = {}
-CC.Refs.HudPanel = nil
-CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
-CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
-CC.Refs.autoRunVIM = game:GetService("VirtualInputManager")
-CC.Refs.autoRunKeyHeld = false
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -301,6 +268,39 @@ local function isAimHeld()
     end
     return false
 end
+
+-- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
+CC.Refs.CurrentTarget = nil
+CC.Refs.CurrentTargetPart = nil
+CC.Refs.rapidFireConn = nil
+CC.Refs.weaponColorConn = nil
+CC.Refs.lastWeaponModels = {}
+CC.Refs.aspectConn = nil
+CC.Refs.OriginalHitboxSizes = {}
+CC.Refs.OriginalWeaponProps = {}
+CC.Refs.freecamConn = nil
+CC.Refs.freecamMouseConn = nil
+CC.Refs.savedCamType = nil
+CC.Refs.savedMouseBehavior = nil
+CC.Refs.savedWS = 16; CC.Refs.savedJP = 50
+CC.Refs.freecamPos = Vector3.new(0,0,0)
+CC.Refs.freecamYaw = 0; CC.Refs.freecamPitch = 0
+CC.Refs.defaultWalkSpeed = 16
+CC.Refs.autoRunActive = false
+CC.Refs.spiderBV = nil
+CC.Refs.noRecoilConn = nil
+CC.Refs.noRecoilShotConn = nil
+CC.Refs.lockedCamCF = nil
+CC.Refs.recoilActive = false
+CC.Refs.recoilLastInput = 0
+CC.Refs.savedMotorTransforms = {}
+CC.Refs.origLight = { Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime, FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart, GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient }
+CC.Refs.origAtmosphere = nil; CC.Refs.origClouds = nil
+CC.Refs.origSky = nil; CC.Refs.customSky = nil
+CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.WeaponLabels = {}
+CC.Refs.HudPanel = nil
+CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
+CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
@@ -344,7 +344,9 @@ local function findWeaponModels()
     local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
     if vm then
         table.insert(models, vm)
-        for _, child in ipairs(vm:GetChildren()) do if child:IsA("Model") then table.insert(models, child) end end
+        for _, child in ipairs(vm:GetChildren()) do
+            if child:IsA("Model") then table.insert(models, child) end
+        end
     end
     return models
 end
@@ -687,55 +689,37 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (Вариант 3: Скорость + Движение) =====
-local defaultWalkSpeed = 16
-
+-- ===== AUTORUN =====
 local function captureDefaultWalkSpeed()
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then defaultWalkSpeed = hum.WalkSpeed end
+    if hum then CC.Refs.defaultWalkSpeed = hum.WalkSpeed end
 end
 captureDefaultWalkSpeed()
-
-LP.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    captureDefaultWalkSpeed()
-end)
+LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
 
 local function applyAutoRun()
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return end
-
+    if not hum then return end
     if Flags.AutoRun then
-        if hum.WalkSpeed <= defaultWalkSpeed then
-            hum.WalkSpeed = 25
-        end
+        CC.Refs.autoRunActive = true
+        hum.WalkSpeed = 20
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then
-            hum:Move(dir.Unit, false)
-        end
-    else
-        if hum.WalkSpeed > defaultWalkSpeed then
-            hum.WalkSpeed = defaultWalkSpeed
-        end
+        if dir.Magnitude > 0.01 then hum:Move(dir.Unit, false) end
+    elseif CC.Refs.autoRunActive then
+        hum.WalkSpeed = CC.Refs.defaultWalkSpeed
+        CC.Refs.autoRunActive = false
     end
 end
 
-RunService.Stepped:Connect(function()
-    applyAutoRun()
-end)
-
--- ===== SPIDER (LinearVelocity + Плавность) =====
+-- ===== SPIDER =====
 local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
 
 local function clearSpiderVelocity()
-    if CC.Refs.spiderBV then
-        pcall(function() CC.Refs.spiderBV:Destroy() end)
-        CC.Refs.spiderBV = nil
-    end
+    if CC.Refs.spiderBV then CC.Refs.spiderBV:Destroy(); CC.Refs.spiderBV = nil end
 end
 
 local function updateSpider()
@@ -747,19 +731,16 @@ local function updateSpider()
 
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
-    local lookDir = Camera.CFrame.LookVector
-    local flatLook = Vector3.new(lookDir.X, 0, lookDir.Z)
-    local wallFound = false
-
-    if flatLook.Magnitude > 0.01 then
-        local res = workspace:Raycast(origin, flatLook.Unit * 3, spiderRayParams)
-        if res and res.Instance and res.Instance.CanCollide then wallFound = true end
+    local dirs = { Camera.CFrame.LookVector, -Camera.CFrame.LookVector, Camera.CFrame.RightVector, -Camera.CFrame.RightVector }
+    local hit = nil
+    for _, dir in ipairs(dirs) do
+        local flat = Vector3.new(dir.X, 0, dir.Z)
+        if flat.Magnitude > 0.01 then
+            local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
+            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
+        end
     end
-
-    if not wallFound then
-        clearSpiderVelocity()
-        return
-    end
+    if not hit then clearSpiderVelocity(); return end
 
     local up = 0
     if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
@@ -768,15 +749,12 @@ local function updateSpider()
 
     if up ~= 0 then
         if not CC.Refs.spiderBV then
-            CC.Refs.spiderBV = Instance.new("LinearVelocity")
-            CC.Refs.spiderBV.MaxForce = 3000
-            CC.Refs.spiderBV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-            CC.Refs.spiderBV.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+            CC.Refs.spiderBV = Instance.new("BodyVelocity")
+            CC.Refs.spiderBV.MaxForce = Vector3.new(0, math.huge, 0)
+            CC.Refs.spiderBV.P = 5000
             CC.Refs.spiderBV.Parent = hrp
-            CC.Refs.spiderBV.Attachment0 = Instance.new("Attachment", hrp)
         end
-        local targetVel = Vector3.new(0, up, 0)
-        CC.Refs.spiderBV.VectorVelocity = CC.Refs.spiderBV.VectorVelocity:Lerp(targetVel, 0.2)
+        CC.Refs.spiderBV.Velocity = Vector3.new(0, up, 0)
     else
         clearSpiderVelocity()
     end
@@ -1258,9 +1236,26 @@ UI.Elements.weaponToggle = UI.Tabs.ESP:AddToggle({Title="Weapon ESP", Icon="swor
 
 UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
 
--- ===== UI: PLAYER (ПУСТАЯ, так как FreeCam перенесён в Misc) =====
+-- ===== UI: PLAYER =====
 UI.Tabs.Player = UI.Window:AddTab("Player", "user")
--- Пусто
+
+UI.Elements.freecamToggle = UI.Tabs.Player:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
+
+UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("COMBAT", "crosshair"); UI.Tabs.Player:AddSeparator()
+
+UI.Elements.noRecoilToggle = UI.Tabs.Player:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
+
+UI.Elements.rapidFireToggle = UI.Tabs.Player:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
+
+UI.Elements.rapidFireDelaySlider = UI.Tabs.Player:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) Flags.RapidFireDelay=v; if Flags.RapidFire then applyRapidFire() end end})
+
+UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("MOVEMENT", "move"); UI.Tabs.Player:AddSeparator()
+
+UI.Elements.autoRunToggle = UI.Tabs.Player:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+
+UI.Elements.spiderToggle = UI.Tabs.Player:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s; if not s then clearSpiderVelocity() end end})
+
+UI.Elements.spiderSpeedSlider = UI.Tabs.Player:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: VISUALS =====
 UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "palette")
@@ -1297,17 +1292,11 @@ UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparen
 UI.Tabs.Other = UI.Window:AddTab("Other", "box")
 UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
 
--- ===== UI: LOOT (ПУСТАЯ) =====
-UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
--- Пусто
-
--- ===== UI: MISC (ПУСТАЯ) =====
-UI.Tabs.Misc = UI.Window:AddTab("Misc", "wrench")
--- Пусто
-
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
+
 UI.Elements.keyInfoLabel = UI.Tabs.Settings:AddLabel( string.format("Ключ: %s | до: %s", _G.CloudKeyState.key or "—", keyRemainingText()), "key" )
+
 UI.Tabs.Settings:AddSeparator()
 
 local themeNames = {}
@@ -1337,21 +1326,82 @@ UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybi
 
 UI.buildConfig = function(name)
     local cfg = UI.Window.ConfigManager:CreateConfig(name)
-    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle); cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle); cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle); cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
-    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider); cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider); cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider); cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
-    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown); cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle); cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
-    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle); cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider); cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider); cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
-    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle); cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider); cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
-    cfg:RegisterElement("ESP", UI.Elements.espToggle); cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown); cfg:RegisterElement("Box", UI.Elements.boxToggle); cfg:RegisterElement("Name", UI.Elements.nameToggle)
-    cfg:RegisterElement("Health", UI.Elements.healthToggle); cfg:RegisterElement("Distance", UI.Elements.distToggle); cfg:RegisterElement("Line", UI.Elements.lineToggle); cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle); cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
-    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider); cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker); cfg:RegisterElement("TextColor", UI.Elements.textColorPicker); cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker); cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker); cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
-    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle); cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker); cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider); cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider); cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider); cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
-    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle); cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker); cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
-    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle); cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
-    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle); cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
-    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle); cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle); cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle); cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider); cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle); cfg:RegisterElement("Spider", UI.Elements.spiderToggle); cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
-    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle); cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
-    cfg:RegisterElement("BindFreecam", UI.Elements.keybindFreecam); cfg:RegisterElement("BindESP", UI.Elements.keybindESP); cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright); cfg:RegisterElement("BindAutoRun", UI.Elements.keybindAutoRun); cfg:RegisterElement("BindSpider", UI.Elements.keybindSpider); cfg:RegisterElement("BindTrigger", UI.Elements.keybindTrigger); cfg:RegisterElement("BindHitbox", UI.Elements.keybindHitbox); cfg:RegisterElement("BindNoRecoil", UI.Elements.keybindNoRecoil); cfg:RegisterElement("BindHideUI", UI.Elements.keybindHideUI)
+
+    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle)
+    cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle)
+    cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle)
+    cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
+    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider)
+    cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider)
+    cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider)
+    cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
+    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown)
+    cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle)
+    cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
+
+    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle)
+    cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider)
+    cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider)
+    cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
+
+    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
+    cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider)
+    cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
+
+    cfg:RegisterElement("ESP", UI.Elements.espToggle)
+    cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown)
+    cfg:RegisterElement("Box", UI.Elements.boxToggle)
+    cfg:RegisterElement("Name", UI.Elements.nameToggle)
+    cfg:RegisterElement("Health", UI.Elements.healthToggle)
+    cfg:RegisterElement("Distance", UI.Elements.distToggle)
+    cfg:RegisterElement("Line", UI.Elements.lineToggle)
+    cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle)
+    cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
+    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
+    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
+    cfg:RegisterElement("TextColor", UI.Elements.textColorPicker)
+    cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker)
+    cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
+    cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
+
+    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle)
+    cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker)
+    cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider)
+    cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider)
+    cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider)
+    cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
+
+    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle)
+    cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker)
+    cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
+
+    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle)
+    cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
+
+    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle)
+    cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
+
+    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
+    cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
+    cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
+    cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
+    cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle)
+    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
+    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
+
+    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
+    cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
+
+    cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
+    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
+    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
+    cfg:RegisterElement("BindAutoRun",    UI.Elements.keybindAutoRun)
+    cfg:RegisterElement("BindSpider",     UI.Elements.keybindSpider)
+    cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
+    cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
+    cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
+    cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
+
     return cfg
 end
 
@@ -1360,6 +1410,7 @@ UI.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save")
 UI.Tabs.Settings:AddSeparator()
 
 UI.Window.ConfigManager:SetFolder("cloudclient_configs")
+
 UI.Elements.configNameBox = UI.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" })
 UI.Elements.savedConfigs = UI.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = UI.Window.ConfigManager:GetConfigs() })
 
