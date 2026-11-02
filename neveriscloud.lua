@@ -664,43 +664,50 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL =====
+-- ===== NO RECOIL (ИСПРАВЛЕН) =====
 local noRecoilActive = false
 local savedRecoilCFrame = nil
+local lastShotTime = 0
 
 local function resetNoRecoilState()
     noRecoilActive = false
     savedRecoilCFrame = nil
+    lastShotTime = 0
 end
 
-local function applyNoRecoil()
-    if not Flags.NoRecoil then
-        resetNoRecoilState()
-        return
-    end
-    if not noRecoilActive then
-        noRecoilActive = true
-        savedRecoilCFrame = Camera.CFrame
-    end
-    if savedRecoilCFrame then
-        local current = Camera.CFrame
-        local currentLook = current.LookVector
-        local savedLook = savedRecoilCFrame.LookVector
-        local dot = currentLook:Dot(savedLook)
-        if dot < 0.9999 then
-            Camera.CFrame = CFrame.new(current.Position) * savedRecoilCFrame.Rotation
-        end
-    end
-end
-
-UIS.InputEnded:Connect(function(input)
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         savedRecoilCFrame = Camera.CFrame
+        lastShotTime = os.clock()
     end
 end)
 
 RunService.RenderStepped:Connect(function()
-    if Flags.NoRecoil then applyNoRecoil() end
+    if not Flags.NoRecoil then
+        if noRecoilActive then
+            noRecoilActive = false
+            savedRecoilCFrame = nil
+            lastShotTime = 0
+        end
+        return
+    end
+    noRecoilActive = true
+
+    -- компенсируем отдачу только 0.15 сек после выстрела
+    if os.clock() - lastShotTime > 0.15 then return end
+    if not savedRecoilCFrame then return end
+
+    local current = Camera.CFrame
+    local currentPitch = math.asin(math.clamp(current.LookVector.Y, -1, 1))
+    local savedPitch   = math.asin(math.clamp(savedRecoilCFrame.LookVector.Y, -1, 1))
+    local pitchDiff = currentPitch - savedPitch
+
+    -- если питч ушёл вверх больше чем на 0.5° — компенсируем (yaw оставляем свободным)
+    if pitchDiff > math.rad(0.5) then
+        local yaw = math.atan2(-current.LookVector.X, -current.LookVector.Z)
+        Camera.CFrame = CFrame.new(current.Position) * CFrame.fromEulerAnglesYXZ(savedPitch, yaw, 0)
+    end
 end)
 
 -- ===== FULLBRIGHT =====
@@ -1464,8 +1471,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] Сбрасываем ВСЕ флаги в дефолт ПЕРЕД Load,
-        -- чтобы отсутствующие в конфиге ключи не унаследовали старое состояние
+        -- [FIX] Сбрасываем ТОЛЬКО новые флаги, которые протекают между конфигами.
+        -- ESP, Fullbright, FreeCam, AutoRun, Spider, FPSPing, Crosshair — НЕ трогаем,
+        -- они и так корректно восстанавливались из конфига.
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1476,13 +1484,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.NoRecoil           = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
-        Flags.ESP                = false
-        Flags.Fullbright         = false
-        Flags.FreeCam            = false
-        Flags.AutoRun            = false
-        Flags.Spider             = false
-        Flags.FPSPing            = false
-        Flags.Crosshair          = false
 
         buildConfig(name):Load()
 
