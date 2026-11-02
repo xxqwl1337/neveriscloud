@@ -276,62 +276,52 @@ end
 local aspectConn = nil
 local function applyAspectRatio()
     if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
-    if not Flags.AspectRatioEnabled then return end
+    if not Flags.AspectRatioEnabled then
+        Camera.FieldOfView = 70
+        return
+    end
     aspectConn = RunService.RenderStepped:Connect(function()
-        if not Flags.AspectRatioEnabled then
-            if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
-            return
-        end
         local ratio = Flags.AspectRatio or 1.0
-        if ratio <= 0 then return end
-        local baseFOV = 70
-        Camera.FieldOfView = baseFOV / ratio
+        if ratio > 0 then
+            Camera.FieldOfView = 70 / ratio
+        end
     end)
 end
 
--- ===== PARTICLES (WEATHER) =====
+-- ===== PARTICLES =====
 local particleEmitter = nil
 local function updateParticles()
     if not Flags.ParticlesEnabled then
-        if particleEmitter then
-            particleEmitter:Destroy()
-            particleEmitter = nil
-        end
+        if particleEmitter then particleEmitter:Destroy(); particleEmitter = nil end
         return
     end
-    
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
     if not particleEmitter then
-        local char = LP.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
         particleEmitter = Instance.new("ParticleEmitter")
         particleEmitter.Parent = hrp
-        particleEmitter.Rate = 100
-        particleEmitter.Lifetime = NumberRange.new(1, 3)
-        particleEmitter.Speed = NumberRange.new(5, 10)
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.SpreadAngle = Vector2.new(180, 180)
         particleEmitter.Rotation = NumberRange.new(0, 360)
         particleEmitter.RotSpeed = NumberRange.new(0, 90)
         particleEmitter.LightEmission = 1
-        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
     end
-    
+
     particleEmitter.Color = ColorSequence.new(Flags.ParticleColor)
     particleEmitter.Speed = NumberRange.new(5 * Flags.ParticleSpeed, 10 * Flags.ParticleSpeed)
-    
+
     if Flags.ParticleType == "Snow" then
-        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(2, 4)
         particleEmitter.Rate = 80
         particleEmitter.Size = NumberSequence.new(0.5)
     elseif Flags.ParticleType == "Rain" then
-        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(0.5, 1)
         particleEmitter.Rate = 300
         particleEmitter.Size = NumberSequence.new(0.2)
     elseif Flags.ParticleType == "Fireflies" then
-        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(1, 3)
         particleEmitter.Rate = 30
         particleEmitter.Size = NumberSequence.new(0.3)
@@ -637,7 +627,7 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
     end
 end)
 
--- ===== TRIGGER BOT =====
+-- ===== TRIGGER BOT (FIXED) =====
 local triggerLastShot = 0
 local triggerRayParams = RaycastParams.new()
 triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
