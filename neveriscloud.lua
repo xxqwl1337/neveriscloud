@@ -718,6 +718,14 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+UIS.InputEnded:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- Когда отпускаем ЛКМ, сбрасываем состояние, чтобы камера свободно двигалась
+        resetNoRecoilState()
+    end
+end)
+
 UIS.InputChanged:Connect(function(input, gpe)
     if gpe then return end
     if not Flags.NoRecoil then return end
@@ -741,6 +749,8 @@ RunService.RenderStepped:Connect(function()
     noRecoilActive = true
     if os.clock() - lastShotTime > 0.2 then return end
     if not savedRecoilCFrame then return end
+
+    -- Принудительно возвращаем камеру в точку до выстрела (убираем отдачу)
     Camera.CFrame = savedRecoilCFrame
 end)
 
@@ -1342,33 +1352,25 @@ freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctr
 end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("COMBAT", "crosshair"); PlayerTab:AddSeparator()
-
 noRecoilToggle = PlayerTab:AddToggle({Title="No Recoil", Subtitle="Компенсация отдачи", Icon="target", Default=false, Callback=function(s)
     Flags.NoRecoil=s
     if not s then resetNoRecoilState() end
 end})
-
 rapidFireToggle = PlayerTab:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s)
     Flags.RapidFire=s
     applyRapidFire()
 end})
-
 local rapidFireDelaySlider = PlayerTab:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) 
     Flags.RapidFireDelay=v 
-    if Flags.RapidFire then
-        applyRapidFire()
-    end
+    if Flags.RapidFire then applyRapidFire() end
 end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
-
 autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-
 spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s)
     Flags.Spider=s
     if not s then clearSpiderVelocity() end
 end})
-
 local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
@@ -1521,6 +1523,8 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
 
+    -- Бинды мы СЮДА НЕ ПИШЕМ, чтобы ConfigManager их не трогал.
+
     return cfg
 end
 
@@ -1582,7 +1586,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] Сброс флагов функций (как было)
+        -- Сброс флагов функций
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
