@@ -246,23 +246,91 @@ local function syncUI(element, state)
     end
 end
 
--- ===== SILENT AIM =====
+-- ===== SILENT AIM (РАСШИРЕННЫЙ) =====
 local silentHookOk = pcall(function()
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
         if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
             if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
+
             local targetPos = CurrentTargetPart.Position
             if Flags.AimPrediction > 0 then
                 targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
             end
-            if key == "Hit" then return CFrame.new(targetPos)
-            elseif key == "Target" then return CurrentTargetPart end
+
+            if key == "Hit" then
+                return CFrame.new(targetPos)
+            elseif key == "Target" then
+                return CurrentTargetPart
+            elseif key == "UnitRay" then
+                local origin = Camera.CFrame.Position
+                local dir = (targetPos - origin).Unit
+                return Ray.new(origin, dir * 1000)
+            elseif key == "Origin" then
+                return Camera.CFrame.Position
+            elseif key == "Direction" then
+                return (targetPos - Camera.CFrame.Position).Unit
+            end
         end
         return oldIndex(self, key)
     end)
 end)
-if not silentHookOk then warn("[cloudclient] Silent Aim hook FAILED") end
+if not silentHookOk then warn("[cloudclient] Silent Aim __index hook FAILED") end
+
+-- ===== SILENT AIM via __namecall (ScreenPointToRay / ViewportPointToRay) =====
+local namecallOk = pcall(function()
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if (method == "ScreenPointToRay" or method == "ViewportPointToRay")
+            and self == Camera
+            and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
+            local targetPos = CurrentTargetPart.Position
+            if Flags.AimPrediction > 0 then
+                targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+            end
+            local origin = Camera.CFrame.Position
+            local dir = (targetPos - origin).Unit
+            return Ray.new(origin, dir * 1000)
+        end
+        return oldNamecall(self, ...)
+    end)
+end)
+if not namecallOk then warn("[cloudclient] Silent Aim __namecall hook FAILED") end
+
+-- ===== SILENT AIM via hookfunction (если поддерживается) =====
+if hookfunction then
+    pcall(function()
+        local oldScreen = Camera.ScreenPointToRay
+        hookfunction(oldScreen, function(self, x, y, depth)
+            if self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
+                local targetPos = CurrentTargetPart.Position
+                if Flags.AimPrediction > 0 then
+                    targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+                end
+                local origin = self.CFrame.Position
+                local dir = (targetPos - origin).Unit
+                return Ray.new(origin, dir * 1000)
+            end
+            return oldScreen(self, x, y, depth)
+        end)
+    end)
+    pcall(function()
+        local oldViewport = Camera.ViewportPointToRay
+        hookfunction(oldViewport, function(self, x, y, depth)
+            if self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
+                local targetPos = CurrentTargetPart.Position
+                if Flags.AimPrediction > 0 then
+                    targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+                end
+                local origin = self.CFrame.Position
+                local dir = (targetPos - origin).Unit
+                return Ray.new(origin, dir * 1000)
+            end
+            return oldViewport(self, x, y, depth)
+        end)
+    end)
+end
 
 -- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
@@ -936,7 +1004,7 @@ local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 
 local aimbotToggle = AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
 local aimAssistToggle = AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
+local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit / UnitRay / ScreenPointToRay", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
 local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 local aimSmoothSlider = AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 local aimFovSlider = AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
