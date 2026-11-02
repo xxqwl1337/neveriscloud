@@ -687,7 +687,7 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (ФИНАЛЬНЫЙ) =====
+-- ===== AUTORUN (ПРОСТОЙ И РАБОЧИЙ) =====
 local function releaseAutoRunKey()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
@@ -708,40 +708,7 @@ local function forceAutoRunKey()
     end
 end
 
--- Слушаем нажатие клавиш
-UIS.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    
-    -- Если нажат Ctrl -> отпускаем Shift
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        releaseAutoRunKey()
-    end
-    
-    -- Если нажат Shift и AutoRun включен -> выключаем AutoRun
-    if input.KeyCode == Enum.KeyCode.LeftShift and Flags.AutoRun then
-        Flags.AutoRun = false
-        releaseAutoRunKey()
-        
-        -- Синхронизируем тоггл в меню
-        if UI.Elements.autoRunToggle then
-            pcall(function()
-                UI.Elements.autoRunToggle:Set(false)
-            end)
-        end
-    end
-end)
-
-UIS.InputEnded:Connect(function(input, gpe)
-    if gpe then return end
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        -- Игрок встал -> если AutoRun включен, зажимаем Shift
-        if Flags.AutoRun then
-            forceAutoRunKey()
-        end
-    end
-end)
-
--- Основной цикл: держим Shift, если AutoRun включен и персонаж жив
+-- Основной цикл
 local function applyAutoRun()
     if not Flags.AutoRun then
         releaseAutoRunKey()
@@ -752,6 +719,21 @@ local function applyAutoRun()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
         releaseAutoRunKey()
+        return
+    end
+
+    -- Если игрок физически зажал Shift -> выключаем AutoRun
+    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
+        Flags.AutoRun = false
+        releaseAutoRunKey()
+        -- Откладываем обновление UI, чтобы не было конфликта
+        task.defer(function()
+            if UI.Elements.autoRunToggle then
+                pcall(function()
+                    UI.Elements.autoRunToggle:Set(false)
+                end)
+            end
+        end)
         return
     end
 
