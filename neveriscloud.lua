@@ -263,7 +263,7 @@ local function isAimHeld()
     return false
 end
 
--- ===== WEAPON COLOR (ИСПРАВЛЕН: ИЩЕТ VIEWMODEL) =====
+-- ===== WEAPON COLOR =====
 local OriginalWeaponProps = {}
 
 local function applyWeaponColorToModel(model)
@@ -274,7 +274,12 @@ local function applyWeaponColorToModel(model)
                 OriginalWeaponProps[part] = {
                     Color = part.Color,
                     Material = part.Material,
+                    TextureID = part:IsA("MeshPart") and part.TextureID or nil
                 }
+            end
+            -- Если это неон, убираем текстуру, чтобы цвет был чистым
+            if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then
+                part.TextureID = ""
             end
             part.Color = Flags.WeaponColor
             part.Material = Flags.WeaponMaterial
@@ -290,6 +295,9 @@ local function restoreWeaponColorFromModel(model)
             if orig then
                 part.Color = orig.Color
                 part.Material = orig.Material
+                if orig.TextureID and part:IsA("MeshPart") then
+                    part.TextureID = orig.TextureID
+                end
                 OriginalWeaponProps[part] = nil
             end
         end
@@ -1556,7 +1564,7 @@ end})
 
 local materialDropdown = VisualsTab:AddDropdown({
     Title="Material", Icon="gem",
-    Options={"Neon", "Plastic", "ForceField", "Metal", "Glass", "SmoothPlastic", "Wood"},
+    Options={"Neon", "ForceField"},
     Default="Neon",
     Callback=function(s)
         Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon
