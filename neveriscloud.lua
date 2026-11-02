@@ -222,6 +222,11 @@ local Flags = {
     WeaponColorEnabled = false,
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
+    
+    ParticlesEnabled = false,
+    ParticleType = "Snow",
+    ParticleColor = Color3.fromRGB(255, 255, 255),
+    ParticleSpeed = 1,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -229,6 +234,7 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
+local weaponColorToggle, particlesToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -263,6 +269,58 @@ local function isAimHeld()
     return false
 end
 
+-- ===== PARTICLES (WEATHER) =====
+local particleEmitter = nil
+local function updateParticles()
+    if not Flags.ParticlesEnabled then
+        if particleEmitter then
+            particleEmitter:Destroy()
+            particleEmitter = nil
+        end
+        return
+    end
+    
+    if not particleEmitter then
+        local char = LP.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        particleEmitter = Instance.new("ParticleEmitter")
+        particleEmitter.Parent = hrp
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        particleEmitter.SpreadAngle = Vector2.new(180, 180)
+        particleEmitter.Rotation = NumberRange.new(0, 360)
+        particleEmitter.RotSpeed = NumberRange.new(0, 90)
+        particleEmitter.LightEmission = 1
+    end
+    
+    particleEmitter.Color = ColorSequence.new(Flags.ParticleColor)
+    particleEmitter.Speed = NumberRange.new(5 * Flags.ParticleSpeed, 10 * Flags.ParticleSpeed)
+    
+    if Flags.ParticleType == "Snow" then
+        particleEmitter.Lifetime = NumberRange.new(2, 4)
+        particleEmitter.Rate = 80
+        particleEmitter.Size = NumberSequence.new(0.5)
+    elseif Flags.ParticleType == "Rain" then
+        particleEmitter.Lifetime = NumberRange.new(0.5, 1)
+        particleEmitter.Rate = 300
+        particleEmitter.Size = NumberSequence.new(0.2)
+    elseif Flags.ParticleType == "Fireflies" then
+        particleEmitter.Lifetime = NumberRange.new(1, 3)
+        particleEmitter.Rate = 30
+        particleEmitter.Size = NumberSequence.new(0.3)
+    end
+end
+
+RunService.Heartbeat:Connect(function()
+    if Flags.ParticlesEnabled then updateParticles() end
+end)
+
+LP.CharacterAdded:Connect(function()
+    task.wait(1)
+    if Flags.ParticlesEnabled then updateParticles() end
+end)
+
 -- ===== WEAPON COLOR =====
 local OriginalWeaponProps = {}
 
@@ -277,7 +335,6 @@ local function applyWeaponColorToModel(model)
                     TextureID = part:IsA("MeshPart") and part.TextureID or nil
                 }
             end
-            -- Если это неон, убираем текстуру, чтобы цвет был чистым
             if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then
                 part.TextureID = ""
             end
@@ -1544,7 +1601,7 @@ local VisualsTab = Window:AddTab("Visuals", "palette")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
 
-local weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
     Flags.WeaponColorEnabled=s
     if s then
         startWeaponColor()
@@ -1583,6 +1640,25 @@ end})
 local skyColorPicker = VisualsTab:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c)
     Flags.SkyColor=c
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
+end})
+
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEATHER (PARTICLES)", "cloud"); VisualsTab:AddSeparator()
+
+particlesToggle = VisualsTab:AddToggle({Title="Enable Particles", Icon="sparkles", Default=false, Callback=function(s)
+    Flags.ParticlesEnabled = s
+    updateParticles()
+end})
+local particlesDropdown = VisualsTab:AddDropdown({Title="Particle Type", Icon="cloud", Options={"Snow", "Rain", "Fireflies"}, Default="Snow", Callback=function(v)
+    Flags.ParticleType = v
+    updateParticles()
+end})
+local particlesColorPicker = VisualsTab:AddColorPicker({Title="Particle Color", Icon="palette", Default=Flags.ParticleColor, Callback=function(c)
+    Flags.ParticleColor = c
+    updateParticles()
+end})
+local particlesSpeedSlider = VisualsTab:AddSlider({Title="Particle Speed", Icon="gauge", Min=0.1, Max=3, Default=1, Callback=function(v)
+    Flags.ParticleSpeed = v
+    updateParticles()
 end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("CROSSHAIR", "crosshair"); VisualsTab:AddSeparator()
@@ -1704,6 +1780,11 @@ local function buildConfig(name)
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
+    cfg:RegisterElement("ParticlesOn", particlesToggle)
+    cfg:RegisterElement("ParticlesType", particlesDropdown)
+    cfg:RegisterElement("ParticlesColor", particlesColorPicker)
+    cfg:RegisterElement("ParticlesSpeed", particlesSpeedSlider)
+
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("NoRecoil", noRecoilToggle)
     cfg:RegisterElement("RapidFire", rapidFireToggle)
@@ -1773,6 +1854,10 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        Flags.ParticlesEnabled   = false
+        Flags.ParticleType       = "Snow"
+        Flags.ParticleColor      = Color3.fromRGB(255, 255, 255)
+        Flags.ParticleSpeed      = 1
 
         buildConfig(name):Load()
 
@@ -1787,6 +1872,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        updateParticles()
+        if not Flags.WeaponColorEnabled then
+            for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            lastWeaponModels = {}
+            if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
+        end
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
