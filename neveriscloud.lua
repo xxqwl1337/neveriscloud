@@ -392,7 +392,7 @@ if hookfunction then
     end)
 end
 
--- ===== ПОИСК ЦЕЛИ (ИСПРАВЛЕН: ближайший в мире, но в FOV) =====
+-- ===== ПОИСК ЦЕЛИ (ближайший в мире, но в FOV) =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
@@ -424,7 +424,7 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK (ИСПРАВЛЕН: только по кнопке) =====
+-- ===== AIM ASSIST + AIM LOCK (только при зажатой кнопке) =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then
         if Camera.CameraType == Enum.CameraType.Scriptable then
@@ -462,7 +462,7 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
     end
 end)
 
--- ===== TRIGGER BOT =====
+-- ===== TRIGGER BOT (ИСПРАВЛЕН: закрывает UI, эмулирует клик) =====
 local triggerLastShot = 0
 local triggerRayParams = RaycastParams.new()
 triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -483,9 +483,6 @@ local function tryTriggerShot()
     if not CurrentTargetPart then return end
     if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
 
-    -- Не стреляем, если открыто меню
-    if Window.Gui and Window.Gui.Enabled then return end
-
     triggerRayParams.FilterDescendantsInstances = {LP.Character}
     local origin = Camera.CFrame.Position
     local dir = (CurrentTargetPart.Position - origin)
@@ -499,7 +496,21 @@ local function tryTriggerShot()
 
     triggerLastShot = os.clock()
 
-    -- Оружие не Tool, поэтому Tool:Activate() не сработает. Используем mouse1click.
+    local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        pcall(function() tool:Activate() end)
+        return
+    end
+
+    if Window.Gui and Window.Gui.Enabled then
+        Window.Gui.Enabled = false
+        task.wait(0.02)
+        if mouse1click then pcall(mouse1click) end
+        task.wait(0.02)
+        Window.Gui.Enabled = true
+        return
+    end
+
     if mouse1click then
         pcall(mouse1click)
         return
@@ -700,7 +711,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (ИСПРАВЛЕН) =====
+-- ===== NO RECOIL =====
 local noRecoilActive = false
 local savedRecoilCFrame = nil
 local lastShotTime = 0
@@ -1505,7 +1516,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] Сбрасываем ТОЛЬКО новые флаги, которые протекают между конфигами.
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1519,15 +1529,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
 
         buildConfig(name):Load()
 
-        -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         syncUI(espToggle, Flags.ESP)
 
-        -- Fullbright
         setFullbright(Flags.Fullbright)
         syncUI(fullbrightToggle, Flags.Fullbright)
 
-        -- FreeCam
         if Flags.FreeCam then
             if not freecamConn then startFreeCam() end
         else
@@ -1535,29 +1542,22 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         end
         syncUI(freecamToggle, Flags.FreeCam)
 
-        -- AutoRun
         syncUI(autoRunToggle, Flags.AutoRun)
 
-        -- Spider
         syncUI(spiderToggle, Flags.Spider)
         if not Flags.Spider then clearSpiderVelocity() end
 
-        -- No Recoil
         syncUI(noRecoilToggle, Flags.NoRecoil)
         if not Flags.NoRecoil then resetNoRecoilState() end
 
-        -- Trigger Bot
         syncUI(triggerBotToggle, Flags.TriggerBot)
 
-        -- Hitbox
         syncUI(hitboxToggle, Flags.HitboxEnabled)
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
 
-        -- Sky
         syncUI(skyColorToggle, Flags.SkyColorEnabled)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
 
-        -- Stats HUD
         if not Flags.FPSPing and HudPanel then
             destroyHud()
         elseif Flags.FPSPing and not HudPanel then
