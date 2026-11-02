@@ -217,7 +217,7 @@ local Flags = {
     HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
     TriggerBot = false, TriggerDelay = 50, TriggerFOV = 15, TriggerTeamCheck = true,
     NoRecoil = false,
-    RapidFire = false, RapidFireDelay = 100,
+    RapidFire = false, RapidFireDelay = 50,
     SkyColorEnabled = false, SkyColor = Color3.fromRGB(100, 150, 255),
 }
 
@@ -724,7 +724,6 @@ UIS.InputChanged:Connect(function(input, gpe)
     if input.UserInputType == Enum.UserInputType.MouseMovement then
         if os.clock() - lastShotTime <= 0.2 and savedRecoilCFrame then
             local delta = input.Delta
-            -- Вращаем сохранённый CFrame на движение мыши, чтобы игрок мог целиться
             local newCF = savedRecoilCFrame * CFrame.Angles(-math.rad(delta.Y * 0.1), -math.rad(delta.X * 0.1), 0)
             local pitch = math.asin(math.clamp(newCF.LookVector.Y, -1, 1))
             if math.abs(pitch) < math.rad(89) then
@@ -740,34 +739,33 @@ RunService.RenderStepped:Connect(function()
         return
     end
     noRecoilActive = true
-
     if os.clock() - lastShotTime > 0.2 then return end
     if not savedRecoilCFrame then return end
-
-    -- Принудительно возвращаем камеру в точку до выстрела (убираем отдачу)
     Camera.CFrame = savedRecoilCFrame
 end)
 
--- ===== RAPID FIRE =====
+-- ===== RAPID FIRE (МАКСИМУМ) =====
 local function applyRapidFire()
-    if not Flags.RapidFire then
-        if rapidFireConn then
-            rapidFireConn:Disconnect()
-            rapidFireConn = nil
-        end
-        return
-    end
-    if rapidFireConn then return end
-
-    rapidFireConn = task.spawn(function()
-        while Flags.RapidFire do
-            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-            if tool and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                pcall(function() tool:Activate() end)
-            end
-            task.wait(Flags.RapidFireDelay / 1000)
-        end
+    if rapidFireConn then
+        rapidFireConn:Disconnect()
         rapidFireConn = nil
+    end
+    if not Flags.RapidFire then return end
+
+    rapidFireConn = RunService.Heartbeat:Connect(function()
+        if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
+        if Window.Gui and Window.Gui.Enabled then return end
+
+        if mouse1click then
+            pcall(mouse1click)
+        else
+            local vim = game:GetService("VirtualInputManager")
+            pcall(function()
+                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
+                task.wait(0.01)
+                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
+            end)
+        end
     end)
 end
 
@@ -1344,28 +1342,33 @@ freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctr
 end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("COMBAT", "crosshair"); PlayerTab:AddSeparator()
+
 noRecoilToggle = PlayerTab:AddToggle({Title="No Recoil", Subtitle="Компенсация отдачи", Icon="target", Default=false, Callback=function(s)
     Flags.NoRecoil=s
     if not s then resetNoRecoilState() end
 end})
+
 rapidFireToggle = PlayerTab:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s)
     Flags.RapidFire=s
     applyRapidFire()
 end})
-local rapidFireDelaySlider = PlayerTab:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=100, Callback=function(v) 
+
+local rapidFireDelaySlider = PlayerTab:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) 
     Flags.RapidFireDelay=v 
     if Flags.RapidFire then
-        if rapidFireConn then rapidFireConn:Disconnect(); rapidFireConn=nil end
         applyRapidFire()
     end
 end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
+
 autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+
 spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s)
     Flags.Spider=s
     if not s then clearSpiderVelocity() end
 end})
+
 local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
@@ -1521,51 +1524,44 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== [FIX] СВОЯ СИСТЕМА БИНДОВ =====
-local function saveBinds()
-    if not writefile then return end
-    local data = {
-        Freecam = getBind(keybindFreecam) and getBind(keybindFreecam).Name or "Unknown",
-        ESP = getBind(keybindESP) and getBind(keybindESP).Name or "Unknown",
-        Fullbright = getBind(keybindFullbright) and getBind(keybindFullbright).Name or "Unknown",
-        AutoRun = getBind(keybindAutoRun) and getBind(keybindAutoRun).Name or "Unknown",
-        Spider = getBind(keybindSpider) and getBind(keybindSpider).Name or "Unknown",
-        Trigger = getBind(keybindTrigger) and getBind(keybindTrigger).Name or "Unknown",
-        Hitbox = getBind(keybindHitbox) and getBind(keybindHitbox).Name or "Unknown",
-        NoRecoil = getBind(keybindNoRecoil) and getBind(keybindNoRecoil).Name or "Unknown",
-        HideUI = getBind(keybindHideUI) and getBind(keybindHideUI).Name or "Unknown",
-    }
-    pcall(writefile, "cloudclient_binds.json", HttpService:JSONEncode(data))
+-- ===== СВОЯ СИСТЕМА БИНДОВ =====
+local function getBindName(b)
+    local k = b:Get()
+    if k and k ~= Enum.KeyCode.Unknown then
+        return k.Name
+    end
+    return "Unknown"
 end
 
-local function loadBinds()
-    if not (isfile and readfile) then return end
-    if isfile("cloudclient_binds.json") then
-        local ok, content = pcall(readfile, "cloudclient_binds.json")
-        if ok and content then
-            local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
-            if ok2 and data then
-                local function setB(bind, name)
-                    if data[name] and data[name] ~= "Unknown" then
-                        local enum = Enum.KeyCode[data[name]]
-                        if enum then syncBind(bind, enum) end
-                    else
-                        syncBind(bind, Enum.KeyCode.Unknown)
-                    end
-                end
-                setB(keybindFreecam, "Freecam")
-                setB(keybindESP, "ESP")
-                setB(keybindFullbright, "Fullbright")
-                setB(keybindAutoRun, "AutoRun")
-                setB(keybindSpider, "Spider")
-                setB(keybindTrigger, "Trigger")
-                setB(keybindHitbox, "Hitbox")
-                setB(keybindNoRecoil, "NoRecoil")
-                setB(keybindHideUI, "HideUI")
+local bindCache = {}
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local changed = false
+        local current = {
+            Freecam = getBindName(keybindFreecam),
+            ESP = getBindName(keybindESP),
+            Fullbright = getBindName(keybindFullbright),
+            AutoRun = getBindName(keybindAutoRun),
+            Spider = getBindName(keybindSpider),
+            Trigger = getBindName(keybindTrigger),
+            Hitbox = getBindName(keybindHitbox),
+            NoRecoil = getBindName(keybindNoRecoil),
+            HideUI = getBindName(keybindHideUI),
+        }
+        for name, val in pairs(current) do
+            if bindCache[name] ~= val then
+                bindCache[name] = val
+                changed = true
             end
         end
+        if changed and writefile then
+            pcall(function()
+                writefile("cloudclient_binds.json", HttpService:JSONEncode(current))
+            end)
+        end
     end
-end
+end)
 
 -- ===== КНОПКИ SAVE / LOAD / DELETE =====
 
@@ -1574,7 +1570,6 @@ SettingsTab:AddButton({Title="Save Config", Text="Save", Callback=function()
         local name = configNameBox:Get()
         if not name or name == "" then error("empty name") end
         buildConfig(name):Save()
-        saveBinds() -- Сохраняем бинды в отдельный файл (они глобальные для всех конфигов)
         savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
         Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
     end)
@@ -1587,7 +1582,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- Сброс флагов новых функций (чтобы не протекали)
+        -- [FIX] Сброс флагов функций (как было)
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1597,7 +1592,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.TriggerTeamCheck   = true
         Flags.NoRecoil           = false
         Flags.RapidFire          = false
-        Flags.RapidFireDelay     = 100
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
@@ -1676,7 +1670,6 @@ SettingsTab:AddSeparator()
 local keybindFreecam = SettingsTab:AddKeybind({
     Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera",
     Callback = function()
-        saveBinds()
         if freecamConn then stopFreeCam(); syncUI(freecamToggle, false)
         else startFreeCam(); syncUI(freecamToggle, true) end
     end
@@ -1685,7 +1678,6 @@ local keybindFreecam = SettingsTab:AddKeybind({
 local keybindESP = SettingsTab:AddKeybind({
     Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye",
     Callback = function()
-        saveBinds()
         Flags.ESP = not Flags.ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         syncUI(espToggle, Flags.ESP)
@@ -1695,7 +1687,6 @@ local keybindESP = SettingsTab:AddKeybind({
 local keybindFullbright = SettingsTab:AddKeybind({
     Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun",
     Callback = function()
-        saveBinds()
         Flags.Fullbright = not Flags.Fullbright
         setFullbright(Flags.Fullbright)
         syncUI(fullbrightToggle, Flags.Fullbright)
@@ -1705,7 +1696,6 @@ local keybindFullbright = SettingsTab:AddKeybind({
 local keybindAutoRun = SettingsTab:AddKeybind({
     Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap",
     Callback = function()
-        saveBinds()
         Flags.AutoRun = not Flags.AutoRun
         syncUI(autoRunToggle, Flags.AutoRun)
     end
@@ -1714,7 +1704,6 @@ local keybindAutoRun = SettingsTab:AddKeybind({
 local keybindSpider = SettingsTab:AddKeybind({
     Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up",
     Callback = function()
-        saveBinds()
         Flags.Spider = not Flags.Spider
         if not Flags.Spider then clearSpiderVelocity() end
         syncUI(spiderToggle, Flags.Spider)
@@ -1724,7 +1713,6 @@ local keybindSpider = SettingsTab:AddKeybind({
 local keybindTrigger = SettingsTab:AddKeybind({
     Title = "Trigger Bot Keybind", Subtitle = "По умолчанию пусто", Icon = "crosshair",
     Callback = function()
-        saveBinds()
         Flags.TriggerBot = not Flags.TriggerBot
         syncUI(triggerBotToggle, Flags.TriggerBot)
     end
@@ -1733,7 +1721,6 @@ local keybindTrigger = SettingsTab:AddKeybind({
 local keybindHitbox = SettingsTab:AddKeybind({
     Title = "Hitbox Keybind", Subtitle = "По умолчанию пусто", Icon = "box",
     Callback = function()
-        saveBinds()
         Flags.HitboxEnabled = not Flags.HitboxEnabled
         syncUI(hitboxToggle, Flags.HitboxEnabled)
         if not Flags.HitboxEnabled then restoreAllHitboxes() end
@@ -1743,7 +1730,6 @@ local keybindHitbox = SettingsTab:AddKeybind({
 local keybindNoRecoil = SettingsTab:AddKeybind({
     Title = "No Recoil Keybind", Subtitle = "По умолчанию пусто", Icon = "target",
     Callback = function()
-        saveBinds()
         Flags.NoRecoil = not Flags.NoRecoil
         if not Flags.NoRecoil then resetNoRecoilState() end
         syncUI(noRecoilToggle, Flags.NoRecoil)
@@ -1761,7 +1747,29 @@ local keybindHideUI = SettingsTab:AddKeybind({
 -- Загружаем бинды при запуске
 task.spawn(function()
     task.wait(1)
-    loadBinds()
+    if isfile and readfile and isfile("cloudclient_binds.json") then
+        local ok, content = pcall(readfile, "cloudclient_binds.json")
+        if ok and content then
+            local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
+            if ok2 and data then
+                local function setB(bind, name)
+                    if data[name] and data[name] ~= "Unknown" then
+                        local enum = Enum.KeyCode[data[name]]
+                        if enum then pcall(function() bind:Set(enum) end) end
+                    end
+                end
+                setB(keybindFreecam, "Freecam")
+                setB(keybindESP, "ESP")
+                setB(keybindFullbright, "Fullbright")
+                setB(keybindAutoRun, "AutoRun")
+                setB(keybindSpider, "Spider")
+                setB(keybindTrigger, "Trigger")
+                setB(keybindHitbox, "Hitbox")
+                setB(keybindNoRecoil, "NoRecoil")
+                setB(keybindHideUI, "HideUI")
+            end
+        end
+    end
 end)
 
 -- ===== 6. Периодическое обновление срока ключа =====
