@@ -699,57 +699,63 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (ИСПРАВЛЕН: БЕЗ ЛАГОВ ПРИ ХОДЬБЕ) =====
-local noRecoilActive = false
+-- ===== NO RECOIL =====
 local savedRecoilCFrame = nil
-local lastShotTime = 0
+local isShooting = false
 
 local function resetNoRecoilState()
-    noRecoilActive = false
     savedRecoilCFrame = nil
-    lastShotTime = 0
+    isShooting = false
 end
 
+-- Ловим момент выстрела (сохраняем камеру)
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Сохраняем CFrame ТОЛЬКО если в руках оружие (Tool)
-        -- Это убирает лаги персонажа при обычном клике без оружия
-        local char = LP.Character
-        local tool = char and char:FindFirstChildOfClass("Tool")
+        -- Проверяем, что в руках оружие
+        local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
         if tool then
             savedRecoilCFrame = Camera.CFrame
-            lastShotTime = os.clock()
+            isShooting = true
         end
     end
 end)
 
+-- Ловим момент отпускания ЛКМ (сбрасываем)
+UIS.InputEnded:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        resetNoRecoilState()
+    end
+end)
+
+-- Ловим движение мыши (чтобы игрок мог целиться)
+UIS.InputChanged:Connect(function(input, gpe)
+    if gpe then return end
+    if not Flags.NoRecoil or not isShooting or not savedRecoilCFrame then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Delta
+        -- Вращаем сохранённую точку вместе с движением мыши
+        local newCF = savedRecoilCFrame * CFrame.Angles(-math.rad(delta.Y * 0.1), -math.rad(delta.X * 0.1), 0)
+        local pitch = math.asin(math.clamp(newCF.LookVector.Y, -1, 1))
+        if math.abs(pitch) < math.rad(89) then
+            savedRecoilCFrame = newCF
+        end
+    end
+end)
+
+-- Каждый кадр возвращаем камеру в точку до выстрела (гасим отдачу)
 RunService.RenderStepped:Connect(function()
     if not Flags.NoRecoil then
-        if noRecoilActive then resetNoRecoilState() end
+        if isShooting then resetNoRecoilState() end
         return
     end
-
-    -- Держим камеру только пока идёт стрельба (зажата ЛКМ и есть Tool)
-    local char = LP.Character
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    
-    if not tool or not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-        -- Если отпустили ЛКМ или нет оружия — возвращаем камере свободу
-        noRecoilActive = false
-        return
-    end
-
-    -- Если мы только что выстрелили (в пределах 0.3 секунды)
-    if os.clock() - lastShotTime <= 0.3 and savedRecoilCFrame then
-        noRecoilActive = true
-        -- Жёстко фиксируем камеру на точке, где она была до выстрела.
-        -- Так пуля летит ровно туда, куда ты целился.
+    if isShooting and savedRecoilCFrame then
         Camera.CFrame = savedRecoilCFrame
     end
 end)
 
--- ===== RAPID FIRE (МАКСИМУМ) =====
+-- ===== RAPID FIRE =====
 local function applyRapidFire()
     if rapidFireConn then
         rapidFireConn:Disconnect()
@@ -1527,7 +1533,7 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== СВОЯ СИСТЕМА БИНДОВ (НЕЗАВИСИМО ОТ КОНФИГОВ) =====
+-- ===== СВОЯ СИСТЕМА БИНДОВ =====
 local function getBindName(b)
     local k = b:Get()
     if k and k ~= Enum.KeyCode.Unknown then
@@ -1615,11 +1621,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
         buildConfig(name):Load()
-
-        -- [FIX] Принудительно применяем бинды из файла ПОСЛЕ загрузки конфига,
-        -- чтобы ConfigManager их не перебил.
-        task.wait(0.1)
-        loadBinds()
+        loadBinds() -- Принудительно применяем бинды из файла после загрузки конфига
 
         -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
