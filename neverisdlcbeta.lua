@@ -1,6 +1,5 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.2.1
 ]]
 
 -- ===== KEY SYSTEM =====
@@ -176,38 +175,7 @@ local function keyRemainingText()
 end
 -- ===== END KEY SYSTEM =====
 
--- ===== БЕЗОПАСНАЯ ЗАГРУЗКА UI =====
-local function safeHttpGet(url)
-    local ok, data = pcall(game.HttpGet, game, url)
-    if ok and data then return data end
-    return nil
-end
-
-local uiCode = safeHttpGet("https://pastebin.com/raw/zbr1tE3J")
-if not uiCode then
-    uiCode = safeHttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua")
-end
-
-if not uiCode then
-    game:GetService("Players").LocalPlayer:Kick("Не удалось загрузить UI библиотеку")
-    return
-end
-
-local VantixUI
-local okUI, errUI = pcall(function()
-    VantixUI = loadstring(uiCode)()
-end)
-
-if not okUI or not VantixUI then
-    game:GetService("Players").LocalPlayer:Kick("Библиотека VantixUI не загрузилась: " .. tostring(errUI))
-    return
-end
-
-if type(VantixUI.CreateWindow) ~= "function" then
-    game:GetService("Players").LocalPlayer:Kick("VantixUI.CreateWindow отсутствует. Библиотека битая.")
-    return
-end
--- =====================================
+local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -225,7 +193,7 @@ local Window = VantixUI:CreateWindow({
 })
 Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-Window:CreateTag("v0.2.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -783,23 +751,13 @@ LP.CharacterAdded:Connect(function()
     if freecamConn then stopFreeCam() end
 end)
 
--- ===== AUTORUN =====
-local defaultWalkSpeed = 16
-local autoRunActive = false
+-- ===== AUTORUN (SHIFT EMULATOR) =====
 local autoRunKeyHeld = false
 local autoRunVIM = game:GetService("VirtualInputManager")
 
-local function captureDefaultWalkSpeed()
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then defaultWalkSpeed = hum.WalkSpeed end
-end
-captureDefaultWalkSpeed()
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
-    captureDefaultWalkSpeed()
-    if autoRunKeyHeld then
-        autoRunKeyHeld = false
-    end
+    autoRunKeyHeld = false
 end)
 
 local function releaseAutoRunKey()
@@ -812,36 +770,22 @@ local function releaseAutoRunKey()
 end
 
 local function applyAutoRun()
-    local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then
+    if not Flags.AutoRun then
         releaseAutoRunKey()
         return
     end
-
-    if Flags.AutoRun then
-        if not autoRunKeyHeld then
-            local ok = pcall(function()
-                autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-            end)
-            if ok then
-                autoRunKeyHeld = true
-            end
-        end
-        autoRunActive = true
-        if hum.WalkSpeed <= defaultWalkSpeed then
-            hum.WalkSpeed = defaultWalkSpeed + 8
-        end
-        local look = Camera.CFrame.LookVector
-        local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then
-            hum:Move(dir.Unit, false)
-        end
-    else
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
         releaseAutoRunKey()
-        if autoRunActive then
-            hum.WalkSpeed = defaultWalkSpeed
-            autoRunActive = false
+        return
+    end
+    if not autoRunKeyHeld then
+        local ok = pcall(function()
+            autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+        end)
+        if ok then
+            autoRunKeyHeld = true
         end
     end
 end
@@ -1774,8 +1718,7 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end,
 })
 
--- ФИКС ЛИМИТА ЛОКАЛЬНЫХ ПЕРЕМЕННЫХ: УБРАН LOCAL У БОЛЬШОЙ ФУНКЦИИ
-function buildConfig(name)
+local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
     cfg:RegisterElement("Aimbot", aimbotToggle)
@@ -1862,15 +1805,13 @@ SettingsTab:AddSeparator()
 
 Window.ConfigManager:SetFolder("cloudclient_configs")
 
--- ФИКС ЛИМИТА: УБРАН LOCAL
-configNameBox = SettingsTab:AddTextBox({
+local configNameBox = SettingsTab:AddTextBox({
     Title = "Config Name",
     Placeholder = "Enter name...",
     Default = "default",
 })
 
--- ФИКС ЛИМИТА: УБРАН LOCAL
-savedConfigs = SettingsTab:AddDropdown({
+local savedConfigs = SettingsTab:AddDropdown({
     Title = "Saved Configs",
     Options = Window.ConfigManager:GetConfigs(),
 })
