@@ -302,26 +302,20 @@ local lastWeaponModels = {}
 local function findWeaponModels()
     local models = {}
     local char = LP.Character
-    -- 1. Ищем Tool в персонаже
     if char then
         local tool = char:FindFirstChildOfClass("Tool")
         if tool then table.insert(models, tool) end
-        -- Иногда оружие просто лежит как модель
         for _, child in ipairs(char:GetChildren()) do
             if child:IsA("Model") and (child:FindFirstChild("Handle") or child:FindFirstChild("GunComponents")) then
                 table.insert(models, child)
             end
         end
     end
-    -- 2. Ищем Viewmodel в Camera (система Decoy)
     local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
     if vm then
         table.insert(models, vm)
-        -- Внутри Viewmodel может быть отдельная модель пушки
         for _, child in ipairs(vm:GetChildren()) do
-            if child:IsA("Model") then
-                table.insert(models, child)
-            end
+            if child:IsA("Model") then table.insert(models, child) end
         end
     end
     return models
@@ -335,10 +329,7 @@ local function startWeaponColor()
             lastWeaponModels = {}
             return
         end
-        
         local currentModels = findWeaponModels()
-        
-        -- Восстанавливаем те модели, которые пропали из рук
         for _, oldM in ipairs(lastWeaponModels) do
             local stillEquipped = false
             for _, newM in ipairs(currentModels) do
@@ -346,12 +337,8 @@ local function startWeaponColor()
             end
             if not stillEquipped then restoreWeaponColorFromModel(oldM) end
         end
-        
         lastWeaponModels = currentModels
-        
-        for _, m in ipairs(currentModels) do
-            applyWeaponColorToModel(m)
-        end
+        for _, m in ipairs(currentModels) do applyWeaponColorToModel(m) end
     end)
 end
 
@@ -1463,7 +1450,7 @@ end})
 local hitboxSizeSlider = AimbotTab:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
 local hitboxTranspSlider = AimbotTab:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
 
--- ===== UI: ESP (бывш. Visuals) =====
+-- ===== UI: ESP =====
 local ESPTab = Window:AddTab("ESP", "eye")
 
 ESPTab:AddSeparator(); ESPTab:AddLabel("ESP COLOR", "palette"); ESPTab:AddSeparator()
@@ -1544,25 +1531,7 @@ end})
 
 local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
--- ===== UI: OTHER =====
-local OtherTab = Window:AddTab("Other", "box")
-fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
-    Flags.Fullbright=s
-    setFullbright(s)
-end})
-
-OtherTab:AddSeparator(); OtherTab:AddLabel("SKY", "cloud"); OtherTab:AddSeparator()
-
-skyColorToggle = OtherTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
-    Flags.SkyColorEnabled=s
-    setSkyColor(s, Flags.SkyColor)
-end})
-local skyColorPicker = OtherTab:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c)
-    Flags.SkyColor=c
-    if Flags.SkyColorEnabled then setSkyColor(true, c) end
-end})
-
--- ===== UI: VISUALS (бывш. Weapon Color) =====
+-- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "palette")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
@@ -1585,8 +1554,6 @@ local weaponColorPicker = VisualsTab:AddColorPicker({Title="Neon Color", Icon="d
     end
 end})
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("MATERIAL", "gem"); VisualsTab:AddSeparator()
-
 local materialDropdown = VisualsTab:AddDropdown({
     Title="Material", Icon="gem",
     Options={"Neon", "Plastic", "ForceField", "Metal", "Glass", "SmoothPlastic", "Wood"},
@@ -1599,23 +1566,36 @@ local materialDropdown = VisualsTab:AddDropdown({
     end
 })
 
--- ===== UI: CROSSHAIR =====
-local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("SKY COLOR", "cloud"); VisualsTab:AddSeparator()
 
-local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+skyColorToggle = VisualsTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
+    Flags.SkyColorEnabled=s
+    setSkyColor(s, Flags.SkyColor)
+end})
+local skyColorPicker = VisualsTab:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c)
+    Flags.SkyColor=c
+    if Flags.SkyColorEnabled then setSkyColor(true, c) end
+end})
 
-CrosshairTab:AddSeparator()
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("CROSSHAIR", "crosshair"); VisualsTab:AddSeparator()
 
-local crosshairColorPicker = CrosshairTab:AddColorPicker({Title="Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-local crosshairSizeSlider = CrosshairTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=4, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
-local crosshairDistSlider = CrosshairTab:AddSlider({Title="Distance (Отступ от центра)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
-local crosshairThickSlider = CrosshairTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
-local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+local crosshairToggle = VisualsTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+local crosshairColorPicker = VisualsTab:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+local crosshairSizeSlider = VisualsTab:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=4, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+local crosshairDistSlider = VisualsTab:AddSlider({Title="Distance (Отступ)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
+local crosshairThickSlider = VisualsTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+local crosshairTranspSlider = VisualsTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+
+-- ===== UI: OTHER =====
+local OtherTab = Window:AddTab("Other", "box")
+fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
+    Flags.Fullbright=s
+    setFullbright(s)
+end})
 
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- 1. КЛЮЧ
 local keyInfoLabel = SettingsTab:AddLabel(
     string.format("Ключ: %s | до: %s",
         _G.CloudKeyState.key or "—",
@@ -1625,7 +1605,6 @@ local keyInfoLabel = SettingsTab:AddLabel(
 
 SettingsTab:AddSeparator()
 
--- 2. THEME / ACCENT
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
@@ -1640,55 +1619,21 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
     VantixUI:SetAccentColor(colors[s])
 end})
 
--- 3. STATS HUD
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
--- 4. KEYBINDS
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
-local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind", Icon = "camera",
-    Callback = function() freecamToggle:Set(not Flags.FreeCam) end,
-})
-
-local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind", Icon = "eye",
-    Callback = function() espToggle:Set(not Flags.ESP) end,
-})
-
-local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind", Icon = "sun",
-    Callback = function() fullbrightToggle:Set(not Flags.Fullbright) end,
-})
-
-local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind", Icon = "zap",
-    Callback = function() autoRunToggle:Set(not Flags.AutoRun) end,
-})
-
-local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind", Icon = "arrow-up",
-    Callback = function() spiderToggle:Set(not Flags.Spider) end,
-})
-
-local keybindTrigger = SettingsTab:AddKeybind({
-    Title = "Trigger Bot Keybind", Icon = "crosshair",
-    Callback = function() triggerBotToggle:Set(not Flags.TriggerBot) end,
-})
-
-local keybindHitbox = SettingsTab:AddKeybind({
-    Title = "Hitbox Keybind", Icon = "box",
-    Callback = function() hitboxToggle:Set(not Flags.HitboxEnabled) end,
-})
-
-local keybindNoRecoil = SettingsTab:AddKeybind({
-    Title = "No Recoil Keybind", Icon = "target",
-    Callback = function() noRecoilToggle:Set(not Flags.NoRecoil) end,
-})
-
+local keybindFreecam = SettingsTab:AddKeybind({Title = "FreeCam Keybind", Icon = "camera", Callback = function() freecamToggle:Set(not Flags.FreeCam) end})
+local keybindESP = SettingsTab:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() espToggle:Set(not Flags.ESP) end})
+local keybindFullbright = SettingsTab:AddKeybind({Title = "Fullbright Keybind", Icon = "sun", Callback = function() fullbrightToggle:Set(not Flags.Fullbright) end})
+local keybindAutoRun = SettingsTab:AddKeybind({Title = "AutoRun Keybind", Icon = "zap", Callback = function() autoRunToggle:Set(not Flags.AutoRun) end})
+local keybindSpider = SettingsTab:AddKeybind({Title = "Spider Keybind", Icon = "arrow-up", Callback = function() spiderToggle:Set(not Flags.Spider) end})
+local keybindTrigger = SettingsTab:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() triggerBotToggle:Set(not Flags.TriggerBot) end})
+local keybindHitbox = SettingsTab:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() hitboxToggle:Set(not Flags.HitboxEnabled) end})
+local keybindNoRecoil = SettingsTab:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() noRecoilToggle:Set(not Flags.NoRecoil) end})
 local keybindHideUI = SettingsTab:AddKeybind({
     Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
     Callback = function()
@@ -1697,11 +1642,9 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end,
 })
 
--- ===== CONFIG FUNCTIONS =====
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
-    -- Aimbot
     cfg:RegisterElement("Aimbot", aimbotToggle)
     cfg:RegisterElement("AimAssist", aimAssistToggle)
     cfg:RegisterElement("SilentAim", silentAimToggle)
@@ -1714,18 +1657,15 @@ local function buildConfig(name)
     cfg:RegisterElement("TeamCheck", teamCheckToggle)
     cfg:RegisterElement("AimKey", aimKeyDropdown)
 
-    -- Trigger Bot
     cfg:RegisterElement("TriggerBot", triggerBotToggle)
     cfg:RegisterElement("TriggerFOV", triggerFovSlider)
     cfg:RegisterElement("TriggerDelay", triggerDelaySlider)
     cfg:RegisterElement("TriggerTeam", triggerTeamToggle)
 
-    -- Hitbox
     cfg:RegisterElement("Hitbox", hitboxToggle)
     cfg:RegisterElement("HitboxSize", hitboxSizeSlider)
     cfg:RegisterElement("HitboxTransp", hitboxTranspSlider)
 
-    -- ESP
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
     cfg:RegisterElement("Box", boxToggle)
@@ -1742,12 +1682,6 @@ local function buildConfig(name)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
 
-    -- Visuals (Weapon Color)
-    cfg:RegisterElement("WeaponColorOn", weaponColorToggle)
-    cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
-    cfg:RegisterElement("WeaponMat", materialDropdown)
-
-    -- Crosshair
     cfg:RegisterElement("Crosshair", crosshairToggle)
     cfg:RegisterElement("CrosshairColor", crosshairColorPicker)
     cfg:RegisterElement("CrosshairSize", crosshairSizeSlider)
@@ -1755,7 +1689,13 @@ local function buildConfig(name)
     cfg:RegisterElement("CrosshairThick", crosshairThickSlider)
     cfg:RegisterElement("CrosshairTransp", crosshairTranspSlider)
 
-    -- Player
+    cfg:RegisterElement("WeaponColorOn", weaponColorToggle)
+    cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
+    cfg:RegisterElement("WeaponMat", materialDropdown)
+
+    cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
+    cfg:RegisterElement("SkyColorPicker", skyColorPicker)
+
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("NoRecoil", noRecoilToggle)
     cfg:RegisterElement("RapidFire", rapidFireToggle)
@@ -1764,15 +1704,9 @@ local function buildConfig(name)
     cfg:RegisterElement("Spider", spiderToggle)
     cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
 
-    -- Other
     cfg:RegisterElement("Fullbright", fullbrightToggle)
-    cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
-    cfg:RegisterElement("SkyColorPicker", skyColorPicker)
-
-    -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
 
-    -- Бинды
     cfg:RegisterElement("BindFreecam",    keybindFreecam)
     cfg:RegisterElement("BindESP",        keybindESP)
     cfg:RegisterElement("BindFullbright", keybindFullbright)
@@ -1786,7 +1720,6 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== SYSTEM CONFIG (В САМОМ НИЗУ) =====
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("SYSTEM CONFIG", "save")
 SettingsTab:AddSeparator()
@@ -1866,7 +1799,6 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
     if not ok then warn("[config] delete:", err) end
 end})
 
--- ===== Auto-update key label =====
 task.spawn(function()
     while true do
         task.wait(30)
