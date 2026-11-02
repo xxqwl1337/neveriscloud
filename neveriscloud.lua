@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Weapon Color + Config
 ]]
 
 -- ===== KEY SYSTEM =====
@@ -219,6 +219,9 @@ local Flags = {
     NoRecoil = false,
     RapidFire = false, RapidFireDelay = 50,
     SkyColorEnabled = false, SkyColor = Color3.fromRGB(100, 150, 255),
+    WeaponColorEnabled = false,
+    WeaponColor = Color3.fromRGB(255, 0, 255),
+    WeaponMaterial = Enum.Material.Neon,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -248,7 +251,6 @@ local function getVelocity(part)
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
--- Универсальная проверка "зажата ли aim-кнопка" (KeyCode или UserInputType)
 local function isAimHeld()
     local k = Flags.AimKey
     if typeof(k) == "EnumItem" then
@@ -259,6 +261,60 @@ local function isAimHeld()
         end
     end
     return false
+end
+
+-- ===== WEAPON COLOR =====
+local OriginalWeaponProps = {}
+
+local function applyWeaponColor(tool)
+    if not tool then return end
+    for _, part in ipairs(tool:GetChildren()) do
+        if part:IsA("BasePart") then
+            if not OriginalWeaponProps[part] then
+                OriginalWeaponProps[part] = {
+                    Color = part.Color,
+                    Material = part.Material,
+                }
+            end
+            part.Color = Flags.WeaponColor
+            part.Material = Flags.WeaponMaterial
+        end
+    end
+end
+
+local function restoreWeaponColor(tool)
+    if not tool then return end
+    for _, part in ipairs(tool:GetChildren()) do
+        if part:IsA("BasePart") then
+            local orig = OriginalWeaponProps[part]
+            if orig then
+                part.Color = orig.Color
+                part.Material = orig.Material
+                OriginalWeaponProps[part] = nil
+            end
+        end
+    end
+end
+
+local weaponColorConn = nil
+local lastTool = nil
+
+local function startWeaponColor()
+    if weaponColorConn then weaponColorConn:Disconnect() end
+    weaponColorConn = RunService.Heartbeat:Connect(function()
+        if not Flags.WeaponColorEnabled then
+            if lastTool then restoreWeaponColor(lastTool); lastTool = nil end
+            return
+        end
+        local char = LP.Character
+        if not char then return end
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool ~= lastTool then
+            if lastTool then restoreWeaponColor(lastTool) end
+            lastTool = tool
+        end
+        if tool then applyWeaponColor(tool) end
+    end)
 end
 
 -- ===== ХИТБОКС =====
@@ -710,7 +766,6 @@ local recoilLastInput  = 0
 local RECOIL_HOLD_TIME = 0.45
 local savedMotorTransforms = {}
 
--- хукаем сеттер Camera.CFrame: пока стреляем — всегда возвращаем lockedCamCF
 pcall(function()
     local camIndex
     camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
@@ -721,7 +776,6 @@ pcall(function()
     end)
 end)
 
--- то же для чтения Camera.CFrame
 pcall(function()
     local camIndexGet
     camIndexGet = hookmetamethod(game, "__index", function(self, key)
@@ -792,7 +846,6 @@ local function startNoRecoil()
         local now      = os.clock()
         local shooting = lmb and (now - recoilLastInput <= RECOIL_HOLD_TIME)
 
-        -- сброс offset и motor каждый кадр
         if hum and hum.CameraOffset.Magnitude > 0.0001 then
             hum.CameraOffset = Vector3.zero
         end
@@ -823,11 +876,9 @@ local function startNoRecoil()
             lockedCamCF  = Camera.CFrame
             recoilActive = true
         else
-            -- пересчитываем относительно текущего HRP, чтобы при ходьбе камера ехала с персонажем
             local rel = hrp.CFrame:ToObjectSpace(lockedCamCF)
             lockedCamCF = hrp.CFrame * rel
         end
-
         Camera.CFrame = lockedCamCF
     end)
 end
@@ -1486,6 +1537,38 @@ local skyColorPicker = OtherTab:AddColorPicker({Title="Sky Color", Icon="palette
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
 end})
 
+-- ===== UI: WEAPON COLOR =====
+local WeaponTab = Window:AddTab("Weapon Color", "palette")
+
+WeaponTab:AddSeparator(); WeaponTab:AddLabel("WEAPON SKIN", "paintbrush"); WeaponTab:AddSeparator()
+
+local weaponColorToggle = WeaponTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+    Flags.WeaponColorEnabled=s
+    if s then
+        startWeaponColor()
+    else
+        if lastTool then restoreWeaponColor(lastTool); lastTool = nil end
+        if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
+    end
+end})
+
+local weaponColorPicker = WeaponTab:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c)
+    Flags.WeaponColor=c
+    if Flags.WeaponColorEnabled then startWeaponColor() end
+end})
+
+WeaponTab:AddSeparator(); WeaponTab:AddLabel("MATERIAL", "gem"); WeaponTab:AddSeparator()
+
+local materialDropdown = WeaponTab:AddDropdown({
+    Title="Material", Icon="gem",
+    Options={"Neon", "Plastic", "ForceField", "Metal", "Glass", "SmoothPlastic", "Wood"},
+    Default="Neon",
+    Callback=function(s)
+        Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon
+        if Flags.WeaponColorEnabled then startWeaponColor() end
+    end
+})
+
 -- ===== UI: CROSSHAIR =====
 local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
 
@@ -1549,62 +1632,64 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
--- 5. KEYBINDS (ПОСЛЕ КОНФИГОВ)
+-- 5. KEYBINDS
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
+-- ВАЖНО: теперь бинды меняют сам тоггл, а не просто Flags.
+-- Это заставляет UI визуально переключиться.
 local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera",
+    Title = "FreeCam Keybind", Icon = "camera",
     Callback = function()
         freecamToggle:Set(not Flags.FreeCam)
     end,
 })
 
 local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye",
+    Title = "ESP Keybind", Icon = "eye",
     Callback = function()
         espToggle:Set(not Flags.ESP)
     end,
 })
 
 local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun",
+    Title = "Fullbright Keybind", Icon = "sun",
     Callback = function()
         fullbrightToggle:Set(not Flags.Fullbright)
     end,
 })
 
 local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap",
+    Title = "AutoRun Keybind", Icon = "zap",
     Callback = function()
         autoRunToggle:Set(not Flags.AutoRun)
     end,
 })
 
 local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up",
+    Title = "Spider Keybind", Icon = "arrow-up",
     Callback = function()
         spiderToggle:Set(not Flags.Spider)
     end,
 })
 
 local keybindTrigger = SettingsTab:AddKeybind({
-    Title = "Trigger Bot Keybind", Subtitle = "По умолчанию пусто", Icon = "crosshair",
+    Title = "Trigger Bot Keybind", Icon = "crosshair",
     Callback = function()
         triggerBotToggle:Set(not Flags.TriggerBot)
     end,
 })
 
 local keybindHitbox = SettingsTab:AddKeybind({
-    Title = "Hitbox Keybind", Subtitle = "По умолчанию пусто", Icon = "box",
+    Title = "Hitbox Keybind", Icon = "box",
     Callback = function()
         hitboxToggle:Set(not Flags.HitboxEnabled)
     end,
 })
 
 local keybindNoRecoil = SettingsTab:AddKeybind({
-    Title = "No Recoil Keybind", Subtitle = "По умолчанию пусто", Icon = "target",
+    Title = "No Recoil Keybind", Icon = "target",
     Callback = function()
         noRecoilToggle:Set(not Flags.NoRecoil)
     end,
@@ -1662,6 +1747,11 @@ local function buildConfig(name)
     cfg:RegisterElement("BoxColor", boxColorPicker)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
+
+    -- Weapon Color
+    cfg:RegisterElement("WeaponColorOn", weaponColorToggle)
+    cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
+    cfg:RegisterElement("WeaponMat", materialDropdown)
 
     -- Crosshair
     cfg:RegisterElement("Crosshair", crosshairToggle)
