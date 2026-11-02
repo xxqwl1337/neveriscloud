@@ -197,77 +197,6 @@ Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
--- ===== CURSOR CONTROLLER + CUSTOM CROSSHAIR =====
--- Держим курсор залоченным и скрытым, когда UI не активен.
--- Библиотека биндит VantixUICursorFree на Camera+1, поэтому ставим Camera+2 чтобы перебивать.
-local UIS_cursor = game:GetService("UserInputService")
-
-local function isUiActive()
-    local sg = Window and Window.Gui
-    if not sg or not sg.Parent then return false end
-    if not sg.Enabled then return false end
-    local sink = sg:FindFirstChild("CursorSink", true)
-    if sink then return sink.Visible == true end
-    return true
-end
-
--- Кастомный курсор-прицел (Drawing) — рисуется только когда UI скрыт
-local CursorLines = {}
-do
-    for i = 1, 4 do
-        local l = Drawing.new("Line")
-        l.Thickness = 1.5
-        l.Color = Color3.fromRGB(255, 255, 255)
-        l.Transparency = 1
-        l.Visible = false
-        CursorLines[i] = l
-    end
-end
-
-local CURSOR_SIZE   = 6
-local CURSOR_GAP    = 3
-
-RunService:BindToRenderStep("CloudCursorControl", Enum.RenderPriority.Camera.Value + 2, function()
-    local uiActive = isUiActive()
-
-    if uiActive then
-        -- Меню открыто: обычный курсор, кастомный прицел скрыт
-        for _, l in ipairs(CursorLines) do
-            if l.Visible then l.Visible = false end
-        end
-        return
-    end
-
-    -- UI скрыт: прячем системный курсор и лочим в центр
-    if UIS_cursor.MouseIconEnabled then UIS_cursor.MouseIconEnabled = false end
-    if UIS_cursor.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
-        UIS_cursor.MouseBehavior = Enum.MouseBehavior.LockCenter
-    end
-
-    -- Рисуем кастомный прицел в центре экрана
-    local vs = Camera.ViewportSize
-    local cx, cy = math.floor(vs.X / 2), math.floor(vs.Y / 2)
-    local sz = CURSOR_SIZE
-    local gap = CURSOR_GAP
-
-    -- top
-    CursorLines[1].From = Vector2.new(cx, cy - gap)
-    CursorLines[1].To   = Vector2.new(cx, cy - gap - sz)
-    -- bottom
-    CursorLines[2].From = Vector2.new(cx, cy + gap)
-    CursorLines[2].To   = Vector2.new(cx, cy + gap + sz)
-    -- left
-    CursorLines[3].From = Vector2.new(cx - gap, cy)
-    CursorLines[3].To   = Vector2.new(cx - gap - sz, cy)
-    -- right
-    CursorLines[4].From = Vector2.new(cx + gap, cy)
-    CursorLines[4].To   = Vector2.new(cx + gap + sz, cy)
-
-    for _, l in ipairs(CursorLines) do
-        if not l.Visible then l.Visible = true end
-    end
-end)
-
 -- ===== СОСТОЯНИЕ =====
 local Flags = {
     ESP = false, ESPMode = "Chams",
@@ -284,7 +213,7 @@ local Flags = {
     CrosshairThickness = 1, CrosshairTransparency = 0, CrosshairDistance = 4,
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
-    AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
+    AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, AimPredictionHoldValue = 0.15, HitChance = 100,
     HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
     TriggerBot = false, TriggerDelay = 50, TriggerFOV = 15, TriggerTeamCheck = true,
     NoRecoil = false,
@@ -295,7 +224,6 @@ local Flags = {
     WeaponMaterial = Enum.Material.Neon,
     AspectRatioEnabled = false, AspectRatioMode = "16:9",
     AspectRatioValue = 1,
-    WeatherEnabled = false, WeatherMode = "Rain",
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -303,7 +231,8 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
-local aspectToggle, aspectModeDropdown, weatherToggle, weatherModeDropdown
+local aspectToggle, aspectModeDropdown
+local aimPredSlider
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -459,114 +388,6 @@ local function applyAspectRatio()
         stopAspectRatio()
     end
 end
-
--- ===== WEATHER =====
-local WeatherEmitter = nil
-local WeatherPart = nil
-local WeatherAttachment = nil
-
-local WEATHER_PRESETS = {
-    Rain = {
-        Texture = "rbxassetid://241876428",
-        Rate = 180,
-        Lifetime = NumberRange.new(0.8, 1.2),
-        Speed = NumberRange.new(40, 60),
-        Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.15),
-            NumberSequenceKeypoint.new(1, 0.15),
-        }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.3),
-            NumberSequenceKeypoint.new(1, 0.7),
-        }),
-        Color = ColorSequence.new(Color3.fromRGB(180, 200, 255)),
-        SpreadAngle = Vector2.new(10, 10),
-        Acceleration = Vector3.new(0, -120, 0),
-        EmissionDirection = Enum.NormalId.Bottom,
-    },
-    Snow = {
-        Texture = "rbxassetid://241876428",
-        Rate = 80,
-        Lifetime = NumberRange.new(2.5, 4.0),
-        Speed = NumberRange.new(8, 15),
-        Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.25),
-            NumberSequenceKeypoint.new(1, 0.25),
-        }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.2),
-            NumberSequenceKeypoint.new(1, 0.8),
-        }),
-        Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
-        SpreadAngle = Vector2.new(30, 30),
-        Acceleration = Vector3.new(2, -8, 2),
-        EmissionDirection = Enum.NormalId.Bottom,
-    },
-    Clear = nil,
-}
-
-local function destroyWeather()
-    if WeatherEmitter then pcall(function() WeatherEmitter:Destroy() end); WeatherEmitter = nil end
-    if WeatherAttachment then pcall(function() WeatherAttachment:Destroy() end); WeatherAttachment = nil end
-    if WeatherPart then pcall(function() WeatherPart:Destroy() end); WeatherPart = nil end
-end
-
-local function createWeather()
-    destroyWeather()
-    if not Flags.WeatherEnabled then return end
-
-    local preset = WEATHER_PRESETS[Flags.WeatherMode]
-    if not preset then return end
-
-    local char = LP.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    WeatherPart = Instance.new("Part")
-    WeatherPart.Name = "CloudClientWeather"
-    WeatherPart.Size = Vector3.new(30, 0.1, 30)
-    WeatherPart.Transparency = 1
-    WeatherPart.CanCollide = false
-    WeatherPart.CanQuery = false
-    WeatherPart.CanTouch = false
-    WeatherPart.Anchored = true
-    WeatherPart.Parent = hrp
-
-    WeatherAttachment = Instance.new("Attachment")
-    WeatherAttachment.Position = Vector3.new(0, 15, 0)
-    WeatherAttachment.Parent = WeatherPart
-
-    WeatherEmitter = Instance.new("ParticleEmitter")
-    WeatherEmitter.Name = "CloudClientWeatherEmitter"
-    WeatherEmitter.Texture = preset.Texture
-    WeatherEmitter.Rate = preset.Rate
-    WeatherEmitter.Lifetime = preset.Lifetime
-    WeatherEmitter.Speed = preset.Speed
-    WeatherEmitter.Size = preset.Size
-    WeatherEmitter.Transparency = preset.Transparency
-    WeatherEmitter.Color = preset.Color
-    WeatherEmitter.SpreadAngle = preset.SpreadAngle
-    WeatherEmitter.Acceleration = preset.Acceleration
-    WeatherEmitter.EmissionDirection = preset.EmissionDirection
-    WeatherEmitter.LightEmission = 0.2
-    WeatherEmitter.LightInfluence = 0.5
-    WeatherEmitter.ZOffset = 1
-    WeatherEmitter.Parent = WeatherAttachment
-end
-
-local function applyWeather()
-    if Flags.WeatherEnabled then
-        createWeather()
-    else
-        destroyWeather()
-    end
-end
-
-LP.CharacterAdded:Connect(function()
-    task.wait(0.3)
-    if Flags.WeatherEnabled then createWeather() end
-end)
 
 -- ===== ХИТБОКС =====
 local OriginalHitboxSizes = {}
@@ -931,31 +752,74 @@ LP.CharacterAdded:Connect(function()
     if freecamConn then stopFreeCam() end
 end)
 
--- ===== AUTORUN =====
-local defaultWalkSpeed = 16
-local autoRunActive = false
-local function captureDefaultWalkSpeed()
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then defaultWalkSpeed = hum.WalkSpeed end
-end
-captureDefaultWalkSpeed()
-LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
+-- ===== AUTORUN (эмуляция зажатого Shift + Move) =====
+-- Не трогает WalkSpeed. Держит LeftShift зажатым через VIM/fallback,
+-- и каждый кадр двигает персонажа в направлении взгляда камеры через Humanoid:Move.
+local autoRunShiftHeld = false
+local autoRunMoveConn   = nil
 
-local function applyAutoRun()
-    local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    if Flags.AutoRun then
-        autoRunActive = true
-        hum.WalkSpeed = 20
+local function pressShift()
+    if autoRunShiftHeld then return end
+    autoRunShiftHeld = true
+    local vim = game:GetService("VirtualInputManager")
+    if vim then
+        pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
+    end
+    pcall(function() keypress(Enum.KeyCode.LeftShift) end)
+end
+
+local function releaseShift()
+    if not autoRunShiftHeld then return end
+    autoRunShiftHeld = false
+    local vim = game:GetService("VirtualInputManager")
+    if vim then
+        pcall(function() vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game) end)
+    end
+    pcall(function() keyrelease(Enum.KeyCode.LeftShift) end)
+end
+
+local function stopAutoRun()
+    if autoRunMoveConn then
+        autoRunMoveConn:Disconnect()
+        autoRunMoveConn = nil
+    end
+    releaseShift()
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then pcall(function() hum:Move(Vector3.zero, false) end) end
+end
+
+local function startAutoRun()
+    if autoRunMoveConn then return end
+    pressShift()
+    autoRunMoveConn = RunService.RenderStepped:Connect(function()
+        if not Flags.AutoRun then stopAutoRun(); return end
+        if Window.Gui and Window.Gui.Enabled then
+            -- когда открыт UI — отпускаем шифт и не двигаем, чтобы не мешало
+            releaseShift()
+            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if hum then pcall(function() hum:Move(Vector3.zero, false) end) end
+            return
+        end
+        -- держим shift зажатым
+        if not autoRunShiftHeld then pressShift() end
+        local char = LP.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then return end
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then hum:Move(dir.Unit, false) end
-    elseif autoRunActive then
-        hum.WalkSpeed = defaultWalkSpeed
-        autoRunActive = false
-    end
+        if dir.Magnitude > 0.01 then
+            hum:Move(dir.Unit, false)
+        end
+    end)
 end
+
+LP.CharacterAdded:Connect(function()
+    task.wait(0.3)
+    if Flags.AutoRun then
+        stopAutoRun()
+        startAutoRun()
+    end
+end)
 
 -- ===== SPIDER =====
 local spiderBV = nil
@@ -1618,9 +1482,8 @@ task.spawn(function()
     end
 end)
 
--- ===== AUTORUN / SPIDER TIMER =====
+-- ===== SPIDER TIMER =====
 RunService.Stepped:Connect(function()
-    applyAutoRun()
     updateSpider()
 end)
 
@@ -1646,7 +1509,10 @@ local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Ху�
 local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Только при зажатой кнопке", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 local aimSmoothSlider = AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 local aimFovSlider = AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
-local aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
+aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v)
+    Flags.AimPredictionHoldValue = v
+    Flags.AimPrediction = v
+end})
 local aimChanceSlider = AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
 local aimPartDropdown = AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
 local teamCheckToggle = AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
@@ -1748,7 +1614,10 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
-autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
+autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автобег: держит Shift + движение по взгляду камеры", Icon="zap", Default=false, Callback=function(s)
+    Flags.AutoRun=s
+    if s then startAutoRun() else stopAutoRun() end
+end})
 
 spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s)
     Flags.Spider=s
@@ -1820,23 +1689,6 @@ local skyColorPicker = VisualsTab:AddColorPicker({Title="Sky Color", Icon="palet
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
 end})
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEATHER", "cloud-rain"); VisualsTab:AddSeparator()
-
-weatherToggle = VisualsTab:AddToggle({Title="Weather", Subtitle="Частицы погоды вокруг игрока", Icon="cloud-rain", Default=false, Callback=function(s)
-    Flags.WeatherEnabled = s
-    applyWeather()
-end})
-
-weatherModeDropdown = VisualsTab:AddDropdown({
-    Title="Weather Type", Icon="cloud",
-    Options={"Rain", "Snow", "Clear"},
-    Default="Rain",
-    Callback=function(v)
-        Flags.WeatherMode = v
-        if Flags.WeatherEnabled then createWeather() end
-    end,
-})
-
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("CROSSHAIR", "crosshair"); VisualsTab:AddSeparator()
 
 local crosshairToggle = VisualsTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
@@ -1898,15 +1750,62 @@ local keybindHideUI = SettingsTab:AddKeybind({
     Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
     Callback = function()
         local sg = Window.Gui
-        if not sg then return end
-        sg.Enabled = not sg.Enabled
-        if not sg.Enabled then
-            -- принудительно возвращаем лок сразу при скрытии
-            UIS_cursor.MouseBehavior = Enum.MouseBehavior.LockCenter
-            UIS_cursor.MouseIconEnabled = false
-        end
+        if sg then sg.Enabled = not sg.Enabled end
     end,
 })
+
+-- Бинд на prediction: пока держишь — Flags.AimPrediction = AimPredictionHoldValue (значение слайдера),
+-- отпускаешь — 0. Работает и для silent aim, и для aimlock/assist.
+local keybindPrediction = SettingsTab:AddKeybind({
+    Title = "Prediction Keybind (hold)", Icon = "trending-up",
+    Callback = function()
+        -- toggle-режим не нужен, но AddKeybind не даёт чисто hold-callback.
+        -- Поэтому используем собственный UIS-хук ниже, а бинд только как UI-элемент.
+    end,
+})
+
+-- hold-логика для prediction через UIS.InputBegan/InputEnded
+local predKey = Enum.KeyCode.LeftAlt
+local predHeld = false
+do
+    -- пробуем выцепить текущую назначенную клавишу из UI (если AddKeybind отдаёт Get)
+    local ok, cur = pcall(function() return keybindPrediction:Get() end)
+    if ok and cur then predKey = cur end
+end
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    local k = keybindPrediction
+    local key = nil
+    pcall(function() key = k:Get() end)
+    if not key then return end
+    local isMatch = false
+    if typeof(key) == "EnumItem" then
+        if key.EnumType == Enum.KeyCode and input.KeyCode == key then isMatch = true
+        elseif key.EnumType == Enum.UserInputType and input.UserInputType == key then isMatch = true end
+    end
+    if isMatch then
+        predHeld = true
+        Flags.AimPrediction = Flags.AimPredictionHoldValue
+    end
+end)
+
+UIS.InputEnded:Connect(function(input, gpe)
+    if not predHeld then return end
+    local k = keybindPrediction
+    local key = nil
+    pcall(function() key = k:Get() end)
+    if not key then return end
+    local isMatch = false
+    if typeof(key) == "EnumItem" then
+        if key.EnumType == Enum.KeyCode and input.KeyCode == key then isMatch = true
+        elseif key.EnumType == Enum.UserInputType and input.UserInputType == key then isMatch = true end
+    end
+    if isMatch then
+        predHeld = false
+        Flags.AimPrediction = 0
+    end
+end)
 
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
@@ -1962,9 +1861,6 @@ local function buildConfig(name)
     cfg:RegisterElement("AspectRatio", aspectToggle)
     cfg:RegisterElement("AspectRatioMode", aspectModeDropdown)
 
-    cfg:RegisterElement("Weather", weatherToggle)
-    cfg:RegisterElement("WeatherMode", weatherModeDropdown)
-
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
@@ -1988,6 +1884,7 @@ local function buildConfig(name)
     cfg:RegisterElement("BindHitbox",     keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   keybindNoRecoil)
     cfg:RegisterElement("BindHideUI",     keybindHideUI)
+    cfg:RegisterElement("BindPrediction", keybindPrediction)
 
     return cfg
 end
@@ -2028,8 +1925,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
 
         aspectToggle:Set(false)
         aspectModeDropdown:Set("16:9")
-        weatherToggle:Set(false)
-        weatherModeDropdown:Set("Rain")
 
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
@@ -2056,10 +1951,17 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-        applyWeather()
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
+
+        -- Автобег: если в конфиге включён — перезапускаем
+        if Flags.AutoRun then
+            stopAutoRun()
+            startAutoRun()
+        else
+            stopAutoRun()
+        end
 
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
