@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Weapon Color + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
 ]]
 
 -- ===== KEY SYSTEM =====
@@ -263,12 +263,12 @@ local function isAimHeld()
     return false
 end
 
--- ===== WEAPON COLOR =====
+-- ===== WEAPON COLOR (ИСПРАВЛЕН: ИЩЕТ VIEWMODEL) =====
 local OriginalWeaponProps = {}
 
-local function applyWeaponColor(tool)
-    if not tool then return end
-    for _, part in ipairs(tool:GetChildren()) do
+local function applyWeaponColorToModel(model)
+    if not model then return end
+    for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
             if not OriginalWeaponProps[part] then
                 OriginalWeaponProps[part] = {
@@ -282,9 +282,9 @@ local function applyWeaponColor(tool)
     end
 end
 
-local function restoreWeaponColor(tool)
-    if not tool then return end
-    for _, part in ipairs(tool:GetChildren()) do
+local function restoreWeaponColorFromModel(model)
+    if not model then return end
+    for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
             local orig = OriginalWeaponProps[part]
             if orig then
@@ -297,23 +297,61 @@ local function restoreWeaponColor(tool)
 end
 
 local weaponColorConn = nil
-local lastTool = nil
+local lastWeaponModels = {}
+
+local function findWeaponModels()
+    local models = {}
+    local char = LP.Character
+    -- 1. Ищем Tool в персонаже
+    if char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then table.insert(models, tool) end
+        -- Иногда оружие просто лежит как модель
+        for _, child in ipairs(char:GetChildren()) do
+            if child:IsA("Model") and (child:FindFirstChild("Handle") or child:FindFirstChild("GunComponents")) then
+                table.insert(models, child)
+            end
+        end
+    end
+    -- 2. Ищем Viewmodel в Camera (система Decoy)
+    local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
+    if vm then
+        table.insert(models, vm)
+        -- Внутри Viewmodel может быть отдельная модель пушки
+        for _, child in ipairs(vm:GetChildren()) do
+            if child:IsA("Model") then
+                table.insert(models, child)
+            end
+        end
+    end
+    return models
+end
 
 local function startWeaponColor()
     if weaponColorConn then weaponColorConn:Disconnect() end
     weaponColorConn = RunService.Heartbeat:Connect(function()
         if not Flags.WeaponColorEnabled then
-            if lastTool then restoreWeaponColor(lastTool); lastTool = nil end
+            for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            lastWeaponModels = {}
             return
         end
-        local char = LP.Character
-        if not char then return end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool ~= lastTool then
-            if lastTool then restoreWeaponColor(lastTool) end
-            lastTool = tool
+        
+        local currentModels = findWeaponModels()
+        
+        -- Восстанавливаем те модели, которые пропали из рук
+        for _, oldM in ipairs(lastWeaponModels) do
+            local stillEquipped = false
+            for _, newM in ipairs(currentModels) do
+                if oldM == newM then stillEquipped = true; break end
+            end
+            if not stillEquipped then restoreWeaponColorFromModel(oldM) end
         end
-        if tool then applyWeaponColor(tool) end
+        
+        lastWeaponModels = currentModels
+        
+        for _, m in ipairs(currentModels) do
+            applyWeaponColorToModel(m)
+        end
     end)
 end
 
@@ -757,7 +795,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (LOCK CAMERA MAX) =====
+-- ===== NO RECOIL =====
 local noRecoilConn     = nil
 local noRecoilShotConn = nil
 local lockedCamCF      = nil
@@ -786,18 +824,6 @@ pcall(function()
     end)
 end)
 
-local function findTool(char)
-    if not char then return nil end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then return tool end
-    for _, c in ipairs(char:GetChildren()) do
-        if c:IsA("Model") and (c:FindFirstChild("Handle") or c:FindFirstChild("GunComponents")) then
-            return c
-        end
-    end
-    return nil
-end
-
 local function stopNoRecoil()
     if noRecoilConn then
         pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
@@ -809,7 +835,6 @@ local function stopNoRecoil()
     end
     recoilActive = false
     lockedCamCF  = nil
-
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1438,42 +1463,42 @@ end})
 local hitboxSizeSlider = AimbotTab:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
 local hitboxTranspSlider = AimbotTab:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
 
--- ===== UI: VISUALS =====
-local VisualsTab = Window:AddTab("Visuals", "eye")
+-- ===== UI: ESP (бывш. Visuals) =====
+local ESPTab = Window:AddTab("ESP", "eye")
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP COLOR", "palette"); VisualsTab:AddSeparator()
+ESPTab:AddSeparator(); ESPTab:AddLabel("ESP COLOR", "palette"); ESPTab:AddSeparator()
 
-local espColorPicker = VisualsTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+local espColorPicker = ESPTab:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
     for _,hl in pairs(Highlights) do
         if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end
     end
 end})
-local textColorPicker = VisualsTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-local boxColorPicker = VisualsTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-local lineColorPicker = VisualsTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-local skelColorPicker = VisualsTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+local textColorPicker = ESPTab:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+local boxColorPicker = ESPTab:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+local lineColorPicker = ESPTab:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+local skelColorPicker = ESPTab:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ESP SYSTEM", "eye"); VisualsTab:AddSeparator()
+ESPTab:AddSeparator(); ESPTab:AddLabel("ESP SYSTEM", "eye"); ESPTab:AddSeparator()
 
-espToggle = VisualsTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
+espToggle = ESPTab:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s)
     Flags.ESP=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
-local espModeDropdown = VisualsTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
+local espModeDropdown = ESPTab:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v)
     Flags.ESPMode = v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 
-local boxToggle = VisualsTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-local nameToggle = VisualsTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-local healthToggle = VisualsTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-local distToggle = VisualsTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-local lineToggle = VisualsTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-local skeletonToggle = VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-local weaponToggle = VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+local boxToggle = ESPTab:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+local nameToggle = ESPTab:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+local healthToggle = ESPTab:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+local distToggle = ESPTab:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+local lineToggle = ESPTab:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+local skeletonToggle = ESPTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+local weaponToggle = ESPTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 
-local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v)
+local espDistSlider = ESPTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -1537,35 +1562,40 @@ local skyColorPicker = OtherTab:AddColorPicker({Title="Sky Color", Icon="palette
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
 end})
 
--- ===== UI: WEAPON COLOR =====
-local WeaponTab = Window:AddTab("Weapon Color", "palette")
+-- ===== UI: VISUALS (бывш. Weapon Color) =====
+local VisualsTab = Window:AddTab("Visuals", "palette")
 
-WeaponTab:AddSeparator(); WeaponTab:AddLabel("WEAPON SKIN", "paintbrush"); WeaponTab:AddSeparator()
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
 
-local weaponColorToggle = WeaponTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+local weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
     Flags.WeaponColorEnabled=s
     if s then
         startWeaponColor()
     else
-        if lastTool then restoreWeaponColor(lastTool); lastTool = nil end
+        for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
+        lastWeaponModels = {}
         if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
     end
 end})
 
-local weaponColorPicker = WeaponTab:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c)
+local weaponColorPicker = VisualsTab:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c)
     Flags.WeaponColor=c
-    if Flags.WeaponColorEnabled then startWeaponColor() end
+    if Flags.WeaponColorEnabled then
+        for _, m in ipairs(lastWeaponModels) do applyWeaponColorToModel(m) end
+    end
 end})
 
-WeaponTab:AddSeparator(); WeaponTab:AddLabel("MATERIAL", "gem"); WeaponTab:AddSeparator()
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("MATERIAL", "gem"); VisualsTab:AddSeparator()
 
-local materialDropdown = WeaponTab:AddDropdown({
+local materialDropdown = VisualsTab:AddDropdown({
     Title="Material", Icon="gem",
     Options={"Neon", "Plastic", "ForceField", "Metal", "Glass", "SmoothPlastic", "Wood"},
     Default="Neon",
     Callback=function(s)
         Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon
-        if Flags.WeaponColorEnabled then startWeaponColor() end
+        if Flags.WeaponColorEnabled then
+            for _, m in ipairs(lastWeaponModels) do applyWeaponColorToModel(m) end
+        end
     end
 })
 
@@ -1621,58 +1651,42 @@ SettingsTab:AddSeparator()
 
 local keybindFreecam = SettingsTab:AddKeybind({
     Title = "FreeCam Keybind", Icon = "camera",
-    Callback = function()
-        freecamToggle:Set(not Flags.FreeCam)
-    end,
+    Callback = function() freecamToggle:Set(not Flags.FreeCam) end,
 })
 
 local keybindESP = SettingsTab:AddKeybind({
     Title = "ESP Keybind", Icon = "eye",
-    Callback = function()
-        espToggle:Set(not Flags.ESP)
-    end,
+    Callback = function() espToggle:Set(not Flags.ESP) end,
 })
 
 local keybindFullbright = SettingsTab:AddKeybind({
     Title = "Fullbright Keybind", Icon = "sun",
-    Callback = function()
-        fullbrightToggle:Set(not Flags.Fullbright)
-    end,
+    Callback = function() fullbrightToggle:Set(not Flags.Fullbright) end,
 })
 
 local keybindAutoRun = SettingsTab:AddKeybind({
     Title = "AutoRun Keybind", Icon = "zap",
-    Callback = function()
-        autoRunToggle:Set(not Flags.AutoRun)
-    end,
+    Callback = function() autoRunToggle:Set(not Flags.AutoRun) end,
 })
 
 local keybindSpider = SettingsTab:AddKeybind({
     Title = "Spider Keybind", Icon = "arrow-up",
-    Callback = function()
-        spiderToggle:Set(not Flags.Spider)
-    end,
+    Callback = function() spiderToggle:Set(not Flags.Spider) end,
 })
 
 local keybindTrigger = SettingsTab:AddKeybind({
     Title = "Trigger Bot Keybind", Icon = "crosshair",
-    Callback = function()
-        triggerBotToggle:Set(not Flags.TriggerBot)
-    end,
+    Callback = function() triggerBotToggle:Set(not Flags.TriggerBot) end,
 })
 
 local keybindHitbox = SettingsTab:AddKeybind({
     Title = "Hitbox Keybind", Icon = "box",
-    Callback = function()
-        hitboxToggle:Set(not Flags.HitboxEnabled)
-    end,
+    Callback = function() hitboxToggle:Set(not Flags.HitboxEnabled) end,
 })
 
 local keybindNoRecoil = SettingsTab:AddKeybind({
     Title = "No Recoil Keybind", Icon = "target",
-    Callback = function()
-        noRecoilToggle:Set(not Flags.NoRecoil)
-    end,
+    Callback = function() noRecoilToggle:Set(not Flags.NoRecoil) end,
 })
 
 local keybindHideUI = SettingsTab:AddKeybind({
@@ -1728,7 +1742,7 @@ local function buildConfig(name)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
 
-    -- Weapon Color
+    -- Visuals (Weapon Color)
     cfg:RegisterElement("WeaponColorOn", weaponColorToggle)
     cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
     cfg:RegisterElement("WeaponMat", materialDropdown)
