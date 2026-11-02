@@ -1,5 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
+    Version: 0.2.1
 ]]
 
 -- ===== KEY SYSTEM =====
@@ -193,7 +194,7 @@ local Window = VantixUI:CreateWindow({
 })
 Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+Window:CreateTag("v0.2.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -751,7 +752,7 @@ LP.CharacterAdded:Connect(function()
     if freecamConn then stopFreeCam() end
 end)
 
--- ===== AUTORUN (REWORK) =====
+-- ===== AUTORUN (REWORK v0.2.1) =====
 local defaultWalkSpeed = 16
 local autoRunActive = false
 local autoRunKeyHeld = false
@@ -788,7 +789,7 @@ local function applyAutoRun()
     end
 
     if Flags.AutoRun then
-        -- Пытаемся эмулировать зажатие Shift (для игр с встроенным спринтом)
+        -- эмуляция зажатия Shift (для встроенного спринта)
         if not autoRunKeyHeld then
             local ok = pcall(function()
                 autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
@@ -798,8 +799,7 @@ local function applyAutoRun()
             end
         end
 
-        -- Fallback / гарантия: прямое управление скоростью и движением
-        -- Даже если Shift не сработал, персонаж будет двигаться вперёд с ускорением
+        -- fallback: движение вперёд + ускорение
         autoRunActive = true
         if hum.WalkSpeed <= defaultWalkSpeed then
             hum.WalkSpeed = defaultWalkSpeed + 8
@@ -1862,9 +1862,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- принудительный сброс тоггла/дропдауна Aspect Ratio через Set()
-        -- (Set вызовет Callback и синхронизирует Flags + применит состояние).
-        -- Если в конфиге значения сохранены — Load() их перезапишет через те же Set().
         aspectToggle:Set(false)
         aspectModeDropdown:Set("16:9")
 
@@ -1879,9 +1876,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
-        -- Flags.AspectRatioEnabled / AspectRatioMode НЕ трогаем вручную —
-        -- их выставит Load() через Set() тоггла/дропдауна, а если в конфиге
-        -- их нет, останется дефолт от принудительного сброса выше
 
         buildConfig(name):Load()
 
@@ -1893,7 +1887,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
-        -- applyAspectRatio() НЕ нужен: aspectToggle:Set() из Load уже всё применил
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
