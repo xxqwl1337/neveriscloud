@@ -222,6 +222,8 @@ local Flags = {
     WeaponColorEnabled = false,
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
+    AspectRatioEnabled = false, AspectRatioMode = "16:9",
+    AspectRatioValue = 1,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -229,6 +231,7 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
+local aspectToggle, aspectModeDropdown
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -277,7 +280,6 @@ local function applyWeaponColorToModel(model)
                     TextureID = part:IsA("MeshPart") and part.TextureID or nil
                 }
             end
-            -- Если это неон, убираем текстуру, чтобы цвет был чистым
             if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then
                 part.TextureID = ""
             end
@@ -348,6 +350,42 @@ local function startWeaponColor()
         lastWeaponModels = currentModels
         for _, m in ipairs(currentModels) do applyWeaponColorToModel(m) end
     end)
+end
+
+-- ===== ASPECT RATIO =====
+local ASPECT_VALUES = {
+    ["4:3"]  = 0.75,
+    ["16:9"] = 1.0,
+}
+
+local aspectConn = nil
+
+local function stopAspectRatio()
+    if aspectConn then
+        aspectConn:Disconnect()
+        aspectConn = nil
+    end
+end
+
+local function startAspectRatio()
+    stopAspectRatio()
+    if not Flags.AspectRatioEnabled then return end
+
+    local res = ASPECT_VALUES[Flags.AspectRatioMode] or 1.0
+    Flags.AspectRatioValue = res
+
+    aspectConn = RunService.RenderStepped:Connect(function()
+        if not Flags.AspectRatioEnabled then return end
+        Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, 0, 1, 0, 0, 0, res, 0, 0, 0, 1)
+    end)
+end
+
+local function applyAspectRatio()
+    if Flags.AspectRatioEnabled then
+        startAspectRatio()
+    else
+        stopAspectRatio()
+    end
 end
 
 -- ===== ХИТБОКС =====
@@ -1574,6 +1612,23 @@ local materialDropdown = VisualsTab:AddDropdown({
     end
 })
 
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("ASPECT RATIO", "monitor"); VisualsTab:AddSeparator()
+
+aspectToggle = VisualsTab:AddToggle({Title="Aspect Ratio", Subtitle="Сжатие вертикали камеры", Icon="monitor", Default=false, Callback=function(s)
+    Flags.AspectRatioEnabled = s
+    applyAspectRatio()
+end})
+
+aspectModeDropdown = VisualsTab:AddDropdown({
+    Title="Ratio", Icon="rectangle-horizontal",
+    Options={"4:3", "16:9"},
+    Default="16:9",
+    Callback=function(v)
+        Flags.AspectRatioMode = v
+        if Flags.AspectRatioEnabled then startAspectRatio() end
+    end,
+})
+
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("SKY COLOR", "cloud"); VisualsTab:AddSeparator()
 
 skyColorToggle = VisualsTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
@@ -1701,6 +1756,9 @@ local function buildConfig(name)
     cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
     cfg:RegisterElement("WeaponMat", materialDropdown)
 
+    cfg:RegisterElement("AspectRatio", aspectToggle)
+    cfg:RegisterElement("AspectRatioMode", aspectModeDropdown)
+
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
@@ -1773,6 +1831,8 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        Flags.AspectRatioEnabled = false
+        Flags.AspectRatioMode    = "16:9"
 
         buildConfig(name):Load()
 
@@ -1784,6 +1844,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
+        applyAspectRatio()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
