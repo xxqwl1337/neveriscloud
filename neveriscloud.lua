@@ -261,6 +261,17 @@ local function syncBind(element, key)
     end
 end
 
+local function getBind(element)
+    if element and element.Get then
+        return element:Get()
+    elseif element and element.get then
+        return element.get()
+    elseif element and element.Value then
+        return element.Value
+    end
+    return nil
+end
+
 -- ===== HITBOX EXPANDER =====
 local OriginalHitboxSizes = {}
 
@@ -400,7 +411,7 @@ if hookfunction then
     end)
 end
 
--- ===== ПОИСК ЦЕЛИ =====
+-- ===== ПОИСК ЦЕЛИ (ближайший в мире) =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
@@ -432,7 +443,7 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK =====
+-- ===== AIM ASSIST + AIM LOCK (только по кнопке) =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then
         if Camera.CameraType == Enum.CameraType.Scriptable then
@@ -1515,7 +1526,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] Сброс флагов функций (как было)
+        -- [FIX] Сброс флагов функций
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1527,7 +1538,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
-        -- [FIX] Сброс всех биндов в "пусто" перед загрузкой, чтобы они не протекали между конфигами
+        -- [FIX] Принудительный сброс биндов в "пусто" ПЕРЕД загрузкой
         syncBind(keybindFreecam, Enum.KeyCode.Unknown)
         syncBind(keybindESP, Enum.KeyCode.Unknown)
         syncBind(keybindFullbright, Enum.KeyCode.Unknown)
@@ -1698,7 +1709,6 @@ local keybindNoRecoil = SettingsTab:AddKeybind({
 
 local keybindHideUI = SettingsTab:AddKeybind({
     Title = "Hide UI Keybind",
-    Subtitle = "По умолчанию пусто",
     Icon = "keyboard",
     Default = Enum.KeyCode.Delete,
     Callback = function()
