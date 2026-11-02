@@ -224,7 +224,6 @@ local Flags = {
     WeaponMaterial = Enum.Material.Neon,
     AspectRatioEnabled = false, AspectRatioMode = "16:9",
     AspectRatioValue = 1,
-    WeatherEnabled = false, WeatherMode = "Rain",
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -232,7 +231,7 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
-local aspectToggle, aspectModeDropdown, weatherToggle, weatherModeDropdown
+local aspectToggle, aspectModeDropdown
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -388,114 +387,6 @@ local function applyAspectRatio()
         stopAspectRatio()
     end
 end
-
--- ===== WEATHER =====
-local WeatherEmitter = nil
-local WeatherPart = nil
-local WeatherAttachment = nil
-
-local WEATHER_PRESETS = {
-    Rain = {
-        Texture = "rbxassetid://241876428",
-        Rate = 180,
-        Lifetime = NumberRange.new(0.8, 1.2),
-        Speed = NumberRange.new(40, 60),
-        Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.15),
-            NumberSequenceKeypoint.new(1, 0.15),
-        }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.3),
-            NumberSequenceKeypoint.new(1, 0.7),
-        }),
-        Color = ColorSequence.new(Color3.fromRGB(180, 200, 255)),
-        SpreadAngle = Vector2.new(10, 10),
-        Acceleration = Vector3.new(0, -120, 0),
-        EmissionDirection = Enum.NormalId.Bottom,
-    },
-    Snow = {
-        Texture = "rbxassetid://241876428",
-        Rate = 80,
-        Lifetime = NumberRange.new(2.5, 4.0),
-        Speed = NumberRange.new(8, 15),
-        Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.25),
-            NumberSequenceKeypoint.new(1, 0.25),
-        }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.2),
-            NumberSequenceKeypoint.new(1, 0.8),
-        }),
-        Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
-        SpreadAngle = Vector2.new(30, 30),
-        Acceleration = Vector3.new(2, -8, 2),
-        EmissionDirection = Enum.NormalId.Bottom,
-    },
-    Clear = nil,
-}
-
-local function destroyWeather()
-    if WeatherEmitter then pcall(function() WeatherEmitter:Destroy() end); WeatherEmitter = nil end
-    if WeatherAttachment then pcall(function() WeatherAttachment:Destroy() end); WeatherAttachment = nil end
-    if WeatherPart then pcall(function() WeatherPart:Destroy() end); WeatherPart = nil end
-end
-
-local function createWeather()
-    destroyWeather()
-    if not Flags.WeatherEnabled then return end
-
-    local preset = WEATHER_PRESETS[Flags.WeatherMode]
-    if not preset then return end
-
-    local char = LP.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    WeatherPart = Instance.new("Part")
-    WeatherPart.Name = "CloudClientWeather"
-    WeatherPart.Size = Vector3.new(30, 0.1, 30)
-    WeatherPart.Transparency = 1
-    WeatherPart.CanCollide = false
-    WeatherPart.CanQuery = false
-    WeatherPart.CanTouch = false
-    WeatherPart.Anchored = true
-    WeatherPart.Parent = hrp
-
-    WeatherAttachment = Instance.new("Attachment")
-    WeatherAttachment.Position = Vector3.new(0, 15, 0)
-    WeatherAttachment.Parent = WeatherPart
-
-    WeatherEmitter = Instance.new("ParticleEmitter")
-    WeatherEmitter.Name = "CloudClientWeatherEmitter"
-    WeatherEmitter.Texture = preset.Texture
-    WeatherEmitter.Rate = preset.Rate
-    WeatherEmitter.Lifetime = preset.Lifetime
-    WeatherEmitter.Speed = preset.Speed
-    WeatherEmitter.Size = preset.Size
-    WeatherEmitter.Transparency = preset.Transparency
-    WeatherEmitter.Color = preset.Color
-    WeatherEmitter.SpreadAngle = preset.SpreadAngle
-    WeatherEmitter.Acceleration = preset.Acceleration
-    WeatherEmitter.EmissionDirection = preset.EmissionDirection
-    WeatherEmitter.LightEmission = 0.2
-    WeatherEmitter.LightInfluence = 0.5
-    WeatherEmitter.ZOffset = 1
-    WeatherEmitter.Parent = WeatherAttachment
-end
-
-local function applyWeather()
-    if Flags.WeatherEnabled then
-        createWeather()
-    else
-        destroyWeather()
-    end
-end
-
-LP.CharacterAdded:Connect(function()
-    task.wait(0.3)
-    if Flags.WeatherEnabled then createWeather() end
-end)
 
 -- ===== ХИТБОКС =====
 local OriginalHitboxSizes = {}
@@ -1749,23 +1640,6 @@ local skyColorPicker = VisualsTab:AddColorPicker({Title="Sky Color", Icon="palet
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
 end})
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEATHER", "cloud-rain"); VisualsTab:AddSeparator()
-
-weatherToggle = VisualsTab:AddToggle({Title="Weather", Subtitle="Частицы погоды вокруг игрока", Icon="cloud-rain", Default=false, Callback=function(s)
-    Flags.WeatherEnabled = s
-    applyWeather()
-end})
-
-weatherModeDropdown = VisualsTab:AddDropdown({
-    Title="Weather Type", Icon="cloud",
-    Options={"Rain", "Snow", "Clear"},
-    Default="Rain",
-    Callback=function(v)
-        Flags.WeatherMode = v
-        if Flags.WeatherEnabled then createWeather() end
-    end,
-})
-
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("CROSSHAIR", "crosshair"); VisualsTab:AddSeparator()
 
 local crosshairToggle = VisualsTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
@@ -1885,9 +1759,6 @@ local function buildConfig(name)
     cfg:RegisterElement("AspectRatio", aspectToggle)
     cfg:RegisterElement("AspectRatioMode", aspectModeDropdown)
 
-    cfg:RegisterElement("Weather", weatherToggle)
-    cfg:RegisterElement("WeatherMode", weatherModeDropdown)
-
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
@@ -1949,10 +1820,11 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
+        -- принудительный сброс тоггла/дропдауна Aspect Ratio через Set()
+        -- (Set вызовет Callback и синхронизирует Flags + применит состояние).
+        -- Если в конфиге значения сохранены — Load() их перезапишет через те же Set().
         aspectToggle:Set(false)
         aspectModeDropdown:Set("16:9")
-        weatherToggle:Set(false)
-        weatherModeDropdown:Set("Rain")
 
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
@@ -1965,6 +1837,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        -- Flags.AspectRatioEnabled / AspectRatioMode НЕ трогаем вручную —
+        -- их выставит Load() через Set() тоггла/дропдауна, а если в конфиге
+        -- их нет, останется дефолт от принудительного сброса выше
 
         buildConfig(name):Load()
 
@@ -1976,10 +1851,10 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
+        -- applyAspectRatio() НЕ нужен: aspectToggle:Set() из Load уже всё применил
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-        applyWeather()
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
@@ -1992,11 +1867,10 @@ end})
 SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callback=function()
     local ok, err = pcall(function()
         local name = savedConfigs:Get()
-        if name and name ~= "" then
-            Window.ConfigManager:DeleteConfig(name)
-            savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
-            Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
-        end
+        if not name or name == "" then return end
+        Window.ConfigManager:DeleteConfig(name)
+        savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
+        Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
     end)
     if not ok then warn("[config] delete:", err) end
 end})
