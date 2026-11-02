@@ -1,5 +1,5 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
 ]]
 
@@ -219,7 +219,7 @@ Flags.ESPColor = Color3.fromRGB(255, 0, 255)
 Flags.TextColor = Color3.fromRGB(255, 255, 255)
 Flags.BoxColor = Color3.fromRGB(255,255,255); Flags.LineColor = Color3.fromRGB(255,255,255)
 Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
-Flags.FreeCam = false; Flags.AutoRun = false; Flags.Spider = false; Flags.SpiderSpeed = 20
+Flags.FreeCam = false
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
 Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
@@ -285,9 +285,6 @@ CC.Refs.savedMouseBehavior = nil
 CC.Refs.savedWS = 16; CC.Refs.savedJP = 50
 CC.Refs.freecamPos = Vector3.new(0,0,0)
 CC.Refs.freecamYaw = 0; CC.Refs.freecamPitch = 0
-CC.Refs.defaultWalkSpeed = 16
-CC.Refs.autoRunActive = false
-CC.Refs.spiderBV = nil
 CC.Refs.noRecoilConn = nil
 CC.Refs.noRecoilShotConn = nil
 CC.Refs.lockedCamCF = nil
@@ -688,77 +685,6 @@ local function startFreeCam()
 end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
-
--- ===== AUTORUN =====
-local function captureDefaultWalkSpeed()
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then CC.Refs.defaultWalkSpeed = hum.WalkSpeed end
-end
-captureDefaultWalkSpeed()
-LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
-
-local function applyAutoRun()
-    local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    if Flags.AutoRun then
-        CC.Refs.autoRunActive = true
-        hum.WalkSpeed = 20
-        local look = Camera.CFrame.LookVector
-        local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then hum:Move(dir.Unit, false) end
-    elseif CC.Refs.autoRunActive then
-        hum.WalkSpeed = CC.Refs.defaultWalkSpeed
-        CC.Refs.autoRunActive = false
-    end
-end
-
--- ===== SPIDER =====
-local spiderRayParams = RaycastParams.new()
-spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
-spiderRayParams.FilterDescendantsInstances = {LP.Character}
-
-local function clearSpiderVelocity()
-    if CC.Refs.spiderBV then CC.Refs.spiderBV:Destroy(); CC.Refs.spiderBV = nil end
-end
-
-local function updateSpider()
-    local char = LP.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
-    if not Flags.Spider then clearSpiderVelocity(); return end
-
-    spiderRayParams.FilterDescendantsInstances = {char}
-    local origin = hrp.Position
-    local dirs = { Camera.CFrame.LookVector, -Camera.CFrame.LookVector, Camera.CFrame.RightVector, -Camera.CFrame.RightVector }
-    local hit = nil
-    for _, dir in ipairs(dirs) do
-        local flat = Vector3.new(dir.X, 0, dir.Z)
-        if flat.Magnitude > 0.01 then
-            local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
-            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
-        end
-    end
-    if not hit then clearSpiderVelocity(); return end
-
-    local up = 0
-    if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
-    elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -Flags.SpiderSpeed
-    end
-
-    if up ~= 0 then
-        if not CC.Refs.spiderBV then
-            CC.Refs.spiderBV = Instance.new("BodyVelocity")
-            CC.Refs.spiderBV.MaxForce = Vector3.new(0, math.huge, 0)
-            CC.Refs.spiderBV.P = 5000
-            CC.Refs.spiderBV.Parent = hrp
-        end
-        CC.Refs.spiderBV.Velocity = Vector3.new(0, up, 0)
-    else
-        clearSpiderVelocity()
-    end
-end
 
 -- ===== NO RECOIL =====
 local RECOIL_HOLD_TIME = 0.45
@@ -1172,9 +1098,6 @@ task.spawn(function()
     end
 end)
 
--- ===== AUTORUN / SPIDER TIMER =====
-RunService.Stepped:Connect(function() applyAutoRun(); updateSpider() end)
-
 -- ===== MAIN LOOP =====
 RunService.RenderStepped:Connect(function()
     if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
@@ -1210,6 +1133,12 @@ UI.Elements.hitboxToggle = UI.Tabs.Aimbot:AddToggle({Title="Hitbox Expander", Ic
 UI.Elements.hitboxSizeSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
 UI.Elements.hitboxTranspSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
 
+UI.Tabs.Aimbot:AddSeparator(); UI.Tabs.Aimbot:AddLabel("COMBAT", "target"); UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.noRecoilToggle = UI.Tabs.Aimbot:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
+UI.Elements.rapidFireToggle = UI.Tabs.Aimbot:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
+UI.Elements.rapidFireDelaySlider = UI.Tabs.Aimbot:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) Flags.RapidFireDelay=v; if Flags.RapidFire then applyRapidFire() end end})
+
 -- ===== UI: ESP =====
 UI.Tabs.ESP = UI.Window:AddTab("ESP", "eye")
 
@@ -1235,25 +1164,6 @@ UI.Elements.skeletonToggle = UI.Tabs.ESP:AddToggle({Title="Skeleton", Icon="bone
 UI.Elements.weaponToggle = UI.Tabs.ESP:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 
 UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-
--- ===== UI: PLAYER =====
-UI.Tabs.Player = UI.Window:AddTab("Player", "user")
-
-UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("COMBAT", "crosshair"); UI.Tabs.Player:AddSeparator()
-
-UI.Elements.noRecoilToggle = UI.Tabs.Player:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
-
-UI.Elements.rapidFireToggle = UI.Tabs.Player:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
-
-UI.Elements.rapidFireDelaySlider = UI.Tabs.Player:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) Flags.RapidFireDelay=v; if Flags.RapidFire then applyRapidFire() end end})
-
-UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("MOVEMENT", "move"); UI.Tabs.Player:AddSeparator()
-
-UI.Elements.autoRunToggle = UI.Tabs.Player:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-
-UI.Elements.spiderToggle = UI.Tabs.Player:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s; if not s then clearSpiderVelocity() end end})
-
-UI.Elements.spiderSpeedSlider = UI.Tabs.Player:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: VISUALS =====
 UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "palette")
@@ -1305,6 +1215,7 @@ UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
 UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
+UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind", Icon = "keyboard", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
@@ -1328,11 +1239,8 @@ UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon
 
 UI.Tabs.Settings:AddSeparator(); UI.Tabs.Settings:AddLabel("KEYBINDS", "keyboard"); UI.Tabs.Settings:AddSeparator()
 
-UI.Elements.keybindFreecam = UI.Tabs.Settings:AddKeybind({Title = "FreeCam Keybind", Icon = "camera", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
 UI.Elements.keybindESP = UI.Tabs.Settings:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
 UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright Keybind", Icon = "sun", Callback = function() UI.Elements.fullbrightToggle:Set(not Flags.Fullbright) end})
-UI.Elements.keybindAutoRun = UI.Tabs.Settings:AddKeybind({Title = "AutoRun Keybind", Icon = "zap", Callback = function() UI.Elements.autoRunToggle:Set(not Flags.AutoRun) end})
-UI.Elements.keybindSpider = UI.Tabs.Settings:AddKeybind({Title = "Spider Keybind", Icon = "arrow-up", Callback = function() UI.Elements.spiderToggle:Set(not Flags.Spider) end})
 UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
@@ -1399,9 +1307,6 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
-    cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle)
-    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
-    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
 
     cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
     cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
@@ -1409,8 +1314,6 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
     cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
     cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
-    cfg:RegisterElement("BindAutoRun",    UI.Elements.keybindAutoRun)
-    cfg:RegisterElement("BindSpider",     UI.Elements.keybindSpider)
     cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
     cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
@@ -1458,7 +1361,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
         else if CC.Refs.freecamConn then stopFreeCam() end end
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
-        if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
