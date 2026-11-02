@@ -701,37 +701,99 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (v2: не ломает ходьбу) =====
-local noRecoilConn     = nil
-local recoilTargetCF   = nil
-local recoilActive     = false
-local recoilLastInput  = 0
-local RECOIL_HOLD_TIME = 0.35
+-- ===== NO RECOIL (MAX) =====
+local noRecoilConn        = nil
+local noRecoilShotConn    = nil
+local recoilTargetCF      = nil
+local recoilActive        = false
+local recoilLastInput     = 0
+local RECOIL_HOLD_TIME    = 0.45
+
+-- мгновенный сброс отдачи на каждом выстреле
+local savedMotorTransforms = {}
+
+-- ищем оружие где угодно: Tool, Model с Handle, GunComponents
+local function findTool(char)
+    if not char then return nil end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then return tool end
+    for _, c in ipairs(char:GetChildren()) do
+        if c:IsA("Model") and (c:FindFirstChild("Handle") or c:FindFirstChild("GunComponents")) then
+            return c
+        end
+    end
+    return nil
+end
 
 local function stopNoRecoil()
     if noRecoilConn then
         pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
         noRecoilConn = nil
     end
+    if noRecoilShotConn then
+        pcall(function() noRecoilShotConn:Disconnect() end)
+        noRecoilShotConn = nil
+    end
     recoilActive   = false
     recoilTargetCF = nil
+
+    local char = LP.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.CameraOffset = Vector3.zero end
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("Motor6D") and savedMotorTransforms[d] then
+                d.Transform = savedMotorTransforms[d]
+            end
+        end
+    end
 end
 
 local function startNoRecoil()
+    -- убиваем старый бинд на случай ре-экзека
+    pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
     if noRecoilConn then return end
-    RunService:BindToRenderStep("CloudNoRecoil", Enum.RenderPriority.Camera.Value + 1, function()
+
+    -- ловим каждый клик (включая удержание)
+    noRecoilShotConn = UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        recoilLastInput = os.clock()
+        recoilActive    = false
+        recoilTargetCF  = nil
+    end)
+
+    noRecoilConn = RunService:BindToRenderStep("CloudNoRecoil", Enum.RenderPriority.Camera.Value + 1, function()
         if not Flags.NoRecoil then stopNoRecoil(); return end
 
         local char = LP.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        local tool = char and char:FindFirstChildOfClass("Tool")
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        local tool = findTool(char)
         local lmb  = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
 
-        -- автоогонь: обновляем метку времени пока зажат ЛКМ и есть Tool
-        if tool and lmb then recoilLastInput = os.clock() end
+        -- держим окно активной компенсации пока зажат ЛКМ
+        if lmb then recoilLastInput = os.clock() end
+        local now      = os.clock()
+        local shooting = lmb and (now - recoilLastInput <= RECOIL_HOLD_TIME)
 
-        local now = os.clock()
-        local shooting = tool and lmb and (now - recoilLastInput <= RECOIL_HOLD_TIME)
+        -- Мгновенный сброс CameraOffset и Motor6D на каждом кадре.
+        -- Это гарантирует нулевую отдачу по этим каналам.
+        if hum and hum.CameraOffset.Magnitude > 0.0001 then
+            hum.CameraOffset = Vector3.zero
+        end
+        if char then
+            for _, d in ipairs(char:GetDescendants()) do
+                if d:IsA("Motor6D") then
+                    if not savedMotorTransforms[d] then
+                        savedMotorTransforms[d] = d.Transform
+                    end
+                    if d.Transform ~= savedMotorTransforms[d] then
+                        d.Transform = savedMotorTransforms[d]
+                    end
+                end
+            end
+        end
 
         if not shooting then
             if recoilActive then
@@ -743,11 +805,11 @@ local function startNoRecoil()
 
         if not hrp then return end
 
+        -- Camera CFrame — относительно HRP, чтобы ходьба не багалась
         if not recoilActive or not recoilTargetCF then
             recoilTargetCF = hrp.CFrame:ToObjectSpace(Camera.CFrame)
             recoilActive   = true
         end
-
         Camera.CFrame = hrp.CFrame * recoilTargetCF
     end)
 end
