@@ -687,7 +687,7 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (С ИНТЕРАКТИВНОЙ ОБРАБОТКОЙ CTRL + ОТКЛЮЧЕНИЕ ПО SHIFT) =====
+-- ===== AUTORUN (ИСПРАВЛЕННЫЙ) =====
 local function releaseAutoRunKey()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
@@ -708,45 +708,52 @@ local function forceAutoRunKey()
     end
 end
 
--- Слушаем нажатие клавиш
+-- Флаг «скрипт сам зажал Shift», чтобы не путать с ручным нажатием
+CC.Refs.isEmulatingShift = false
+
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     
-    -- Если нажат Ctrl -> отпускаем Shift, чтобы не сбрасывать бег
+    -- Если нажат Ctrl — отпускаем Shift
     if input.KeyCode == Enum.KeyCode.LeftControl then
         releaseAutoRunKey()
+        CC.Refs.isEmulatingShift = false
     end
     
-    -- Если нажат Shift, а AutoRun включен -> выключаем AutoRun
+    -- Если нажат Shift и AutoRun включен — выключаем AutoRun
     if input.KeyCode == Enum.KeyCode.LeftShift and Flags.AutoRun then
-        Flags.AutoRun = false
-        releaseAutoRunKey()
-        
-        -- Откладываем обновление UI на следующий кадр, чтобы не ломать поток
-        task.defer(function()
-            if UI.Elements.autoRunToggle then
-                pcall(function()
-                    UI.Elements.autoRunToggle:Set(false)
-                end)
-            end
-        end)
+        -- Проверяем, что это НЕ эмуляция от скрипта (иначе будет цикл)
+        if not CC.Refs.isEmulatingShift then
+            Flags.AutoRun = false
+            releaseAutoRunKey()
+            
+            -- Синхронизируем тоггл (но только если он реально включен)
+            task.defer(function()
+                if UI.Elements.autoRunToggle then
+                    pcall(function()
+                        UI.Elements.autoRunToggle:Set(false)
+                    end)
+                end
+            end)
+        end
     end
 end)
 
 UIS.InputEnded:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.LeftControl then
-        -- Игрок встал -> если AutoRun включен, зажимаем Shift обратно
+        CC.Refs.isEmulatingShift = false
         if Flags.AutoRun then
             forceAutoRunKey()
+            CC.Refs.isEmulatingShift = true
         end
     end
 end)
 
--- Основной цикл: держим Shift, если AutoRun включен и персонаж жив
 local function applyAutoRun()
     if not Flags.AutoRun then
         releaseAutoRunKey()
+        CC.Refs.isEmulatingShift = false
         return
     end
 
@@ -754,19 +761,22 @@ local function applyAutoRun()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
         releaseAutoRunKey()
+        CC.Refs.isEmulatingShift = false
         return
     end
 
-    -- Если мы НЕ в приседе, держим Shift
     if not UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-        forceAutoRunKey()
+        if not CC.Refs.autoRunKeyHeld then
+            forceAutoRunKey()
+            CC.Refs.isEmulatingShift = true
+        end
     end
 end
 
--- Сброс при респавне
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
     CC.Refs.autoRunKeyHeld = false
+    CC.Refs.isEmulatingShift = false
 end)
 
 -- ===== SPIDER (LinearVelocity + Плавность) =====
