@@ -1020,10 +1020,7 @@ local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Пр�
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- ===== 1. КЛЮЧ (САМЫЙ ВЕРХ) =====
-SettingsTab:AddLabel("KEY INFO", "key")
-SettingsTab:AddSeparator()
-
+-- ===== 1. КЛЮЧ (просто строка, без каталога) =====
 local keyInfoLabel = SettingsTab:AddLabel(
     string.format("Ключ: %s | до: %s",
         _G.CloudKeyState.key or "—",
@@ -1124,7 +1121,7 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
 
-    -- Keybinds (объявлены НИЖЕ, но buildConfig вызывается уже после их создания)
+    -- Keybinds
     cfg:RegisterElement("KeybindFreecam",    keybindFreecam)
     cfg:RegisterElement("KeybindESP",        keybindESP)
     cfg:RegisterElement("KeybindFullbright", keybindFullbright)
