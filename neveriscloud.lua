@@ -1,6 +1,182 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Config
 ]]
+
+-- ===== KEY SYSTEM =====
+local KEY_LIST = {
+    -- ["КЛЮЧ"] = { name = "кто", expires = <unix timestamp или 0> }
+    ["CLOUD-FOX-0001"]  = { name = "Fox",   expires = 0 },
+    ["CLOUD-JACK-0002"] = { name = "Jack",  expires = 0 },
+    ["CLOUD-FRND-0003"] = { name = "Друг1", expires = 0 },
+    -- пример с датой (2026-01-01): ["CLOUD-TEMP-0004"] = { name = "Temp", expires = 1767225600 },
+}
+
+local KEY_FILE = "cloudclient_key.txt"
+
+_G.CloudKeyState = {
+    key = nil, name = nil, expires = 0, valid = false, reason = "не активирован",
+}
+
+local function validateKey(k)
+    if not k or k == "" then return false, "пустой ключ" end
+    local entry = KEY_LIST[k]
+    if not entry then return false, "неверный ключ" end
+    if entry.expires ~= 0 and os.time and os.time() > entry.expires then
+        return false, "ключ истёк"
+    end
+    return true, entry
+end
+
+local function loadSavedKey()
+    if not (isfile and readfile) then return nil end
+    local ok, data = pcall(function()
+        if isfile(KEY_FILE) then return readfile(KEY_FILE) end
+    end)
+    if ok and data then return (data:gsub("%s+", "")) end
+    return nil
+end
+
+local function saveKey(k)
+    if not writefile then return end
+    pcall(writefile, KEY_FILE, k)
+end
+
+local function setKeyState(k, ok, entry, reason)
+    _G.CloudKeyState.key     = k
+    _G.CloudKeyState.valid   = ok
+    _G.CloudKeyState.reason  = reason or (ok and "OK" or "неверный ключ")
+    if ok and entry then
+        _G.CloudKeyState.name    = entry.name or "—"
+        _G.CloudKeyState.expires = entry.expires or 0
+    else
+        _G.CloudKeyState.name    = nil
+        _G.CloudKeyState.expires = 0
+    end
+end
+
+local function promptForKey()
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "KeyPrompt_" .. math.random(1e6)
+    sg.ResetOnSpawn = false
+    sg.IgnoreGuiInset = true
+    sg.DisplayOrder = 999
+    sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.fromOffset(400, 200)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    frame.BorderSizePixel = 0
+    frame.Parent = sg
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(60, 60, 60); stroke.Thickness = 1
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -24, 0, 28); title.Position = UDim2.fromOffset(12, 12)
+    title.BackgroundTransparency = 1
+    title.Text = "cloudclient — введи ключ"
+    title.TextColor3 = Color3.new(1,1,1)
+    title.Font = Enum.Font.BuilderSansBold; title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left; title.Parent = frame
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, -24, 0, 36); box.Position = UDim2.fromOffset(12, 52)
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    box.TextColor3 = Color3.new(1,1,1)
+    box.PlaceholderText = "CLOUD-XXXX-XXXX"
+    box.PlaceholderColor3 = Color3.fromRGB(120,120,120)
+    box.Font = Enum.Font.Code; box.TextSize = 14
+    box.ClearTextOnFocus = false; box.Text = ""
+    box.Parent = frame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -24, 0, 36); btn.Position = UDim2.fromOffset(12, 100)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+    btn.TextColor3 = Color3.new(0,0,0)
+    btn.Font = Enum.Font.BuilderSansBold; btn.TextSize = 14
+    btn.Text = "Активировать"; btn.Parent = frame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -24, 0, 28); status.Position = UDim2.fromOffset(12, 148)
+    status.BackgroundTransparency = 1; status.Text = ""
+    status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12
+    status.TextXAlignment = Enum.TextXAlignment.Left; status.Parent = frame
+
+    local result = nil
+    local function tryActivate()
+        local k = box.Text
+        local ok, entryOrReason = validateKey(k)
+        if ok then
+            status.Text = "OK — " .. tostring(entryOrReason.name)
+            status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            result = k
+            task.wait(0.4)
+            sg:Destroy()
+        else
+            status.Text = "отказ: " .. tostring(entryOrReason)
+            status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end
+    btn.MouseButton1Click:Connect(tryActivate)
+    box.FocusLost:Connect(function(enter) if enter then tryActivate() end end)
+
+    while sg.Parent and not result do task.wait(0.1) end
+    return result
+end
+
+local function requireKey()
+    local saved = loadSavedKey()
+    if saved then
+        local ok, entryOrReason = validateKey(saved)
+        if ok then
+            setKeyState(saved, true, entryOrReason, "OK")
+            return true
+        end
+        pcall(function() if delfile then delfile(KEY_FILE) end end)
+    end
+    local entered = promptForKey()
+    if not entered then
+        setKeyState(nil, false, nil, "отменено")
+        return false
+    end
+    local ok, entry = validateKey(entered)
+    if ok then
+        saveKey(entered)
+        setKeyState(entered, true, entry, "OK")
+        return true
+    end
+    setKeyState(nil, false, nil, "неверный ключ")
+    return false
+end
+
+if not requireKey() then
+    pcall(function()
+        game:GetService("Players").LocalPlayer:Kick("cloudclient: доступ не активирован")
+    end)
+    return
+end
+
+local function keyRemainingText()
+    local st = _G.CloudKeyState
+    if not st or not st.valid then return "нет ключа" end
+    if st.expires == 0 then return "бессрочно" end
+    if not os.time then return "—" end
+    local left = st.expires - os.time()
+    if left <= 0 then return "истёк" end
+    local d = math.floor(left / 86400)
+    local h = math.floor((left % 86400) / 3600)
+    local m = math.floor((left % 3600) / 60)
+    if d > 0 then return string.format("%dd %dh", d, h) end
+    if h > 0 then return string.format("%dh %dm", h, m) end
+    return string.format("%dm", m)
+end
+-- ===== END KEY SYSTEM =====
+
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
@@ -43,7 +219,7 @@ local Flags = {
 
 local CurrentTarget, CurrentTargetPart = nil, nil
 
--- [FIX] Ссылки на элементы UI, объявленные позже — нужны для синхронизации из keybind-коллбеков
+-- forward-объявления UI-тогглов для синхронизации из keybind-коллбеков
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 
 -- ===== УТИЛИТЫ =====
@@ -63,10 +239,11 @@ local function getVelocity(part)
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
--- [FIX] Универсальный помощник синхронизации UI-элемента (не падает, если нет :Set)
 local function syncUI(element, state)
     if element and element.Set then
         pcall(function() element:Set(state) end)
+    elseif element and element.set then
+        pcall(function() element.set(state) end)
     end
 end
 
@@ -154,7 +331,7 @@ RunService.RenderStepped:Connect(function()
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
--- ===== CROSSHAIR (БЕЗ ТОЧКИ) =====
+-- ===== CROSSHAIR =====
 local crossTop    = Drawing.new("Line"); crossTop.Visible = false
 local crossBottom = Drawing.new("Line"); crossBottom.Visible = false
 local crossLeft   = Drawing.new("Line"); crossLeft.Visible = false
@@ -196,7 +373,6 @@ local function stopFreeCam()
     if savedMouseBehavior then UIS.MouseBehavior = savedMouseBehavior; savedMouseBehavior = nil end
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = savedWS; hum.JumpPower = savedJP end
-    -- [FIX] Всегда синхронизируем флаг состояния с фактическим выключением
     Flags.FreeCam = false
 end
 
@@ -228,11 +404,9 @@ local function startFreeCam()
         if move.Magnitude > 0 then freecamPos = freecamPos + move.Unit * speed * dt end
         Camera.CFrame = CFrame.new(freecamPos) * cf
     end)
-    -- [FIX] Синхронизируем флаг состояния с фактическим включением
     Flags.FreeCam = true
 end
 
--- [FIX] При респавне персонажа корректно гасим freecam, чтобы не летать мёртвым
 LP.CharacterAdded:Connect(function()
     task.wait(0.1)
     if freecamConn then
@@ -647,7 +821,7 @@ local function updateESP()
             if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
 
-                if Flags.WeaponESP then
+        if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
             if weaponName then
                 d.Weapon.Text = "["..weaponName.."]"
@@ -667,7 +841,6 @@ local function updateESP()
     end
 end
 
--- [FIX] Убран дубликат объявления hookPlayer (был скопирован дважды)
 -- ===== ХУКИ ИГРОКОВ =====
 local function hookPlayer(plr)
     if plr == LP then return end
@@ -832,7 +1005,7 @@ fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=f
     setFullbright(s)
 end})
 
--- ===== UI: CROSSHAIR (БЕЗ ТОЧКИ) =====
+-- ===== UI: CROSSHAIR =====
 local CrosshairTab = Window:AddTab("Crosshair", "crosshair")
 
 local crosshairToggle = CrosshairTab:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
@@ -848,6 +1021,7 @@ local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Пр�
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
+-- 1. Theme / Accent
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
@@ -862,10 +1036,12 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
     VantixUI:SetAccentColor(colors[s])
 end})
 
+-- 2. Stats HUD
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
-SettingsTab:AddSeparator()
 
+-- ===== 3. CONFIG SYSTEM (ВЫШЕ KEYBINDS) =====
+SettingsTab:AddSeparator()
 SettingsTab:AddLabel("CONFIG SYSTEM", "save")
 SettingsTab:AddSeparator()
 
@@ -882,84 +1058,18 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
--- [FIX] Keybinds объявлены ДО buildConfig, чтобы их можно было зарегистрировать в конфиге
-SettingsTab:AddSeparator()
-SettingsTab:AddLabel("KEYBINDS", "keyboard")
-SettingsTab:AddSeparator()
+-- Инфо о ключе (обновляется ниже)
+local keyInfoLabel = SettingsTab:AddLabel(
+    string.format("Ключ: %s | до: %s",
+        _G.CloudKeyState.key or "—",
+        keyRemainingText()),
+    "key"
+)
 
-local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "camera",
-    Callback = function() 
-        -- [FIX] Работаем по фактическому состоянию freecamConn, а не по флагу
-        if freecamConn then
-            stopFreeCam()
-            syncUI(freecamToggle, false)
-        else
-            startFreeCam()
-            syncUI(freecamToggle, true)
-        end
-    end
-})
-
-local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "eye",
-    Callback = function() 
-        Flags.ESP = not Flags.ESP
-        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-        syncUI(espToggle, Flags.ESP)
-    end
-})
-
-local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "sun",
-    Callback = function() 
-        Flags.Fullbright = not Flags.Fullbright
-        setFullbright(Flags.Fullbright)
-        syncUI(fullbrightToggle, Flags.Fullbright)
-    end
-})
-
-local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "zap",
-    Callback = function() 
-        Flags.AutoRun = not Flags.AutoRun 
-        syncUI(autoRunToggle, Flags.AutoRun)
-    end
-})
-
-local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "arrow-up",
-    Callback = function() 
-        Flags.Spider = not Flags.Spider 
-        syncUI(spiderToggle, Flags.Spider)
-    end
-})
-
--- [FIX] Hide UI keybind вынесен в переменную, чтобы его можно было сохранить в конфиг
-local keybindHideUI = SettingsTab:AddKeybind({
-    Title = "Hide UI Keybind",
-    Icon = "keyboard",
-    Default = Enum.KeyCode.Delete,
-    Callback = function()
-        local sg = Window.Gui
-        if sg then sg.Enabled = not sg.Enabled end
-    end
-})
-
--- ===== CONFIG =====
+-- buildConfig объявлен ДО кнопок, чтобы Save/Load/Delete могли его дёргать
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
-    
+
     -- Aimbot
     cfg:RegisterElement("Aimbot", aimbotToggle)
     cfg:RegisterElement("AimAssist", aimAssistToggle)
@@ -972,7 +1082,7 @@ local function buildConfig(name)
     cfg:RegisterElement("AimPart", aimPartDropdown)
     cfg:RegisterElement("TeamCheck", teamCheckToggle)
     cfg:RegisterElement("AimKey", aimKeyBind)
-    
+
     -- ESP
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
@@ -989,7 +1099,7 @@ local function buildConfig(name)
     cfg:RegisterElement("BoxColor", boxColorPicker)
     cfg:RegisterElement("LineColor", lineColorPicker)
     cfg:RegisterElement("SkelColor", skelColorPicker)
-    
+
     -- Crosshair
     cfg:RegisterElement("Crosshair", crosshairToggle)
     cfg:RegisterElement("CrosshairColor", crosshairColorPicker)
@@ -997,27 +1107,27 @@ local function buildConfig(name)
     cfg:RegisterElement("CrosshairDistance", crosshairDistSlider)
     cfg:RegisterElement("CrosshairThick", crosshairThickSlider)
     cfg:RegisterElement("CrosshairTransp", crosshairTranspSlider)
-    
+
     -- Player
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("AutoRun", autoRunToggle)
     cfg:RegisterElement("Spider", spiderToggle)
     cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
-    
+
     -- Other
     cfg:RegisterElement("Fullbright", fullbrightToggle)
-    
+
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
-    
-    -- [FIX] Keybinds теперь сохраняются в конфиг
+
+    -- Keybinds (объявлены НИЖЕ, но buildConfig вызывается уже после их создания)
     cfg:RegisterElement("KeybindFreecam",    keybindFreecam)
     cfg:RegisterElement("KeybindESP",        keybindESP)
     cfg:RegisterElement("KeybindFullbright", keybindFullbright)
     cfg:RegisterElement("KeybindAutoRun",    keybindAutoRun)
     cfg:RegisterElement("KeybindSpider",     keybindSpider)
     cfg:RegisterElement("KeybindHideUI",     keybindHideUI)
-    
+
     return cfg
 end
 
@@ -1038,19 +1148,17 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
         buildConfig(name):Load()
-        
-        -- Синхронизация визуала
+
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
         if Flags.FreeCam then startFreeCam() else stopFreeCam() end
-        -- [FIX] Синхронизируем UI-тогглы после загрузки конфига
         syncUI(freecamToggle, Flags.FreeCam)
         syncUI(espToggle, Flags.ESP)
         syncUI(fullbrightToggle, Flags.Fullbright)
         syncUI(autoRunToggle, Flags.AutoRun)
         syncUI(spiderToggle, Flags.Spider)
         if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
-        
+
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
     if not ok then warn("[config] load:", err); Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
@@ -1067,4 +1175,86 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
     if not ok then warn("[config] delete:", err) end
 end})
 
+-- ===== 4. KEYBINDS (НИЖЕ CONFIG SYSTEM) =====
 SettingsTab:AddSeparator()
+SettingsTab:AddLabel("KEYBINDS", "keyboard")
+SettingsTab:AddSeparator()
+
+local keybindFreecam = SettingsTab:AddKeybind({
+    Title = "FreeCam Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "camera",
+    Callback = function()
+        if freecamConn then
+            stopFreeCam()
+            syncUI(freecamToggle, false)
+        else
+            startFreeCam()
+            syncUI(freecamToggle, true)
+        end
+    end
+})
+
+local keybindESP = SettingsTab:AddKeybind({
+    Title = "ESP Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "eye",
+    Callback = function()
+        Flags.ESP = not Flags.ESP
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        syncUI(espToggle, Flags.ESP)
+    end
+})
+
+local keybindFullbright = SettingsTab:AddKeybind({
+    Title = "Fullbright Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "sun",
+    Callback = function()
+        Flags.Fullbright = not Flags.Fullbright
+        setFullbright(Flags.Fullbright)
+        syncUI(fullbrightToggle, Flags.Fullbright)
+    end
+})
+
+local keybindAutoRun = SettingsTab:AddKeybind({
+    Title = "AutoRun Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "zap",
+    Callback = function()
+        Flags.AutoRun = not Flags.AutoRun
+        syncUI(autoRunToggle, Flags.AutoRun)
+    end
+})
+
+local keybindSpider = SettingsTab:AddKeybind({
+    Title = "Spider Keybind",
+    Subtitle = "По умолчанию пусто",
+    Icon = "arrow-up",
+    Callback = function()
+        Flags.Spider = not Flags.Spider
+        syncUI(spiderToggle, Flags.Spider)
+    end
+})
+
+local keybindHideUI = SettingsTab:AddKeybind({
+    Title = "Hide UI Keybind",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.Delete,
+    Callback = function()
+        local sg = Window.Gui
+        if sg then sg.Enabled = not sg.Enabled end
+    end
+})
+
+-- ===== 5. Периодическое обновление срока ключа =====
+task.spawn(function()
+    while true do
+        task.wait(30)
+        pcall(function()
+            keyInfoLabel:Set(string.format("Ключ: %s | до: %s",
+                _G.CloudKeyState.key or "—",
+                keyRemainingText()))
+        end)
+    end
+end)
