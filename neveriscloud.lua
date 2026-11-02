@@ -699,55 +699,86 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (ИСПРАВЛЕН: БЕЗ ЛАГОВ ПРИ ХОДЬБЕ) =====
-local noRecoilActive = false
-local savedRecoilCFrame = nil
-local lastShotTime = 0
+-- ===== NO RECOIL (v2: не ломает ходьбу) =====
+local noRecoilConn     = nil
+local recoilTargetCF   = nil   -- CFrame который хотим удержать (relative to HRP)
+local recoilActive     = false
+local recoilLastInput  = 0
+local RECOIL_HOLD_TIME = 0.35  -- сколько держим после последнего клика
 
-local function resetNoRecoilState()
-    noRecoilActive = false
-    savedRecoilCFrame = nil
-    lastShotTime = 0
+local function stopNoRecoil()
+    if noRecoilConn then
+        pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
+        noRecoilConn = nil
+    end
+    recoilActive   = false
+    recoilTargetCF = nil
+end
+
+local function startNoRecoil()
+    if noRecoilConn then return end
+    -- BindToRenderStep с приоритетом ПОСЛЕ Camera → движок уже применил отдачу,
+    -- мы её гасим до отрисовки. RenderStepped тут не подходит — порядок не гарантирован.
+    RunService:BindToRenderStep("CloudNoRecoil", Enum.RenderPriority.Camera.Value + 1, function()
+        if not Flags.NoRecoil then stopNoRecoil(); return end
+
+        local char = LP.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        local tool = char and char:FindFirstChildOfClass("Tool")
+        local lmb  = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+
+        -- Активно только если: есть Tool, зажат ЛКМ, и был недавний клик
+        local now = os.clock()
+        local shooting = tool and lmb and (now - recoilLastInput <= RECOIL_HOLD_TIME)
+
+        if not shooting then
+            if recoilActive then
+                recoilActive   = false
+                recoilTargetCF = nil
+            end
+            return
+        end
+
+        if not hrp then return end
+
+        -- На первом кадре стрельбы фиксируем текущий yaw/pitch относительно HRP
+        if not recoilActive or not recoilTargetCF then
+            local rel = hrp.CFrame:ToObjectSpace(Camera.CFrame)
+            recoilTargetCF = rel
+            recoilActive   = true
+        end
+
+        -- Восстанавливаем камеру относительно ТЕКУЩЕГО HRP.CFrame.
+        -- HRP двигается при ходьбе → камера едет вместе с ним, а не залипает.
+        local wanted = hrp.CFrame * recoilTargetCF
+        Camera.CFrame = wanted
+    end)
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Сохраняем CFrame ТОЛЬКО если в руках оружие (Tool)
-        -- Это убирает лаги персонажа при обычном клике без оружия
-        local char = LP.Character
-        local tool = char and char:FindFirstChildOfClass("Tool")
-        if tool then
-            savedRecoilCFrame = Camera.CFrame
-            lastShotTime = os.clock()
-        end
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    if not Flags.NoRecoil then
-        if noRecoilActive then resetNoRecoilState() end
-        return
-    end
-
-    -- Держим камеру только пока идёт стрельба (зажата ЛКМ и есть Tool)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     local char = LP.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
-    
-    if not tool or not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-        -- Если отпустили ЛКМ или нет оружия — возвращаем камере свободу
-        noRecoilActive = false
-        return
-    end
-
-    -- Если мы только что выстрелили (в пределах 0.3 секунды)
-    if os.clock() - lastShotTime <= 0.3 and savedRecoilCFrame then
-        noRecoilActive = true
-        -- Жёстко фиксируем камеру на точке, где она была до выстрела.
-        -- Так пуля летит ровно туда, куда ты целился.
-        Camera.CFrame = savedRecoilCFrame
+    if tool and Flags.NoRecoil then
+        recoilLastInput = os.clock()
+        recoilActive    = false   -- переснимем снапшот на ближайшем кадре
+        recoilTargetCF  = nil
+        if not noRecoilConn then startNoRecoil() end
     end
 end)
+
+-- Тоггл в UI тоже должен запускать/останавливать биндинг
+noRecoilToggle = PlayerTab:AddToggle({
+    Title="No Recoil",
+    Subtitle="Компенсация отдачи без ломки ходьбы",
+    Icon="target",
+    Default=false,
+    Callback=function(s)
+        Flags.NoRecoil = s
+        if s then startNoRecoil() else stopNoRecoil() end
+    end
+})
 
 -- ===== RAPID FIRE (МАКСИМУМ) =====
 local function applyRapidFire()
