@@ -1266,18 +1266,214 @@ UI.Elements.weaponColorToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Weapon 
 
 UI.Elements.weaponColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c) Flags.WeaponColor=c; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end})
 
-UI.Elements.materialDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Material", Icon="gem", Options={"Neon", "ForceField"}, Default="Neon", Callback=function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon end })
+UI.Elements.materialDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Material", Icon="gem", Options={"Neon", "ForceField"}, Default="Neon", Callback=function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end })
 
--- ===== UI: LOOT =====
-UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
+UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("ASPECT RATIO", "monitor"); UI.Tabs.Visuals:AddSeparator()
 
-UI.Tabs.Loot:AddSeparator()
-UI.Tabs.Loot:AddLabel("Coming Soon", "clock")
-UI.Tabs.Loot:AddSeparator()
+UI.Elements.aspectToggle = UI.Tabs.Visuals:AddToggle({Title="Aspect Ratio", Subtitle="Сжатие вертикали камеры", Icon="monitor", Default=false, Callback=function(s) Flags.AspectRatioEnabled = s; applyAspectRatio() end})
 
--- ===== UI: MISC =====
-UI.Tabs.Misc = UI.Window:AddTab("Misc", "wrench")
+UI.Elements.aspectModeDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Ratio", Icon="rectangle-horizontal", Options={"4:3", "16:9"}, Default="16:9", Callback=function(v) Flags.AspectRatioMode = v; if Flags.AspectRatioEnabled then startAspectRatio() end end })
 
-UI.Tabs.Misc:AddSeparator()
-UI.Tabs.Misc:AddLabel("Player", "user")
-UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("SKY COLOR", "cloud"); UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.skyColorToggle = UI.Tabs.Visuals:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s) Flags.SkyColorEnabled=s; setSkyColor(s, Flags.SkyColor) end})
+UI.Elements.skyColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c) Flags.SkyColor=c; if Flags.SkyColorEnabled then setSkyColor(true, c) end end})
+
+UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("CROSSHAIR", "crosshair"); UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.crosshairToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+UI.Elements.crosshairColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+UI.Elements.crosshairSizeSlider = UI.Tabs.Visuals:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=4, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+UI.Elements.crosshairDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance (Отступ)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
+UI.Elements.crosshairThickSlider = UI.Tabs.Visuals:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+
+-- ===== UI: OTHER =====
+UI.Tabs.Other = UI.Window:AddTab("Other", "box")
+UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
+
+-- ===== UI: SETTINGS =====
+UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
+
+UI.Elements.keyInfoLabel = UI.Tabs.Settings:AddLabel( string.format("Ключ: %s | до: %s", _G.CloudKeyState.key or "—", keyRemainingText()), "key" )
+
+UI.Tabs.Settings:AddSeparator()
+
+local themeNames = {}
+for name in pairs(CC.Lib.Themes) do table.insert(themeNames, name) end
+table.sort(themeNames)
+
+UI.Tabs.Settings:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=UI.Window:GetTheme(), Callback=function(s) UI.Window:SetTheme(s) end})
+UI.Tabs.Settings:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+    local colors = { White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255), Red=Color3.fromRGB(230,70,70), Green=Color3.fromRGB(80,210,120), Purple=Color3.fromRGB(170,110,240) }
+    CC.Lib:SetAccentColor(colors[s])
+end})
+
+UI.Tabs.Settings:AddSeparator()
+UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+
+UI.Tabs.Settings:AddSeparator(); UI.Tabs.Settings:AddLabel("KEYBINDS", "keyboard"); UI.Tabs.Settings:AddSeparator()
+
+UI.Elements.keybindFreecam = UI.Tabs.Settings:AddKeybind({Title = "FreeCam Keybind", Icon = "camera", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
+UI.Elements.keybindESP = UI.Tabs.Settings:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
+UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright Keybind", Icon = "sun", Callback = function() UI.Elements.fullbrightToggle:Set(not Flags.Fullbright) end})
+UI.Elements.keybindAutoRun = UI.Tabs.Settings:AddKeybind({Title = "AutoRun Keybind", Icon = "zap", Callback = function() UI.Elements.autoRunToggle:Set(not Flags.AutoRun) end})
+UI.Elements.keybindSpider = UI.Tabs.Settings:AddKeybind({Title = "Spider Keybind", Icon = "arrow-up", Callback = function() UI.Elements.spiderToggle:Set(not Flags.Spider) end})
+UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
+UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
+UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
+UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
+
+UI.buildConfig = function(name)
+    local cfg = UI.Window.ConfigManager:CreateConfig(name)
+
+    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle)
+    cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle)
+    cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle)
+    cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
+    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider)
+    cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider)
+    cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider)
+    cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
+    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown)
+    cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle)
+    cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
+
+    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle)
+    cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider)
+    cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider)
+    cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
+
+    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
+    cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider)
+    cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
+
+    cfg:RegisterElement("ESP", UI.Elements.espToggle)
+    cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown)
+    cfg:RegisterElement("Box", UI.Elements.boxToggle)
+    cfg:RegisterElement("Name", UI.Elements.nameToggle)
+    cfg:RegisterElement("Health", UI.Elements.healthToggle)
+    cfg:RegisterElement("Distance", UI.Elements.distToggle)
+    cfg:RegisterElement("Line", UI.Elements.lineToggle)
+    cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle)
+    cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
+    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
+    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
+    cfg:RegisterElement("TextColor", UI.Elements.textColorPicker)
+    cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker)
+    cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
+    cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
+
+    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle)
+    cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker)
+    cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider)
+    cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider)
+    cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider)
+    cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
+
+    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle)
+    cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker)
+    cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
+
+    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle)
+    cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
+
+    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle)
+    cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
+
+    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
+    cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
+    cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
+    cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
+    cfg:RegisterElement("AutoRun", UI.Elements.autoRunToggle)
+    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
+    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
+
+    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
+    cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
+
+    cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
+    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
+    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
+    cfg:RegisterElement("BindAutoRun",    UI.Elements.keybindAutoRun)
+    cfg:RegisterElement("BindSpider",     UI.Elements.keybindSpider)
+    cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
+    cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
+    cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
+    cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
+
+    return cfg
+end
+
+UI.Tabs.Settings:AddSeparator()
+UI.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save")
+UI.Tabs.Settings:AddSeparator()
+
+UI.Window.ConfigManager:SetFolder("cloudclient_configs")
+
+UI.Elements.configNameBox = UI.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" })
+UI.Elements.savedConfigs = UI.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = UI.Window.ConfigManager:GetConfigs() })
+
+UI.Tabs.Settings:AddButton({Title="Save Config", Text="Save", Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.configNameBox:Get()
+        if not name or name == "" then error("empty name") end
+        UI.buildConfig(name):Save()
+        UI.Elements.savedConfigs:SetOptions(UI.Window.ConfigManager:GetConfigs())
+        UI.Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] save:", err); UI.Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+end})
+
+UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.savedConfigs:Get()
+        if not name or name == "" then error("no config") end
+        UI.Elements.configNameBox:Set(name)
+
+        UI.Elements.aspectToggle:Set(false)
+        UI.Elements.aspectModeDropdown:Set("16:9")
+
+        Flags.HitboxEnabled = false; Flags.HitboxSize = 2.0; Flags.HitboxTransparency = 50
+        Flags.TriggerBot = false; Flags.TriggerDelay = 50; Flags.TriggerFOV = 15; Flags.TriggerTeamCheck = true
+        Flags.NoRecoil = false; Flags.RapidFire = false
+        Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
+
+        UI.buildConfig(name):Load()
+
+        if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
+        else if CC.Refs.freecamConn then stopFreeCam() end end
+        if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
+        if not Flags.Spider then clearSpiderVelocity() end
+        applyRapidFire()
+        if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
+        setFullbright(Flags.Fullbright)
+        setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
+        elseif Flags.FPSPing and not CC.Refs.HudPanel then createHud() end
+
+        UI.Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] load:", err); UI.Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+end})
+
+UI.Tabs.Settings:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.savedConfigs:Get()
+        if not name or name == "" then return end
+        UI.Window.ConfigManager:DeleteConfig(name)
+        UI.Elements.savedConfigs:SetOptions(UI.Window.ConfigManager:GetConfigs())
+        UI.Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] delete:", err) end
+end})
+
+task.spawn(function()
+    while true do
+        task.wait(30)
+        pcall(function()
+            UI.Elements.keyInfoLabel:Set(string.format("Ключ: %s | до: %s", _G.CloudKeyState.key or "—", keyRemainingText()))
+        end)
+    end
+end)
