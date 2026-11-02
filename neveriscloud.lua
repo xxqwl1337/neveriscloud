@@ -222,15 +222,6 @@ local Flags = {
     WeaponColorEnabled = false,
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
-    
-    AspectRatioEnabled = false,
-    AspectPreset = "16:9 (Roblox Default)",
-    AspectCustom = 1.0,
-    
-    ParticlesEnabled = false,
-    ParticleType = "Snow",
-    ParticleColor = Color3.fromRGB(255, 255, 255),
-    ParticleSpeed = 1,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -238,7 +229,6 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
-local weaponColorToggle, aspectToggle, particlesToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -273,89 +263,6 @@ local function isAimHeld()
     return false
 end
 
--- ===== ASPECT RATIO (PRESETS) =====
-local ASPECT_PRESETS = {
-    ["16:9 (Roblox Default)"] = 70,   -- базовый FOV
-    ["4:3 (Stretched)"]       = 95,   -- растяг по горизонтали (сжатие FOV по X = визуально 4:3)
-    ["21:9 (Ultrawide)"]      = 55,   -- сжатие по вертикали (широкий угол)
-}
-
-local aspectConn = nil
-local function applyAspectRatio()
-    if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
-    
-    if not Flags.AspectRatioEnabled then
-        if Camera.FieldOfView ~= 70 then
-            Camera.FieldOfView = 70
-        end
-        return
-    end
-
-    local presetFOV = ASPECT_PRESETS[Flags.AspectPreset] or 70
-    local custom = Flags.AspectCustom or 1.0
-    
-    aspectConn = RunService.RenderStepped:Connect(function()
-        if not Flags.AspectRatioEnabled then
-            if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
-            return
-        end
-        local targetFOV = presetFOV / custom
-        Camera.FieldOfView = targetFOV
-    end)
-end
-
--- ===== PARTICLES (WEATHER) =====
-local particleEmitter = nil
-local function updateParticles()
-    if not Flags.ParticlesEnabled then
-        if particleEmitter then
-            particleEmitter:Destroy()
-            particleEmitter = nil
-        end
-        return
-    end
-    
-    if not particleEmitter then
-        local char = LP.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        particleEmitter = Instance.new("ParticleEmitter")
-        particleEmitter.Parent = hrp
-        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
-        particleEmitter.SpreadAngle = Vector2.new(180, 180)
-        particleEmitter.Rotation = NumberRange.new(0, 360)
-        particleEmitter.RotSpeed = NumberRange.new(0, 90)
-        particleEmitter.LightEmission = 1
-    end
-    
-    particleEmitter.Color = ColorSequence.new(Flags.ParticleColor)
-    particleEmitter.Speed = NumberRange.new(5 * Flags.ParticleSpeed, 10 * Flags.ParticleSpeed)
-    
-    if Flags.ParticleType == "Snow" then
-        particleEmitter.Lifetime = NumberRange.new(2, 4)
-        particleEmitter.Rate = 80
-        particleEmitter.Size = NumberSequence.new(0.5)
-    elseif Flags.ParticleType == "Rain" then
-        particleEmitter.Lifetime = NumberRange.new(0.5, 1)
-        particleEmitter.Rate = 300
-        particleEmitter.Size = NumberSequence.new(0.2)
-    elseif Flags.ParticleType == "Fireflies" then
-        particleEmitter.Lifetime = NumberRange.new(1, 3)
-        particleEmitter.Rate = 30
-        particleEmitter.Size = NumberSequence.new(0.3)
-    end
-end
-
-RunService.Heartbeat:Connect(function()
-    if Flags.ParticlesEnabled then updateParticles() end
-end)
-
-LP.CharacterAdded:Connect(function()
-    task.wait(1)
-    if Flags.ParticlesEnabled then updateParticles() end
-end)
-
 -- ===== WEAPON COLOR =====
 local OriginalWeaponProps = {}
 
@@ -370,6 +277,7 @@ local function applyWeaponColorToModel(model)
                     TextureID = part:IsA("MeshPart") and part.TextureID or nil
                 }
             end
+            -- Если это неон, убираем текстуру, чтобы цвет был чистым
             if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then
                 part.TextureID = ""
             end
@@ -1636,7 +1544,7 @@ local VisualsTab = Window:AddTab("Visuals", "palette")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
 
-weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+local weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
     Flags.WeaponColorEnabled=s
     if s then
         startWeaponColor()
@@ -1666,27 +1574,6 @@ local materialDropdown = VisualsTab:AddDropdown({
     end
 })
 
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ASPECT RATIO", "monitor"); VisualsTab:AddSeparator()
-
-aspectToggle = VisualsTab:AddToggle({Title="Enable Aspect Ratio", Subtitle="Растяг картинки (FOV-based)", Icon="monitor", Default=false, Callback=function(s)
-    Flags.AspectRatioEnabled = s
-    applyAspectRatio()
-end})
-
-local aspectDropdown = VisualsTab:AddDropdown({
-    Title="Aspect Preset", Icon="monitor",
-    Options={"16:9 (Roblox Default)", "4:3 (Stretched)", "21:9 (Ultrawide)"},
-    Default="16:9 (Roblox Default)",
-    Callback=function(s)
-        Flags.AspectPreset = s
-        if Flags.AspectRatioEnabled then applyAspectRatio() end
-    end,
-})
-
-local aspectSlider = VisualsTab:AddSlider({Title="Custom Stretch", Icon="move", Min=0.5, Max=2.0, Default=1.0, Callback=function(v)
-    Flags.AspectCustom = v
-end})
-
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("SKY COLOR", "cloud"); VisualsTab:AddSeparator()
 
 skyColorToggle = VisualsTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
@@ -1696,25 +1583,6 @@ end})
 local skyColorPicker = VisualsTab:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c)
     Flags.SkyColor=c
     if Flags.SkyColorEnabled then setSkyColor(true, c) end
-end})
-
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEATHER (PARTICLES)", "cloud"); VisualsTab:AddSeparator()
-
-particlesToggle = VisualsTab:AddToggle({Title="Enable Particles", Icon="sparkles", Default=false, Callback=function(s)
-    Flags.ParticlesEnabled = s
-    updateParticles()
-end})
-local particlesDropdown = VisualsTab:AddDropdown({Title="Particle Type", Icon="cloud", Options={"Snow", "Rain", "Fireflies"}, Default="Snow", Callback=function(v)
-    Flags.ParticleType = v
-    updateParticles()
-end})
-local particlesColorPicker = VisualsTab:AddColorPicker({Title="Particle Color", Icon="palette", Default=Flags.ParticleColor, Callback=function(c)
-    Flags.ParticleColor = c
-    updateParticles()
-end})
-local particlesSpeedSlider = VisualsTab:AddSlider({Title="Particle Speed", Icon="gauge", Min=0.1, Max=3, Default=1, Callback=function(v)
-    Flags.ParticleSpeed = v
-    updateParticles()
 end})
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("CROSSHAIR", "crosshair"); VisualsTab:AddSeparator()
@@ -1833,17 +1701,8 @@ local function buildConfig(name)
     cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
     cfg:RegisterElement("WeaponMat", materialDropdown)
 
-    cfg:RegisterElement("AspectOn", aspectToggle)
-    cfg:RegisterElement("AspectPreset", aspectDropdown)
-    cfg:RegisterElement("AspectCustom", aspectSlider)
-
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
-
-    cfg:RegisterElement("ParticlesOn", particlesToggle)
-    cfg:RegisterElement("ParticlesType", particlesDropdown)
-    cfg:RegisterElement("ParticlesColor", particlesColorPicker)
-    cfg:RegisterElement("ParticlesSpeed", particlesSpeedSlider)
 
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("NoRecoil", noRecoilToggle)
@@ -1914,13 +1773,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
-        Flags.AspectRatioEnabled = false
-        Flags.AspectPreset       = "16:9 (Roblox Default)"
-        Flags.AspectCustom       = 1.0
-        Flags.ParticlesEnabled   = false
-        Flags.ParticleType       = "Snow"
-        Flags.ParticleColor      = Color3.fromRGB(255, 255, 255)
-        Flags.ParticleSpeed      = 1
 
         buildConfig(name):Load()
 
@@ -1935,13 +1787,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-        applyAspectRatio()
-        updateParticles()
-        if not Flags.WeaponColorEnabled then
-            for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
-            lastWeaponModels = {}
-            if weaponColorConn then weaponColorConn:Disconnect(); weaponColorConn = nil end
-        end
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
