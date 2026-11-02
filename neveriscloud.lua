@@ -215,13 +215,9 @@ local Flags = {
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
-    -- Hitbox
     HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
-    -- TriggerBot
     TriggerBot = false, TriggerDelay = 0, TriggerFOV = 5, TriggerTeamCheck = true,
-    -- No Recoil
     NoRecoil = false,
-    -- Sky
     SkyColorEnabled = false, SkyColor = Color3.fromRGB(100, 150, 255),
 }
 
@@ -271,6 +267,12 @@ local function restoreHitbox(char)
     end
 end
 
+local function restoreAllHitboxes()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then restoreHitbox(plr.Character) end
+    end
+end
+
 local function applyHitbox(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -316,24 +318,18 @@ local silentHookOk = pcall(function()
     oldIndex = hookmetamethod(game, "__index", function(self, key)
         if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CurrentTargetPart then
             if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
-
             local targetPos = CurrentTargetPart.Position
             if Flags.AimPrediction > 0 then
                 targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
             end
-
-            if key == "Hit" then
-                return CFrame.new(targetPos)
-            elseif key == "Target" then
-                return CurrentTargetPart
+            if key == "Hit" then return CFrame.new(targetPos)
+            elseif key == "Target" then return CurrentTargetPart
             elseif key == "UnitRay" then
                 local origin = Camera.CFrame.Position
                 local dir = (targetPos - origin).Unit
                 return Ray.new(origin, dir * 1000)
-            elseif key == "Origin" then
-                return Camera.CFrame.Position
-            elseif key == "Direction" then
-                return (targetPos - Camera.CFrame.Position).Unit
+            elseif key == "Origin" then return Camera.CFrame.Position
+            elseif key == "Direction" then return (targetPos - Camera.CFrame.Position).Unit
             end
         end
         return oldIndex(self, key)
@@ -341,7 +337,6 @@ local silentHookOk = pcall(function()
 end)
 if not silentHookOk then warn("[cloudclient] Silent Aim __index hook FAILED") end
 
--- ===== SILENT AIM via __namecall =====
 local namecallOk = pcall(function()
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
@@ -362,7 +357,6 @@ local namecallOk = pcall(function()
 end)
 if not namecallOk then warn("[cloudclient] Silent Aim __namecall hook FAILED") end
 
--- ===== SILENT AIM via hookfunction =====
 if hookfunction then
     pcall(function()
         local oldScreen = Camera.ScreenPointToRay
@@ -496,7 +490,6 @@ RunService.RenderStepped:Connect(function()
     if Flags.TriggerBot then tryTriggerShot() end
 end)
 
--- ===== HITBOX LOOP =====
 RunService.Heartbeat:Connect(function()
     if Flags.HitboxEnabled then updateHitboxes() end
 end)
@@ -678,10 +671,14 @@ end
 local noRecoilActive = false
 local savedRecoilCFrame = nil
 
+local function resetNoRecoilState()
+    noRecoilActive = false
+    savedRecoilCFrame = nil
+end
+
 local function applyNoRecoil()
     if not Flags.NoRecoil then
-        noRecoilActive = false
-        savedRecoilCFrame = nil
+        resetNoRecoilState()
         return
     end
     if not noRecoilActive then
@@ -1225,11 +1222,7 @@ AimbotTab:AddSeparator(); AimbotTab:AddLabel("HITBOX EXPANDER", "box"); AimbotTa
 
 hitboxToggle = AimbotTab:AddToggle({Title="Hitbox Expander", Icon="box", Default=false, Callback=function(s)
     Flags.HitboxEnabled=s
-    if not s then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Character then restoreHitbox(plr.Character) end
-        end
-    end
+    if not s then restoreAllHitboxes() end
 end})
 local hitboxSizeSlider = AimbotTab:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
 local hitboxTranspSlider = AimbotTab:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
@@ -1282,11 +1275,17 @@ freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctr
 end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("COMBAT", "crosshair"); PlayerTab:AddSeparator()
-noRecoilToggle = PlayerTab:AddToggle({Title="No Recoil", Subtitle="Компенсация отдачи", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil=s end})
+noRecoilToggle = PlayerTab:AddToggle({Title="No Recoil", Subtitle="Компенсация отдачи", Icon="target", Default=false, Callback=function(s)
+    Flags.NoRecoil=s
+    if not s then resetNoRecoilState() end
+end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
-spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
+spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s)
+    Flags.Spider=s
+    if not s then clearSpiderVelocity() end
+end})
 local spiderSpeedSlider = PlayerTab:AddSlider({Title="Spider Speed", Icon="gauge", Min=15, Max=30, Default=20, Callback=function(v) Flags.SpiderSpeed=v end})
 
 -- ===== UI: OTHER =====
@@ -1444,6 +1443,9 @@ local function buildConfig(name)
     cfg:RegisterElement("KeybindFullbright", keybindFullbright)
     cfg:RegisterElement("KeybindAutoRun",    keybindAutoRun)
     cfg:RegisterElement("KeybindSpider",     keybindSpider)
+    cfg:RegisterElement("KeybindTrigger",    keybindTrigger)
+    cfg:RegisterElement("KeybindHitbox",     keybindHitbox)
+    cfg:RegisterElement("KeybindNoRecoil",   keybindNoRecoil)
     cfg:RegisterElement("KeybindHideUI",     keybindHideUI)
 
     return cfg
@@ -1467,28 +1469,54 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         configNameBox:Set(name)
         buildConfig(name):Load()
 
+        -- ===== ESP =====
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-        if Flags.Fullbright then setFullbright(true) else setFullbright(false) end
-        if Flags.FreeCam then startFreeCam() else stopFreeCam() end
-        syncUI(freecamToggle, Flags.FreeCam)
         syncUI(espToggle, Flags.ESP)
-        syncUI(fullbrightToggle, Flags.Fullbright)
-        syncUI(autoRunToggle, Flags.AutoRun)
-        syncUI(spiderToggle, Flags.Spider)
-        syncUI(hitboxToggle, Flags.HitboxEnabled)
-        syncUI(triggerBotToggle, Flags.TriggerBot)
-        syncUI(noRecoilToggle, Flags.NoRecoil)
-        syncUI(skyColorToggle, Flags.SkyColorEnabled)
 
-        if Flags.HitboxEnabled then updateHitboxes()
+        -- ===== Fullbright =====
+        setFullbright(Flags.Fullbright)
+        syncUI(fullbrightToggle, Flags.Fullbright)
+
+        -- ===== FreeCam =====
+        if Flags.FreeCam then
+            if not freecamConn then startFreeCam() end
         else
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr.Character then restoreHitbox(plr.Character) end
-            end
+            if freecamConn then stopFreeCam() end
         end
+        syncUI(freecamToggle, Flags.FreeCam)
+
+        -- ===== AutoRun =====
+        syncUI(autoRunToggle, Flags.AutoRun)
+
+        -- ===== Spider =====
+        syncUI(spiderToggle, Flags.Spider)
+        if not Flags.Spider then clearSpiderVelocity() end
+
+        -- ===== No Recoil =====
+        syncUI(noRecoilToggle, Flags.NoRecoil)
+        if not Flags.NoRecoil then resetNoRecoilState() end
+
+        -- ===== Trigger Bot =====
+        syncUI(triggerBotToggle, Flags.TriggerBot)
+
+        -- ===== Hitbox Expander =====
+        syncUI(hitboxToggle, Flags.HitboxEnabled)
+        if Flags.HitboxEnabled then
+            updateHitboxes()
+        else
+            restoreAllHitboxes()
+        end
+
+        -- ===== Sky Color =====
+        syncUI(skyColorToggle, Flags.SkyColorEnabled)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
 
-        if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
+        -- ===== Stats HUD =====
+        if not Flags.FPSPing and HudPanel then
+            destroyHud()
+        elseif Flags.FPSPing and not HudPanel then
+            createHud()
+        end
 
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
@@ -1564,6 +1592,7 @@ local keybindSpider = SettingsTab:AddKeybind({
     Icon = "arrow-up",
     Callback = function()
         Flags.Spider = not Flags.Spider
+        if not Flags.Spider then clearSpiderVelocity() end
         syncUI(spiderToggle, Flags.Spider)
     end
 })
@@ -1583,11 +1612,7 @@ local keybindHitbox = SettingsTab:AddKeybind({
     Callback = function()
         Flags.HitboxEnabled = not Flags.HitboxEnabled
         syncUI(hitboxToggle, Flags.HitboxEnabled)
-        if not Flags.HitboxEnabled then
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr.Character then restoreHitbox(plr.Character) end
-            end
-        end
+        if not Flags.HitboxEnabled then restoreAllHitboxes() end
     end
 })
 
@@ -1596,6 +1621,7 @@ local keybindNoRecoil = SettingsTab:AddKeybind({
     Icon = "target",
     Callback = function()
         Flags.NoRecoil = not Flags.NoRecoil
+        if not Flags.NoRecoil then resetNoRecoilState() end
         syncUI(noRecoilToggle, Flags.NoRecoil)
     end
 })
