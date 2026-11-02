@@ -201,7 +201,7 @@ local Flags = {
     ESP = false, ESPMode = "Chams",
     Box = false, Distance = false, Name = false, Health = false, Line = false,
     Skeleton = false, WeaponESP = false,
-    MaxDistance = 1500,
+    MaxDistance = 600, -- [FIX] Дефолт 600
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
@@ -262,12 +262,9 @@ local function syncBind(element, key)
 end
 
 local function getBind(element)
-    if element and element.Get then
-        return element:Get()
-    elseif element and element.get then
-        return element.get()
-    elseif element and element.Value then
-        return element.Value
+    if element and element.Get then return element:Get()
+    elseif element and element.get then return element.get()
+    elseif element and element.Value then return element.Value
     end
     return nil
 end
@@ -411,7 +408,7 @@ if hookfunction then
     end)
 end
 
--- ===== ПОИСК ЦЕЛИ (ближайший в мире) =====
+-- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
@@ -443,7 +440,7 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK (только по кнопке) =====
+-- ===== AIM ASSIST + AIM LOCK =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then
         if Camera.CameraType == Enum.CameraType.Scriptable then
@@ -940,10 +937,16 @@ local function applyHighlight(plr)
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
         hl = Instance.new("Highlight")
-        hl.DepthMode = Enum.HighlightDepthMode.Occluded
+        hl.Name = "CloudClientESP"
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- [FIX] Видно через стены!
         hl.Parent = char
         Highlights[plr] = hl
     end
+    -- Принудительно ставим AlwaysOnTop, если игра перебила
+    if hl.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    end
+
     if Flags.ESPMode == "Chams" then
         hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0
         hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 1
@@ -1321,7 +1324,7 @@ local lineToggle = VisualsTab:AddToggle({Title="Line", Icon="move", Default=fals
 local skeletonToggle = VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
 local weaponToggle = VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 
-local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=1500, Callback=function(v)
+local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -1526,7 +1529,17 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] Сброс флагов функций
+        -- [FIX] 1. Принудительно запоминаем бинды ДО загрузки
+        local bindsSnapshot = {
+            keybindFreecam, keybindESP, keybindFullbright, keybindAutoRun,
+            keybindSpider, keybindTrigger, keybindHitbox, keybindNoRecoil, keybindHideUI
+        }
+        local oldKeys = {}
+        for i, b in ipairs(bindsSnapshot) do
+            oldKeys[i] = getBind(b)
+        end
+
+        -- [FIX] 2. Сброс флагов функций
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1538,18 +1551,16 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
-        -- [FIX] Принудительный сброс биндов в "пусто" ПЕРЕД загрузкой
-        syncBind(keybindFreecam, Enum.KeyCode.Unknown)
-        syncBind(keybindESP, Enum.KeyCode.Unknown)
-        syncBind(keybindFullbright, Enum.KeyCode.Unknown)
-        syncBind(keybindAutoRun, Enum.KeyCode.Unknown)
-        syncBind(keybindSpider, Enum.KeyCode.Unknown)
-        syncBind(keybindTrigger, Enum.KeyCode.Unknown)
-        syncBind(keybindHitbox, Enum.KeyCode.Unknown)
-        syncBind(keybindNoRecoil, Enum.KeyCode.Unknown)
-        syncBind(keybindHideUI, Enum.KeyCode.Unknown)
-
         buildConfig(name):Load()
+
+        -- [FIX] 3. Чистим "протекшие" бинды (те, что не изменились при загрузке)
+        for i, b in ipairs(bindsSnapshot) do
+            local newKey = getBind(b)
+            if newKey == oldKeys[i] then
+                -- Если бинд не изменился, значит в конфиге его не было. Сбрасываем в пусто.
+                syncBind(b, Enum.KeyCode.Unknown)
+            end
+        end
 
         -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
