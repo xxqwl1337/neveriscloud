@@ -215,11 +215,20 @@ local Flags = {
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
+    -- Hitbox
+    HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
+    -- TriggerBot
+    TriggerBot = false, TriggerDelay = 0, TriggerFOV = 5, TriggerTeamCheck = true,
+    -- No Recoil
+    NoRecoil = false,
+    -- Sky
+    SkyColorEnabled = false, SkyColor = Color3.fromRGB(100, 150, 255),
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
+local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -243,6 +252,61 @@ local function syncUI(element, state)
         pcall(function() element:Set(state) end)
     elseif element and element.set then
         pcall(function() element.set(state) end)
+    end
+end
+
+-- ===== HITBOX EXPANDER =====
+local OriginalHitboxSizes = {}
+
+local function restoreHitbox(char)
+    if not char then return end
+    for part, size in pairs(OriginalHitboxSizes) do
+        if part and part.Parent then
+            pcall(function() part.Size = size end)
+            pcall(function() part.CanCollide = true end)
+        end
+    end
+    for part in pairs(OriginalHitboxSizes) do
+        if part and not part.Parent then OriginalHitboxSizes[part] = nil end
+    end
+end
+
+local function applyHitbox(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+    local multiplier = Flags.HitboxSize or 2.0
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            local name = part.Name
+            if name == "Head" or name == "Torso" or name == "UpperTorso" or name == "LowerTorso"
+               or name == "HumanoidRootPart" or name == "Left Arm" or name == "Right Arm"
+               or name == "Left Leg" or name == "Right Leg"
+               or name == "LeftUpperArm" or name == "RightUpperArm"
+               or name == "LeftLowerArm" or name == "RightLowerArm"
+               or name == "LeftUpperLeg" or name == "RightUpperLeg"
+               or name == "LeftLowerLeg" or name == "RightLowerLeg" then
+                if not OriginalHitboxSizes[part] then
+                    OriginalHitboxSizes[part] = part.Size
+                end
+                pcall(function() part.Size = OriginalHitboxSizes[part] * multiplier end)
+                if Flags.HitboxTransparency > 0 then
+                    pcall(function() part.Transparency = math.clamp(Flags.HitboxTransparency / 100, 0, 1) end)
+                end
+            end
+        end
+    end
+end
+
+local function updateHitboxes()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            if Flags.HitboxEnabled and isAlive(plr.Character) then
+                applyHitbox(plr.Character)
+            else
+                restoreHitbox(plr.Character)
+            end
+        end
     end
 end
 
@@ -277,7 +341,7 @@ local silentHookOk = pcall(function()
 end)
 if not silentHookOk then warn("[cloudclient] Silent Aim __index hook FAILED") end
 
--- ===== SILENT AIM via __namecall (ScreenPointToRay / ViewportPointToRay) =====
+-- ===== SILENT AIM via __namecall =====
 local namecallOk = pcall(function()
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
@@ -298,7 +362,7 @@ local namecallOk = pcall(function()
 end)
 if not namecallOk then warn("[cloudclient] Silent Aim __namecall hook FAILED") end
 
--- ===== SILENT AIM via hookfunction (если поддерживается) =====
+-- ===== SILENT AIM via hookfunction =====
 if hookfunction then
     pcall(function()
         local oldScreen = Camera.ScreenPointToRay
@@ -376,14 +440,65 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Valu
     end
 end)
 
--- ===== ОБНОВЛЕНИЕ ЦЕЛИ =====
+-- ===== TRIGGER BOT =====
+local triggerLastShot = 0
+local triggerRayParams = RaycastParams.new()
+triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
+triggerRayParams.FilterDescendantsInstances = {LP.Character}
+
+local function isCrosshairOnTarget(part)
+    if not part then return false end
+    local vs = Camera.ViewportSize
+    local center = Vector2.new(vs.X/2, vs.Y/2)
+    local sp = Camera:WorldToViewportPoint(part.Position)
+    if sp.Z <= 0 then return false end
+    local dist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+    return dist <= Flags.TriggerFOV
+end
+
+local function tryTriggerShot()
+    if not Flags.TriggerBot then return end
+    if not CurrentTargetPart then return end
+    if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
+
+    triggerRayParams.FilterDescendantsInstances = {LP.Character}
+    local origin = Camera.CFrame.Position
+    local dir = (CurrentTargetPart.Position - origin)
+    local ray = workspace:Raycast(origin, dir, triggerRayParams)
+    if ray and ray.Instance then
+        local hitChar = ray.Instance:FindFirstAncestorOfClass("Model")
+        if hitChar ~= CurrentTargetPart.Parent then return end
+    end
+
+    if isCrosshairOnTarget(CurrentTargetPart) then
+        triggerLastShot = os.clock()
+        if mouse1click then
+            pcall(mouse1click)
+        else
+            pcall(function()
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
+                task.wait(0.01)
+                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
+            end)
+        end
+    end
+end
+
+-- ===== ОБНОВЛЕНИЕ ЦЕЛИ + TRIGGER =====
 RunService.RenderStepped:Connect(function()
-    if Flags.Aimbot then
+    if Flags.Aimbot or Flags.TriggerBot then
         local _, part = getClosestTarget()
         CurrentTargetPart = part
     else
         CurrentTargetPart = nil
     end
+    if Flags.TriggerBot then tryTriggerShot() end
+end)
+
+-- ===== HITBOX LOOP =====
+RunService.Heartbeat:Connect(function()
+    if Flags.HitboxEnabled then updateHitboxes() end
 end)
 
 -- ===== FOV CIRCLE =====
@@ -559,6 +674,41 @@ local function updateSpider()
     end
 end
 
+-- ===== NO RECOIL =====
+local noRecoilActive = false
+local savedRecoilCFrame = nil
+
+local function applyNoRecoil()
+    if not Flags.NoRecoil then
+        noRecoilActive = false
+        savedRecoilCFrame = nil
+        return
+    end
+    if not noRecoilActive then
+        noRecoilActive = true
+        savedRecoilCFrame = Camera.CFrame
+    end
+    if savedRecoilCFrame then
+        local current = Camera.CFrame
+        local currentLook = current.LookVector
+        local savedLook = savedRecoilCFrame.LookVector
+        local dot = currentLook:Dot(savedLook)
+        if dot < 0.9999 then
+            Camera.CFrame = CFrame.new(current.Position) * savedRecoilCFrame.Rotation
+        end
+    end
+end
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        savedRecoilCFrame = Camera.CFrame
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Flags.NoRecoil then applyNoRecoil() end
+end)
+
 -- ===== FULLBRIGHT =====
 local origLight = {
     Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime,
@@ -641,6 +791,56 @@ task.spawn(function()
         if Flags.Fullbright then applyFullbrightOnce() end
     end
 end)
+
+-- ===== SKY COLOR =====
+local origSky = nil
+local customSky = nil
+
+local function setSkyColor(enabled, color)
+    local lighting = Lighting
+    if not origSky then
+        for _, child in ipairs(lighting:GetChildren()) do
+            if child:IsA("Sky") then
+                origSky = child:Clone()
+                break
+            end
+        end
+    end
+
+    if enabled then
+        if not customSky then
+            customSky = Instance.new("Sky")
+            customSky.Name = "CloudClientCustomSky"
+            customSky.Parent = lighting
+        end
+        local c = color or Flags.SkyColor
+        customSky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
+        customSky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
+        customSky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"
+        customSky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"
+        customSky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"
+        customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
+        customSky.SunAngularSize = 0
+        customSky.MoonAngularSize = 0
+
+        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        if not cc then
+            cc = Instance.new("ColorCorrectionEffect")
+            cc.Name = "CloudClientSkyTint"
+            cc.Parent = lighting
+        end
+        cc.TintColor = c
+        cc.Brightness = 0
+        cc.Contrast = 0
+        cc.Saturation = 0
+    else
+        if customSky then
+            customSky:Destroy(); customSky = nil
+        end
+        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        if cc then cc:Destroy() end
+    end
+end
 
 -- ===== ESP DRAWINGS =====
 local Drawings, Highlights, Skeletons, WeaponLabels = {}, {}, {}, {}
@@ -1014,6 +1214,26 @@ local aimPartDropdown = AimbotTab:AddDropdown({Title="Target Part", Icon="user",
 local teamCheckToggle = AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
 local aimKeyBind = AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", Default=Enum.UserInputType.MouseButton2, Callback=function(k) if k and k.UserInputType then Flags.AimKey=k.UserInputType end end})
 
+AimbotTab:AddSeparator(); AimbotTab:AddLabel("TRIGGER BOT", "crosshair"); AimbotTab:AddSeparator()
+
+triggerBotToggle = AimbotTab:AddToggle({Title="Trigger Bot", Subtitle="Авто-выстрел при наведении", Icon="crosshair", Default=false, Callback=function(s) Flags.TriggerBot=s end})
+local triggerFovSlider = AimbotTab:AddSlider({Title="Trigger FOV", Icon="circle", Min=1, Max=30, Default=5, Callback=function(v) Flags.TriggerFOV=v end})
+local triggerDelaySlider = AimbotTab:AddSlider({Title="Trigger Delay (ms)", Icon="clock", Min=0, Max=500, Default=0, Callback=function(v) Flags.TriggerDelay=v end})
+local triggerTeamToggle = AimbotTab:AddToggle({Title="Trigger Team Check", Icon="users", Default=true, Callback=function(s) Flags.TriggerTeamCheck=s end})
+
+AimbotTab:AddSeparator(); AimbotTab:AddLabel("HITBOX EXPANDER", "box"); AimbotTab:AddSeparator()
+
+hitboxToggle = AimbotTab:AddToggle({Title="Hitbox Expander", Icon="box", Default=false, Callback=function(s)
+    Flags.HitboxEnabled=s
+    if not s then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Character then restoreHitbox(plr.Character) end
+        end
+    end
+end})
+local hitboxSizeSlider = AimbotTab:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
+local hitboxTranspSlider = AimbotTab:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
+
 -- ===== UI: VISUALS =====
 local VisualsTab = Window:AddTab("Visuals", "eye")
 
@@ -1060,6 +1280,10 @@ freecamToggle = PlayerTab:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctr
     Flags.FreeCam=s
     if s then startFreeCam() else stopFreeCam() end
 end})
+
+PlayerTab:AddSeparator(); PlayerTab:AddLabel("COMBAT", "crosshair"); PlayerTab:AddSeparator()
+noRecoilToggle = PlayerTab:AddToggle({Title="No Recoil", Subtitle="Компенсация отдачи", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil=s end})
+
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s) Flags.Spider=s end})
@@ -1070,6 +1294,17 @@ local OtherTab = Window:AddTab("Other", "box")
 fullbrightToggle = OtherTab:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s)
     Flags.Fullbright=s
     setFullbright(s)
+end})
+
+OtherTab:AddSeparator(); OtherTab:AddLabel("SKY", "cloud"); OtherTab:AddSeparator()
+
+skyColorToggle = OtherTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
+    Flags.SkyColorEnabled=s
+    setSkyColor(s, Flags.SkyColor)
+end})
+local skyColorPicker = OtherTab:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c)
+    Flags.SkyColor=c
+    if Flags.SkyColorEnabled then setSkyColor(true, c) end
 end})
 
 -- ===== UI: CROSSHAIR =====
@@ -1152,6 +1387,17 @@ local function buildConfig(name)
     cfg:RegisterElement("TeamCheck", teamCheckToggle)
     cfg:RegisterElement("AimKey", aimKeyBind)
 
+    -- Trigger Bot
+    cfg:RegisterElement("TriggerBot", triggerBotToggle)
+    cfg:RegisterElement("TriggerFOV", triggerFovSlider)
+    cfg:RegisterElement("TriggerDelay", triggerDelaySlider)
+    cfg:RegisterElement("TriggerTeam", triggerTeamToggle)
+
+    -- Hitbox
+    cfg:RegisterElement("Hitbox", hitboxToggle)
+    cfg:RegisterElement("HitboxSize", hitboxSizeSlider)
+    cfg:RegisterElement("HitboxTransp", hitboxTranspSlider)
+
     -- ESP
     cfg:RegisterElement("ESP", espToggle)
     cfg:RegisterElement("ESPMode", espModeDropdown)
@@ -1179,12 +1425,15 @@ local function buildConfig(name)
 
     -- Player
     cfg:RegisterElement("FreeCam", freecamToggle)
+    cfg:RegisterElement("NoRecoil", noRecoilToggle)
     cfg:RegisterElement("AutoRun", autoRunToggle)
     cfg:RegisterElement("Spider", spiderToggle)
     cfg:RegisterElement("SpiderSpeed", spiderSpeedSlider)
 
     -- Other
     cfg:RegisterElement("Fullbright", fullbrightToggle)
+    cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
+    cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
@@ -1226,6 +1475,19 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         syncUI(fullbrightToggle, Flags.Fullbright)
         syncUI(autoRunToggle, Flags.AutoRun)
         syncUI(spiderToggle, Flags.Spider)
+        syncUI(hitboxToggle, Flags.HitboxEnabled)
+        syncUI(triggerBotToggle, Flags.TriggerBot)
+        syncUI(noRecoilToggle, Flags.NoRecoil)
+        syncUI(skyColorToggle, Flags.SkyColorEnabled)
+
+        if Flags.HitboxEnabled then updateHitboxes()
+        else
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Character then restoreHitbox(plr.Character) end
+            end
+        end
+        setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+
         if not Flags.FPSPing and HudPanel then destroyHud() elseif Flags.FPSPing and not HudPanel then createHud() end
 
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
@@ -1303,6 +1565,38 @@ local keybindSpider = SettingsTab:AddKeybind({
     Callback = function()
         Flags.Spider = not Flags.Spider
         syncUI(spiderToggle, Flags.Spider)
+    end
+})
+
+local keybindTrigger = SettingsTab:AddKeybind({
+    Title = "Trigger Bot Keybind",
+    Icon = "crosshair",
+    Callback = function()
+        Flags.TriggerBot = not Flags.TriggerBot
+        syncUI(triggerBotToggle, Flags.TriggerBot)
+    end
+})
+
+local keybindHitbox = SettingsTab:AddKeybind({
+    Title = "Hitbox Keybind",
+    Icon = "box",
+    Callback = function()
+        Flags.HitboxEnabled = not Flags.HitboxEnabled
+        syncUI(hitboxToggle, Flags.HitboxEnabled)
+        if not Flags.HitboxEnabled then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Character then restoreHitbox(plr.Character) end
+            end
+        end
+    end
+})
+
+local keybindNoRecoil = SettingsTab:AddKeybind({
+    Title = "No Recoil Keybind",
+    Icon = "target",
+    Callback = function()
+        Flags.NoRecoil = not Flags.NoRecoil
+        syncUI(noRecoilToggle, Flags.NoRecoil)
     end
 })
 
