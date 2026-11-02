@@ -1,4 +1,3 @@
-
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
 ]]
@@ -214,7 +213,7 @@ local Flags = {
     CrosshairThickness = 1, CrosshairTransparency = 0, CrosshairDistance = 4,
     Aimbot = false, AimAssist = true, SilentAim = true, AimlockMode = false,
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
-    AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, AimPredictionHoldValue = 0.15, HitChance = 100,
+    AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
     HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
     TriggerBot = false, TriggerDelay = 50, TriggerFOV = 15, TriggerTeamCheck = true,
     NoRecoil = false,
@@ -233,7 +232,6 @@ local rapidFireConn = nil
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
 local aspectToggle, aspectModeDropdown
-local aimPredSlider
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -753,74 +751,31 @@ LP.CharacterAdded:Connect(function()
     if freecamConn then stopFreeCam() end
 end)
 
--- ===== AUTORUN (эмуляция зажатого Shift + Move) =====
--- Не трогает WalkSpeed. Держит LeftShift зажатым через VIM/fallback,
--- и каждый кадр двигает персонажа в направлении взгляда камеры через Humanoid:Move.
-local autoRunShiftHeld = false
-local autoRunMoveConn   = nil
-
-local function pressShift()
-    if autoRunShiftHeld then return end
-    autoRunShiftHeld = true
-    local vim = game:GetService("VirtualInputManager")
-    if vim then
-        pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
-    end
-    pcall(function() keypress(Enum.KeyCode.LeftShift) end)
-end
-
-local function releaseShift()
-    if not autoRunShiftHeld then return end
-    autoRunShiftHeld = false
-    local vim = game:GetService("VirtualInputManager")
-    if vim then
-        pcall(function() vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game) end)
-    end
-    pcall(function() keyrelease(Enum.KeyCode.LeftShift) end)
-end
-
-local function stopAutoRun()
-    if autoRunMoveConn then
-        autoRunMoveConn:Disconnect()
-        autoRunMoveConn = nil
-    end
-    releaseShift()
+-- ===== AUTORUN =====
+local defaultWalkSpeed = 16
+local autoRunActive = false
+local function captureDefaultWalkSpeed()
     local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then pcall(function() hum:Move(Vector3.zero, false) end) end
+    if hum then defaultWalkSpeed = hum.WalkSpeed end
 end
+captureDefaultWalkSpeed()
+LP.CharacterAdded:Connect(function() task.wait(0.5); captureDefaultWalkSpeed() end)
 
-local function startAutoRun()
-    if autoRunMoveConn then return end
-    pressShift()
-    autoRunMoveConn = RunService.RenderStepped:Connect(function()
-        if not Flags.AutoRun then stopAutoRun(); return end
-        if Window.Gui and Window.Gui.Enabled then
-            -- когда открыт UI — отпускаем шифт и не двигаем, чтобы не мешало
-            releaseShift()
-            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-            if hum then pcall(function() hum:Move(Vector3.zero, false) end) end
-            return
-        end
-        -- держим shift зажатым
-        if not autoRunShiftHeld then pressShift() end
-        local char = LP.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 0 then return end
+local function applyAutoRun()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if Flags.AutoRun then
+        autoRunActive = true
+        hum.WalkSpeed = 20
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0.01 then
-            hum:Move(dir.Unit, false)
-        end
-    end)
-end
-
-LP.CharacterAdded:Connect(function()
-    task.wait(0.3)
-    if Flags.AutoRun then
-        stopAutoRun()
-        startAutoRun()
+        if dir.Magnitude > 0.01 then hum:Move(dir.Unit, false) end
+    elseif autoRunActive then
+        hum.WalkSpeed = defaultWalkSpeed
+        autoRunActive = false
     end
-end)
+end
 
 -- ===== SPIDER =====
 local spiderBV = nil
@@ -1483,8 +1438,9 @@ task.spawn(function()
     end
 end)
 
--- ===== SPIDER TIMER =====
+-- ===== AUTORUN / SPIDER TIMER =====
 RunService.Stepped:Connect(function()
+    applyAutoRun()
     updateSpider()
 end)
 
@@ -1510,10 +1466,7 @@ local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Ху�
 local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Только при зажатой кнопке", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 local aimSmoothSlider = AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 local aimFovSlider = AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
-aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v)
-    Flags.AimPredictionHoldValue = v
-    Flags.AimPrediction = v
-end})
+local aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
 local aimChanceSlider = AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
 local aimPartDropdown = AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
 local teamCheckToggle = AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
@@ -1615,10 +1568,7 @@ end})
 
 PlayerTab:AddSeparator(); PlayerTab:AddLabel("MOVEMENT", "move"); PlayerTab:AddSeparator()
 
-autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Subtitle="Автобег: держит Shift + движение по взгляду камеры", Icon="zap", Default=false, Callback=function(s)
-    Flags.AutoRun=s
-    if s then startAutoRun() else stopAutoRun() end
-end})
+autoRunToggle = PlayerTab:AddToggle({Title="AutoRun", Icon="zap", Default=false, Callback=function(s) Flags.AutoRun=s end})
 
 spiderToggle = PlayerTab:AddToggle({Title="Spider", Subtitle="W/Space вверх, S/Ctrl вниз", Icon="arrow-up", Default=false, Callback=function(s)
     Flags.Spider=s
@@ -1755,59 +1705,6 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end,
 })
 
--- Бинд на prediction: пока держишь — Flags.AimPrediction = AimPredictionHoldValue (значение слайдера),
--- отпускаешь — 0. Работает и для silent aim, и для aimlock/assist.
-local keybindPrediction = SettingsTab:AddKeybind({
-    Title = "Prediction Keybind (hold)", Icon = "trending-up",
-    Callback = function()
-        -- toggle-режим не нужен, но AddKeybind не даёт чисто hold-callback.
-        -- Поэтому используем собственный UIS-хук ниже, а бинд только как UI-элемент.
-    end,
-})
-
--- hold-логика для prediction через UIS.InputBegan/InputEnded
-local predKey = Enum.KeyCode.LeftAlt
-local predHeld = false
-do
-    -- пробуем выцепить текущую назначенную клавишу из UI (если AddKeybind отдаёт Get)
-    local ok, cur = pcall(function() return keybindPrediction:Get() end)
-    if ok and cur then predKey = cur end
-end
-
-UIS.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    local k = keybindPrediction
-    local key = nil
-    pcall(function() key = k:Get() end)
-    if not key then return end
-    local isMatch = false
-    if typeof(key) == "EnumItem" then
-        if key.EnumType == Enum.KeyCode and input.KeyCode == key then isMatch = true
-        elseif key.EnumType == Enum.UserInputType and input.UserInputType == key then isMatch = true end
-    end
-    if isMatch then
-        predHeld = true
-        Flags.AimPrediction = Flags.AimPredictionHoldValue
-    end
-end)
-
-UIS.InputEnded:Connect(function(input, gpe)
-    if not predHeld then return end
-    local k = keybindPrediction
-    local key = nil
-    pcall(function() key = k:Get() end)
-    if not key then return end
-    local isMatch = false
-    if typeof(key) == "EnumItem" then
-        if key.EnumType == Enum.KeyCode and input.KeyCode == key then isMatch = true
-        elseif key.EnumType == Enum.UserInputType and input.UserInputType == key then isMatch = true end
-    end
-    if isMatch then
-        predHeld = false
-        Flags.AimPrediction = 0
-    end
-end)
-
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
@@ -1885,7 +1782,6 @@ local function buildConfig(name)
     cfg:RegisterElement("BindHitbox",     keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   keybindNoRecoil)
     cfg:RegisterElement("BindHideUI",     keybindHideUI)
-    cfg:RegisterElement("BindPrediction", keybindPrediction)
 
     return cfg
 end
@@ -1924,6 +1820,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
+        -- принудительный сброс тоггла/дропдауна Aspect Ratio через Set()
+        -- (Set вызовет Callback и синхронизирует Flags + применит состояние).
+        -- Если в конфиге значения сохранены — Load() их перезапишет через те же Set().
         aspectToggle:Set(false)
         aspectModeDropdown:Set("16:9")
 
@@ -1938,6 +1837,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        -- Flags.AspectRatioEnabled / AspectRatioMode НЕ трогаем вручную —
+        -- их выставит Load() через Set() тоггла/дропдауна, а если в конфиге
+        -- их нет, останется дефолт от принудительного сброса выше
 
         buildConfig(name):Load()
 
@@ -1949,20 +1851,13 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
+        -- applyAspectRatio() НЕ нужен: aspectToggle:Set() из Load уже всё применил
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
-
-        -- Автобег: если в конфиге включён — перезапускаем
-        if Flags.AutoRun then
-            stopAutoRun()
-            startAutoRun()
-        else
-            stopAutoRun()
-        end
 
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
