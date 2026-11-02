@@ -219,7 +219,6 @@ local Flags = {
 
 local CurrentTarget, CurrentTargetPart = nil, nil
 
--- forward-объявления UI-тогглов для синхронизации из keybind-коллбеков
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 
 -- ===== УТИЛИТЫ =====
@@ -1021,7 +1020,20 @@ local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Пр�
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- 1. Theme / Accent
+-- ===== 1. КЛЮЧ (САМЫЙ ВЕРХ) =====
+SettingsTab:AddLabel("KEY INFO", "key")
+SettingsTab:AddSeparator()
+
+local keyInfoLabel = SettingsTab:AddLabel(
+    string.format("Ключ: %s | до: %s",
+        _G.CloudKeyState.key or "—",
+        keyRemainingText()),
+    "key"
+)
+
+SettingsTab:AddSeparator()
+
+-- ===== 2. THEME / ACCENT =====
 local themeNames = {}
 for name in pairs(VantixUI.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
@@ -1036,13 +1048,13 @@ SettingsTab:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White",
     VantixUI:SetAccentColor(colors[s])
 end})
 
--- 2. Stats HUD
+-- ===== 3. STATS HUD =====
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
--- ===== 3. CONFIG SYSTEM (ВЫШЕ KEYBINDS) =====
+-- ===== 4. SYSTEM CONFIG (Save/Load/Delete) =====
 SettingsTab:AddSeparator()
-SettingsTab:AddLabel("CONFIG SYSTEM", "save")
+SettingsTab:AddLabel("SYSTEM CONFIG", "save")
 SettingsTab:AddSeparator()
 
 Window.ConfigManager:SetFolder("cloudclient_configs")
@@ -1057,14 +1069,6 @@ local savedConfigs = SettingsTab:AddDropdown({
     Title = "Saved Configs",
     Options = Window.ConfigManager:GetConfigs(),
 })
-
--- Инфо о ключе (обновляется ниже)
-local keyInfoLabel = SettingsTab:AddLabel(
-    string.format("Ключ: %s | до: %s",
-        _G.CloudKeyState.key or "—",
-        keyRemainingText()),
-    "key"
-)
 
 -- buildConfig объявлен ДО кнопок, чтобы Save/Load/Delete могли его дёргать
 local function buildConfig(name)
@@ -1175,7 +1179,7 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
     if not ok then warn("[config] delete:", err) end
 end})
 
--- ===== 4. KEYBINDS (НИЖЕ CONFIG SYSTEM) =====
+-- ===== 5. KEYBINDS =====
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
@@ -1247,7 +1251,7 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end
 })
 
--- ===== 5. Периодическое обновление срока ключа =====
+-- ===== 6. Периодическое обновление срока ключа =====
 task.spawn(function()
     while true do
         task.wait(30)
