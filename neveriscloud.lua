@@ -1820,6 +1820,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
+        -- принудительный сброс тоггла/дропдауна Aspect Ratio через Set()
+        -- (Set вызовет Callback и синхронизирует Flags + применит состояние).
+        -- Если в конфиге значения сохранены — Load() их перезапишет через те же Set().
+        aspectToggle:Set(false)
+        aspectModeDropdown:Set("16:9")
+
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1831,8 +1837,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
-        Flags.AspectRatioEnabled = false
-        Flags.AspectRatioMode    = "16:9"
+        -- Flags.AspectRatioEnabled / AspectRatioMode НЕ трогаем вручную —
+        -- их выставит Load() через Set() тоггла/дропдауна, а если в конфиге
+        -- их нет, останется дефолт от принудительного сброса выше
 
         buildConfig(name):Load()
 
@@ -1844,7 +1851,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         if not Flags.Spider then clearSpiderVelocity() end
         applyRapidFire()
-        applyAspectRatio()
+        -- applyAspectRatio() НЕ нужен: aspectToggle:Set() из Load уже всё применил
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
