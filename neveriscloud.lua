@@ -233,7 +233,11 @@ end
 
 local function getAimPart(char)
     if not char then return nil end
-    return char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
+    local part = char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
+    if not part then
+        part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    end
+    return part
 end
 
 local function getVelocity(part)
@@ -388,12 +392,15 @@ if hookfunction then
     end)
 end
 
--- ===== ПОИСК ЦЕЛИ =====
+-- ===== ПОИСК ЦЕЛИ (ИСПРАВЛЕН: ближайший в мире, но в FOV) =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    local localPos = localRoot and localRoot.Position or Vector3.zero
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
             if Flags.AimTeamCheck and LP.Team and plr.Team and plr.Team == LP.Team then continue end
@@ -401,9 +408,14 @@ local function getClosestTarget()
             if part then
                 local sp = Camera:WorldToScreenPoint(part.Position)
                 if sp.Z > 0 then
-                    local dist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
-                    if dist < Flags.AimFOV and dist < shortest then
-                        shortest = dist; closest = plr; closestPart = part
+                    local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                    if screenDist < Flags.AimFOV then
+                        local worldDist = (part.Position - localPos).Magnitude
+                        if worldDist < shortest then
+                            shortest = worldDist
+                            closest = plr
+                            closestPart = part
+                        end
                     end
                 end
             end
@@ -412,7 +424,7 @@ local function getClosestTarget()
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK =====
+-- ===== AIM ASSIST + AIM LOCK (ИСПРАВЛЕН: только по кнопке) =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.Aimbot or not CurrentTargetPart then
         if Camera.CameraType == Enum.CameraType.Scriptable then
@@ -423,7 +435,7 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
 
     local aiming = UIS:IsMouseButtonPressed(Flags.AimKey)
 
-    if Flags.AimlockMode then
+    if Flags.AimlockMode and aiming then
         if Camera.CameraType ~= Enum.CameraType.Scriptable then
             Camera.CameraType = Enum.CameraType.Scriptable
         end
@@ -443,6 +455,10 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
         local base = 1 / math.max(1, Flags.AimSmooth)
         local alpha = 1 - (1 - base) ^ (dt * 60)
         Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
+    else
+        if Camera.CameraType == Enum.CameraType.Scriptable then
+            Camera.CameraType = Enum.CameraType.Custom
+        end
     end
 end)
 
@@ -467,6 +483,9 @@ local function tryTriggerShot()
     if not CurrentTargetPart then return end
     if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
 
+    -- Не стреляем, если открыто меню
+    if Window.Gui and Window.Gui.Enabled then return end
+
     triggerRayParams.FilterDescendantsInstances = {LP.Character}
     local origin = Camera.CFrame.Position
     local dir = (CurrentTargetPart.Position - origin)
@@ -480,12 +499,7 @@ local function tryTriggerShot()
 
     triggerLastShot = os.clock()
 
-    local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-    if tool then
-        pcall(function() tool:Activate() end)
-        return
-    end
-
+    -- Оружие не Tool, поэтому Tool:Activate() не сработает. Используем mouse1click.
     if mouse1click then
         pcall(mouse1click)
         return
@@ -951,8 +965,8 @@ local function updateSkeleton(plr, char)
     if not sk then return end
     local conns = sk.conns
     for i, conn in ipairs(conns) do
-        local p1 = char[conn[1]]
-        local p2 = char[conn[2]]
+        local p1 = char:FindFirstChild(conn[1])
+        local p2 = char:FindFirstChild(conn[2])
         local line = sk.lines[i]
         if p1 and p2 then
             local s1 = Camera:WorldToViewportPoint(p1.Position)
@@ -1070,7 +1084,7 @@ local function updateESP()
         end
 
         local sx, sy = sp.X, sp.Y
-        local headPart = char.Head or root
+        local headPart = char:FindFirstChild("Head") or root
         local headPos = headPart.Position + Vector3.new(0,1.5,0)
         local feetPos = root.Position - Vector3.new(0,2.5,0)
         local hS = Camera:WorldToViewportPoint(headPos)
@@ -1226,7 +1240,7 @@ local AimbotTab = Window:AddTab("Aimbot", "crosshair")
 local aimbotToggle = AimbotTab:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
 local aimAssistToggle = AimbotTab:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
 local silentAimToggle = AimbotTab:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit / UnitRay / ScreenPointToRay", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
+local aimlockToggle = AimbotTab:AddToggle({Title="Aim Lock (rage)", Subtitle="Только при зажатой кнопке", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
 local aimSmoothSlider = AimbotTab:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
 local aimFovSlider = AimbotTab:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
 local aimPredSlider = AimbotTab:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
