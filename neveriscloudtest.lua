@@ -1266,7 +1266,7 @@ UI.Elements.weaponColorToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Weapon 
 
 UI.Elements.weaponColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c) Flags.WeaponColor=c; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end})
 
-UI.Elements.materialDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Material", Icon="gem", Options={"Neon", "ForceField"}, Default="Neon", Callback=function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end })
+UI.Elements.materialDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Material", Icon="gem", Options={"Neon", "ForceField"}, Default="Neon", Callback=function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end })
 
 UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("ASPECT RATIO", "monitor"); UI.Tabs.Visuals:AddSeparator()
 
@@ -1293,14 +1293,14 @@ UI.Tabs.Other = UI.Window:AddTab("Other", "box")
 UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
 
 -- ===== UI: LOOT =====
-UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
+UI.Tabs.Loot = UI.Window:AddTab("loot", "package")
 
 UI.Tabs.Loot:AddSeparator()
-UI.Tabs.Loot:AddLabel("COMING SOON", "hourglass")
+UI.Tabs.Loot:AddLabel("COMING SOON", "clock")
 UI.Tabs.Loot:AddSeparator()
 
 -- ===== UI: MISC =====
-UI.Tabs.Misc = UI.Window:AddTab("Misc", "wrench")
+UI.Tabs.Misc = UI.Window:AddTab("misc", "settings-2")
 
 UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
