@@ -253,6 +253,22 @@ local function syncUI(element, state)
     end
 end
 
+local function syncBind(element, key)
+    if element and element.Set then
+        pcall(function() element:Set(key) end)
+    elseif element and element.set then
+        pcall(function() element.set(key) end)
+    end
+end
+
+local function getBind(element)
+    if element and element.Get then return element:Get()
+    elseif element and element.get then return element.get()
+    elseif element and element.Value then return element.Value
+    end
+    return nil
+end
+
 -- ===== ХИТБОКС =====
 local OriginalHitboxSizes = {}
 local function restoreHitbox(char)
@@ -1362,7 +1378,7 @@ local crosshairTranspSlider = CrosshairTab:AddSlider({Title="Transparency (Пр�
 -- ===== UI: SETTINGS =====
 local SettingsTab = Window:AddTab("Settings", "settings")
 
--- ===== 1. КЛЮЧ (просто строка) =====
+-- ===== 1. КЛЮЧ =====
 local keyInfoLabel = SettingsTab:AddLabel(
     string.format("Ключ: %s | до: %s",
         _G.CloudKeyState.key or "—",
@@ -1476,25 +1492,67 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
 
-    -- Keybinds
-    cfg:RegisterElement("KeybindFreecam",    keybindFreecam)
-    cfg:RegisterElement("KeybindESP",        keybindESP)
-    cfg:RegisterElement("KeybindFullbright", keybindFullbright)
-    cfg:RegisterElement("KeybindAutoRun",    keybindAutoRun)
-    cfg:RegisterElement("KeybindSpider",     keybindSpider)
-    cfg:RegisterElement("KeybindTrigger",    keybindTrigger)
-    cfg:RegisterElement("KeybindHitbox",     keybindHitbox)
-    cfg:RegisterElement("KeybindNoRecoil",   keybindNoRecoil)
-    cfg:RegisterElement("KeybindHideUI",     keybindHideUI)
-
     return cfg
 end
+
+-- ===== [FIX] СВОЯ СИСТЕМА БИНДОВ =====
+local function getBindsFile(cfgName)
+    return "cloudclient_binds_" .. tostring(cfgName) .. ".txt"
+end
+
+local function saveBindsToFile(cfgName)
+    if not writefile then return end
+    local bindsTable = {
+        Freecam = keybindFreecam, ESP = keybindESP, Fullbright = keybindFullbright,
+        AutoRun = keybindAutoRun, Spider = keybindSpider, Trigger = keybindTrigger,
+        Hitbox = keybindHitbox, NoRecoil = keybindNoRecoil, HideUI = keybindHideUI,
+    }
+    local data = {}
+    for name, element in pairs(bindsTable) do
+        local k = getBind(element)
+        if k and k ~= Enum.KeyCode.Unknown then
+            table.insert(data, name .. "=" .. tostring(k.Name))
+        end
+    end
+    pcall(writefile, getBindsFile(cfgName), table.concat(data, "\n"))
+end
+
+local function loadBindsFromFile(cfgName)
+    local bindsTable = {
+        Freecam = keybindFreecam, ESP = keybindESP, Fullbright = keybindFullbright,
+        AutoRun = keybindAutoRun, Spider = keybindSpider, Trigger = keybindTrigger,
+        Hitbox = keybindHitbox, NoRecoil = keybindNoRecoil, HideUI = keybindHideUI,
+    }
+    -- Сначала стираем ВСЕ бинды
+    for _, element in pairs(bindsTable) do
+        syncBind(element, Enum.KeyCode.Unknown)
+    end
+    -- Читаем файл
+    local file = getBindsFile(cfgName)
+    if isfile and readfile and isfile(file) then
+        local ok, content = pcall(readfile, file)
+        if ok and content then
+            for line in content:gmatch("[^\r\n]+") do
+                local name, keyName = line:match("^(%w+)=(%w+)$")
+                if name and keyName and bindsTable[name] then
+                    local keyEnum = Enum.KeyCode[keyName]
+                    if keyEnum then
+                        syncBind(bindsTable[name], keyEnum)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ===== КНОПКИ SAVE / LOAD / DELETE =====
 
 SettingsTab:AddButton({Title="Save Config", Text="Save", Callback=function()
     local ok, err = pcall(function()
         local name = configNameBox:Get()
         if not name or name == "" then error("empty name") end
         buildConfig(name):Save()
+        saveBindsToFile(name) -- [FIX] Сохраняем бинды в свой файл
         savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
         Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
     end)
@@ -1507,16 +1565,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- [FIX] 1. Очищаем ВСЕ бинды принудительно ПЕРЕД загрузкой
-        local bindsTable = {
-            keybindFreecam, keybindESP, keybindFullbright, keybindAutoRun,
-            keybindSpider, keybindTrigger, keybindHitbox, keybindNoRecoil, keybindHideUI
-        }
-        for _, b in ipairs(bindsTable) do
-            syncBind(b, Enum.KeyCode.Unknown)
-        end
-
-        -- [FIX] 2. Сброс флагов функций
+        -- [FIX] 1. Сброс флагов функций
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1529,6 +1578,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
 
         buildConfig(name):Load()
+        loadBindsFromFile(name) -- [FIX] Загружаем бинды из своего файла
 
         -- ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
@@ -1585,6 +1635,7 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
         local name = savedConfigs:Get()
         if not name or name == "" then return end
         Window.ConfigManager:DeleteConfig(name)
+        pcall(function() if delfile then delfile(getBindsFile(name)) end end) -- Удаляем и файл биндов
         savedConfigs:SetOptions(Window.ConfigManager:GetConfigs())
         Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
     end)
@@ -1597,24 +1648,15 @@ SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
 local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "camera",
+    Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera",
     Callback = function()
-        if freecamConn then
-            stopFreeCam()
-            syncUI(freecamToggle, false)
-        else
-            startFreeCam()
-            syncUI(freecamToggle, true)
-        end
+        if freecamConn then stopFreeCam(); syncUI(freecamToggle, false)
+        else startFreeCam(); syncUI(freecamToggle, true) end
     end
 })
 
 local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "eye",
+    Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye",
     Callback = function()
         Flags.ESP = not Flags.ESP
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
@@ -1623,9 +1665,7 @@ local keybindESP = SettingsTab:AddKeybind({
 })
 
 local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "sun",
+    Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun",
     Callback = function()
         Flags.Fullbright = not Flags.Fullbright
         setFullbright(Flags.Fullbright)
@@ -1634,9 +1674,7 @@ local keybindFullbright = SettingsTab:AddKeybind({
 })
 
 local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "zap",
+    Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap",
     Callback = function()
         Flags.AutoRun = not Flags.AutoRun
         syncUI(autoRunToggle, Flags.AutoRun)
@@ -1644,9 +1682,7 @@ local keybindAutoRun = SettingsTab:AddKeybind({
 })
 
 local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "arrow-up",
+    Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up",
     Callback = function()
         Flags.Spider = not Flags.Spider
         if not Flags.Spider then clearSpiderVelocity() end
@@ -1655,9 +1691,7 @@ local keybindSpider = SettingsTab:AddKeybind({
 })
 
 local keybindTrigger = SettingsTab:AddKeybind({
-    Title = "Trigger Bot Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "crosshair",
+    Title = "Trigger Bot Keybind", Subtitle = "По умолчанию пусто", Icon = "crosshair",
     Callback = function()
         Flags.TriggerBot = not Flags.TriggerBot
         syncUI(triggerBotToggle, Flags.TriggerBot)
@@ -1665,9 +1699,7 @@ local keybindTrigger = SettingsTab:AddKeybind({
 })
 
 local keybindHitbox = SettingsTab:AddKeybind({
-    Title = "Hitbox Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "box",
+    Title = "Hitbox Keybind", Subtitle = "По умолчанию пусто", Icon = "box",
     Callback = function()
         Flags.HitboxEnabled = not Flags.HitboxEnabled
         syncUI(hitboxToggle, Flags.HitboxEnabled)
@@ -1676,9 +1708,7 @@ local keybindHitbox = SettingsTab:AddKeybind({
 })
 
 local keybindNoRecoil = SettingsTab:AddKeybind({
-    Title = "No Recoil Keybind",
-    Subtitle = "По умолчанию пусто",
-    Icon = "target",
+    Title = "No Recoil Keybind", Subtitle = "По умолчанию пусто", Icon = "target",
     Callback = function()
         Flags.NoRecoil = not Flags.NoRecoil
         if not Flags.NoRecoil then resetNoRecoilState() end
@@ -1687,9 +1717,7 @@ local keybindNoRecoil = SettingsTab:AddKeybind({
 })
 
 local keybindHideUI = SettingsTab:AddKeybind({
-    Title = "Hide UI Keybind",
-    Icon = "keyboard",
-    Default = Enum.KeyCode.Delete,
+    Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
     Callback = function()
         local sg = Window.Gui
         if sg then sg.Enabled = not sg.Enabled end
