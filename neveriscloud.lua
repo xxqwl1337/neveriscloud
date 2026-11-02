@@ -175,7 +175,13 @@ local function keyRemainingText()
 end
 -- ===== END KEY SYSTEM =====
 
+-- ===== ЗАГРУЗКА UI С ЗАЩИТОЙ =====
 local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+if not VantixUI then
+    warn("[cloudclient] UI не загрузился (loadstring вернул nil). Проверь ссылку/форк.")
+    return
+end
+-- ===== END UI =====
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -283,7 +289,6 @@ local function applyAspectRatio()
         end
         local ratio = Flags.AspectRatio or 1.0
         if ratio <= 0 then return end
-        -- Влияем на FieldOfView камеры для имитации растяга
         local baseFOV = 70
         Camera.FieldOfView = baseFOV / ratio
     end)
@@ -314,24 +319,24 @@ local function updateParticles()
         particleEmitter.Rotation = NumberRange.new(0, 360)
         particleEmitter.RotSpeed = NumberRange.new(0, 90)
         particleEmitter.LightEmission = 1
-        particleEmitter.Texture = "rbxassetid://243660364"
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
     end
     
     particleEmitter.Color = ColorSequence.new(Flags.ParticleColor)
     particleEmitter.Speed = NumberRange.new(5 * Flags.ParticleSpeed, 10 * Flags.ParticleSpeed)
     
     if Flags.ParticleType == "Snow" then
-        particleEmitter.Texture = "rbxassetid://243660364"
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(2, 4)
         particleEmitter.Rate = 80
         particleEmitter.Size = NumberSequence.new(0.5)
     elseif Flags.ParticleType == "Rain" then
-        particleEmitter.Texture = "rbxassetid://243660364"
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(0.5, 1)
         particleEmitter.Rate = 300
         particleEmitter.Size = NumberSequence.new(0.2)
     elseif Flags.ParticleType == "Fireflies" then
-        particleEmitter.Texture = "rbxassetid://243660364"
+        particleEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
         particleEmitter.Lifetime = NumberRange.new(1, 3)
         particleEmitter.Rate = 30
         particleEmitter.Size = NumberSequence.new(0.3)
