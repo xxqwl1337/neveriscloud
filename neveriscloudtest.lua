@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.5.0 (LinearVelocity Spider + Fixed AutoRun)
+    Version: 0.5.1 (Loot + Misc tabs)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.5.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.5.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -707,25 +707,21 @@ local function applyAutoRun()
     if not hum or hum.Health <= 0 then return end
 
     if Flags.AutoRun then
-        -- Ставим скорость (25 studs/sec — как спринт)
         if hum.WalkSpeed <= defaultWalkSpeed then
             hum.WalkSpeed = 25
         end
-        -- Двигаем вперёд по направлению камеры
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
         if dir.Magnitude > 0.01 then
             hum:Move(dir.Unit, false)
         end
     else
-        -- Возвращаем скорость, если AutoRun выключен
         if hum.WalkSpeed > defaultWalkSpeed then
             hum.WalkSpeed = defaultWalkSpeed
         end
     end
 end
 
--- Вызов в цикле
 RunService.Stepped:Connect(function()
     applyAutoRun()
 end)
@@ -749,13 +745,12 @@ local function updateSpider()
     if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
     if not Flags.Spider then clearSpiderVelocity(); return end
 
-    -- Проверка стены только по направлению взгляда
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
     local lookDir = Camera.CFrame.LookVector
     local flatLook = Vector3.new(lookDir.X, 0, lookDir.Z)
     local wallFound = false
-    
+
     if flatLook.Magnitude > 0.01 then
         local res = workspace:Raycast(origin, flatLook.Unit * 3, spiderRayParams)
         if res and res.Instance and res.Instance.CanCollide then wallFound = true end
@@ -766,7 +761,6 @@ local function updateSpider()
         return
     end
 
-    -- Направление
     local up = 0
     if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
     elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -Flags.SpiderSpeed
@@ -781,7 +775,6 @@ local function updateSpider()
             CC.Refs.spiderBV.Parent = hrp
             CC.Refs.spiderBV.Attachment0 = Instance.new("Attachment", hrp)
         end
-        -- Плавно меняем скорость
         local targetVel = Vector3.new(0, up, 0)
         CC.Refs.spiderBV.VectorVelocity = CC.Refs.spiderBV.VectorVelocity:Lerp(targetVel, 0.2)
     else
@@ -1320,6 +1313,54 @@ UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparen
 -- ===== UI: OTHER =====
 UI.Tabs.Other = UI.Window:AddTab("Other", "box")
 UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
+
+-- ===== UI: LOOT (НОВАЯ ВКЛАДКА) =====
+UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
+
+UI.Tabs.Loot:AddSeparator()
+UI.Tabs.Loot:AddLabel("LOOT ESP", "package")
+UI.Tabs.Loot:AddSeparator()
+
+UI.Tabs.Loot:AddToggle({Title="Enable Loot ESP", Icon="package", Default=false, Callback=function(s) print("Loot ESP:", s) end})
+UI.Tabs.Loot:AddSlider({Title="Loot Distance", Icon="ruler", Min=100, Max=1000, Default=300, Callback=function(v) print("Loot dist:", v) end})
+UI.Tabs.Loot:AddToggle({Title="Show Labels", Icon="type", Default=true, Callback=function(s) print("Labels:", s) end})
+
+UI.Tabs.Loot:AddSeparator()
+UI.Tabs.Loot:AddLabel("LOOT FILTERS", "filter")
+UI.Tabs.Loot:AddSeparator()
+
+UI.Tabs.Loot:AddToggle({Title="Weapons", Icon="sword", Default=true, Callback=function(s) print("Weapons filter:", s) end})
+UI.Tabs.Loot:AddToggle({Title="Ammo", Icon="box", Default=true, Callback=function(s) print("Ammo filter:", s) end})
+UI.Tabs.Loot:AddToggle({Title="Medical", Icon="heart", Default=true, Callback=function(s) print("Medical filter:", s) end})
+UI.Tabs.Loot:AddToggle({Title="Resources", Icon="gem", Default=false, Callback=function(s) print("Resources filter:", s) end})
+
+-- ===== UI: MISC (НОВАЯ ВКЛАДКА) =====
+UI.Tabs.Misc = UI.Window:AddTab("Misc", "wrench")
+
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("UTILITIES", "wrench")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Tabs.Misc:AddToggle({Title="Anti-AFK", Icon="clock", Default=false, Callback=function(s) print("AntiAFK:", s) end})
+UI.Tabs.Misc:AddToggle({Title="Anti-Fling", Icon="shield", Default=false, Callback=function(s) print("AntiFling:", s) end})
+UI.Tabs.Misc:AddToggle({Title="Instant ProximityPrompt", Icon="zap", Default=false, Callback=function(s) print("InstantPrompt:", s) end})
+
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("SERVER", "server")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Tabs.Misc:AddButton({Title="Rejoin Server", Text="Rejoin", Callback=function()
+    game:GetService("TeleportService"):Teleport(game.PlaceId, LP)
+end})
+
+UI.Tabs.Misc:AddButton({Title="Server Hop", Text="Hop", Callback=function()
+    print("Server hop (not implemented)")
+end})
+
+UI.Tabs.Misc:AddButton({Title="Copy Job ID", Text="Copy", Callback=function()
+    if setclipboard then setclipboard(game.JobId) end
+    UI.Window:Notify({Title="Copied", Text="Job ID: "..game.JobId, Duration=2})
+end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
