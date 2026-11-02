@@ -222,8 +222,6 @@ local Flags = {
     WeaponColorEnabled = false,
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
-    AspectRatioEnabled = false,
-    AspectRatio = 1.0,
 }
 
 local CurrentTarget, CurrentTargetPart = nil, nil
@@ -231,7 +229,6 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
-local weaponColorToggle, aspectToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -266,22 +263,6 @@ local function isAimHeld()
     return false
 end
 
--- ===== ASPECT RATIO =====
-local aspectConn = nil
-local function applyAspectRatio()
-    if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
-    if not Flags.AspectRatioEnabled then
-        Camera.FieldOfView = 70
-        return
-    end
-    aspectConn = RunService.RenderStepped:Connect(function()
-        local ratio = Flags.AspectRatio or 1.0
-        if ratio > 0 then
-            Camera.FieldOfView = 70 / ratio
-        end
-    end)
-end
-
 -- ===== WEAPON COLOR =====
 local OriginalWeaponProps = {}
 
@@ -296,6 +277,7 @@ local function applyWeaponColorToModel(model)
                     TextureID = part:IsA("MeshPart") and part.TextureID or nil
                 }
             end
+            -- Если это неон, убираем текстуру, чтобы цвет был чистым
             if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then
                 part.TextureID = ""
             end
@@ -1562,7 +1544,7 @@ local VisualsTab = Window:AddTab("Visuals", "palette")
 
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("WEAPON SKIN", "paintbrush"); VisualsTab:AddSeparator()
 
-weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
+local weaponColorToggle = VisualsTab:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s)
     Flags.WeaponColorEnabled=s
     if s then
         startWeaponColor()
@@ -1611,16 +1593,6 @@ local crosshairSizeSlider = VisualsTab:AddSlider({Title="Size (Длина лин
 local crosshairDistSlider = VisualsTab:AddSlider({Title="Distance (Отступ)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
 local crosshairThickSlider = VisualsTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = VisualsTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
-
-VisualsTab:AddSeparator(); VisualsTab:AddLabel("ASPECT RATIO", "monitor"); VisualsTab:AddSeparator()
-
-aspectToggle = VisualsTab:AddToggle({Title="Aspect Ratio", Subtitle="Растяг (Stretch)", Icon="monitor", Default=false, Callback=function(s)
-    Flags.AspectRatioEnabled = s
-    applyAspectRatio()
-end})
-local aspectSlider = VisualsTab:AddSlider({Title="Stretch Value", Icon="move", Min=0.5, Max=2.0, Default=1.0, Callback=function(v)
-    Flags.AspectRatio = v
-end})
 
 -- ===== UI: OTHER =====
 local OtherTab = Window:AddTab("Other", "box")
@@ -1732,9 +1704,6 @@ local function buildConfig(name)
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
-    cfg:RegisterElement("AspectRatio", aspectToggle)
-    cfg:RegisterElement("AspectValue", aspectSlider)
-
     cfg:RegisterElement("FreeCam", freecamToggle)
     cfg:RegisterElement("NoRecoil", noRecoilToggle)
     cfg:RegisterElement("RapidFire", rapidFireToggle)
@@ -1804,8 +1773,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
-        Flags.AspectRatioEnabled = false
-        Flags.AspectRatio        = 1.0
 
         buildConfig(name):Load()
 
@@ -1820,7 +1787,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-        applyAspectRatio()
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and HudPanel then destroyHud()
         elseif Flags.FPSPing and not HudPanel then createHud() end
