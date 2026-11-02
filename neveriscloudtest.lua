@@ -1239,8 +1239,6 @@ UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="r
 -- ===== UI: PLAYER =====
 UI.Tabs.Player = UI.Window:AddTab("Player", "user")
 
-UI.Elements.freecamToggle = UI.Tabs.Player:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
-
 UI.Tabs.Player:AddSeparator(); UI.Tabs.Player:AddLabel("COMBAT", "crosshair"); UI.Tabs.Player:AddSeparator()
 
 UI.Elements.noRecoilToggle = UI.Tabs.Player:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
@@ -1293,18 +1291,20 @@ UI.Tabs.Other = UI.Window:AddTab("Other", "box")
 UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
 
 -- ===== UI: LOOT =====
-UI.Tabs.Loot = UI.Window:AddTab("loot", "package")
+UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
 
 UI.Tabs.Loot:AddSeparator()
 UI.Tabs.Loot:AddLabel("COMING SOON", "clock")
 UI.Tabs.Loot:AddSeparator()
 
 -- ===== UI: MISC =====
-UI.Tabs.Misc = UI.Window:AddTab("misc", "settings-2")
+UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
 UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
