@@ -1240,7 +1240,7 @@ UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind",
 UI.Tabs.Misc:AddSeparator()
 
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
-UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt, Callback = function(key) updateZoomKey(key) end})
+UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
@@ -1271,20 +1271,18 @@ UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
 
-local ZoomKeyCode = Enum.KeyCode.LeftAlt
-local function updateZoomKey(key)
-    ZoomKeyCode = key
-end
-
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if Flags.CameraZoom and ZoomKeyCode and input.KeyCode == ZoomKeyCode then
+    if not Flags.CameraZoom then return end
+    local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
+    if zoomBind and input.KeyCode == zoomBind then
         Flags.ZoomActive = true
     end
 end)
 
 UIS.InputEnded:Connect(function(input, gpe)
-    if input.KeyCode == ZoomKeyCode then
+    local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
+    if zoomBind and input.KeyCode == zoomBind then
         Flags.ZoomActive = false
     end
 end)
