@@ -223,6 +223,10 @@ local Flags = {
     WeaponColor = Color3.fromRGB(255, 0, 255),
     WeaponMaterial = Enum.Material.Neon,
     
+    AspectRatioEnabled = false,
+    AspectPreset = "16:9 (Roblox Default)",
+    AspectCustom = 1.0,
+    
     ParticlesEnabled = false,
     ParticleType = "Snow",
     ParticleColor = Color3.fromRGB(255, 255, 255),
@@ -234,7 +238,7 @@ local rapidFireConn = nil
 
 local freecamToggle, espToggle, fullbrightToggle, autoRunToggle, spiderToggle
 local hitboxToggle, triggerBotToggle, noRecoilToggle, skyColorToggle, rapidFireToggle
-local weaponColorToggle, particlesToggle
+local weaponColorToggle, aspectToggle, particlesToggle
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -267,6 +271,37 @@ local function isAimHeld()
         end
     end
     return false
+end
+
+-- ===== ASPECT RATIO (PRESETS) =====
+local ASPECT_PRESETS = {
+    ["16:9 (Roblox Default)"] = 70,   -- базовый FOV
+    ["4:3 (Stretched)"]       = 95,   -- растяг по горизонтали (сжатие FOV по X = визуально 4:3)
+    ["21:9 (Ultrawide)"]      = 55,   -- сжатие по вертикали (широкий угол)
+}
+
+local aspectConn = nil
+local function applyAspectRatio()
+    if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
+    
+    if not Flags.AspectRatioEnabled then
+        if Camera.FieldOfView ~= 70 then
+            Camera.FieldOfView = 70
+        end
+        return
+    end
+
+    local presetFOV = ASPECT_PRESETS[Flags.AspectPreset] or 70
+    local custom = Flags.AspectCustom or 1.0
+    
+    aspectConn = RunService.RenderStepped:Connect(function()
+        if not Flags.AspectRatioEnabled then
+            if aspectConn then aspectConn:Disconnect(); aspectConn = nil end
+            return
+        end
+        local targetFOV = presetFOV / custom
+        Camera.FieldOfView = targetFOV
+    end)
 end
 
 -- ===== PARTICLES (WEATHER) =====
@@ -1631,6 +1666,27 @@ local materialDropdown = VisualsTab:AddDropdown({
     end
 })
 
+VisualsTab:AddSeparator(); VisualsTab:AddLabel("ASPECT RATIO", "monitor"); VisualsTab:AddSeparator()
+
+aspectToggle = VisualsTab:AddToggle({Title="Enable Aspect Ratio", Subtitle="Растяг картинки (FOV-based)", Icon="monitor", Default=false, Callback=function(s)
+    Flags.AspectRatioEnabled = s
+    applyAspectRatio()
+end})
+
+local aspectDropdown = VisualsTab:AddDropdown({
+    Title="Aspect Preset", Icon="monitor",
+    Options={"16:9 (Roblox Default)", "4:3 (Stretched)", "21:9 (Ultrawide)"},
+    Default="16:9 (Roblox Default)",
+    Callback=function(s)
+        Flags.AspectPreset = s
+        if Flags.AspectRatioEnabled then applyAspectRatio() end
+    end,
+})
+
+local aspectSlider = VisualsTab:AddSlider({Title="Custom Stretch", Icon="move", Min=0.5, Max=2.0, Default=1.0, Callback=function(v)
+    Flags.AspectCustom = v
+end})
+
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("SKY COLOR", "cloud"); VisualsTab:AddSeparator()
 
 skyColorToggle = VisualsTab:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s)
@@ -1777,6 +1833,10 @@ local function buildConfig(name)
     cfg:RegisterElement("WeaponColorPick", weaponColorPicker)
     cfg:RegisterElement("WeaponMat", materialDropdown)
 
+    cfg:RegisterElement("AspectOn", aspectToggle)
+    cfg:RegisterElement("AspectPreset", aspectDropdown)
+    cfg:RegisterElement("AspectCustom", aspectSlider)
+
     cfg:RegisterElement("SkyColorEnabled", skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", skyColorPicker)
 
@@ -1854,6 +1914,9 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         Flags.RapidFire          = false
         Flags.SkyColorEnabled    = false
         Flags.SkyColor           = Color3.fromRGB(100, 150, 255)
+        Flags.AspectRatioEnabled = false
+        Flags.AspectPreset       = "16:9 (Roblox Default)"
+        Flags.AspectCustom       = 1.0
         Flags.ParticlesEnabled   = false
         Flags.ParticleType       = "Snow"
         Flags.ParticleColor      = Color3.fromRGB(255, 255, 255)
@@ -1872,6 +1935,7 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        applyAspectRatio()
         updateParticles()
         if not Flags.WeaponColorEnabled then
             for _, m in ipairs(lastWeaponModels) do restoreWeaponColorFromModel(m) end
