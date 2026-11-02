@@ -1693,6 +1693,7 @@ local crosshairDistSlider = VisualsTab:AddSlider({Title="Distance (Отступ)
 local crosshairThickSlider = VisualsTab:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 local crosshairTranspSlider = VisualsTab:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
 
+-- ===== ASPECT RATIO & PARTICLES =====
 VisualsTab:AddSeparator(); VisualsTab:AddLabel("OTHER", "settings"); VisualsTab:AddSeparator()
 
 aspectToggle = VisualsTab:AddToggle({Title="Aspect Ratio", Icon="monitor", Default=false, Callback=function(s)
