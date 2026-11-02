@@ -701,7 +701,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (LOCK CAMERA) =====
+-- ===== NO RECOIL (LOCK CAMERA MAX) =====
 local noRecoilConn     = nil
 local noRecoilShotConn = nil
 local lockedCamCF      = nil
@@ -715,14 +715,13 @@ pcall(function()
     local camIndex
     camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
         if self == Camera and key == "CFrame" and Flags.NoRecoil and recoilActive and lockedCamCF then
-            -- отдаём нашу точку, оригинальное значение пушек игнорим
             return camIndex(self, key, lockedCamCF)
         end
         return camIndex(self, key, value)
     end)
 end)
 
--- то же для Camera.Focus и Camera.CFrame-производных через __index (читать будем нашу точку)
+-- то же для чтения Camera.CFrame
 pcall(function()
     local camIndexGet
     camIndexGet = hookmetamethod(game, "__index", function(self, key)
@@ -754,8 +753,8 @@ local function stopNoRecoil()
         pcall(function() noRecoilShotConn:Disconnect() end)
         noRecoilShotConn = nil
     end
-    recoilActive  = false
-    lockedCamCF   = nil
+    recoilActive = false
+    lockedCamCF  = nil
 
     local char = LP.Character
     if char then
@@ -820,14 +819,13 @@ local function startNoRecoil()
 
         if not hrp then return end
 
-        -- фиксируем камеру ОТНОСИТЕЛЬНО HRP на момент первого выстрела серии
         if not recoilActive or not lockedCamCF then
-            lockedCamCF  = hrp.CFrame * hrp.CFrame:ToObjectSpace(Camera.CFrame)
+            lockedCamCF  = Camera.CFrame
             recoilActive = true
         else
-            -- с каждым кадром пересчитываем абсолютную точку относительно текущего HRP,
-            -- чтобы при ходьбе камера ехала с персонажем, а не залипала
-            lockedCamCF = hrp.CFrame * hrp.CFrame:ToObjectSpace(lockedCamCF)
+            -- пересчитываем относительно текущего HRP, чтобы при ходьбе камера ехала с персонажем
+            local rel = hrp.CFrame:ToObjectSpace(lockedCamCF)
+            lockedCamCF = hrp.CFrame * rel
         end
 
         Camera.CFrame = lockedCamCF
@@ -1364,7 +1362,6 @@ local aimChanceSlider = AimbotTab:AddSlider({Title="Hit Chance %", Icon="percent
 local aimPartDropdown = AimbotTab:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
 local teamCheckToggle = AimbotTab:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
 
--- Aim Key — dropdown вместо AddKeybind (AddKeybind не матчит UserInputType)
 local aimKeyDropdown = AimbotTab:AddDropdown({
     Title = "Aim Key", Icon="mouse-pointer",
     Options = {"MouseButton2","MouseButton1","LeftShift","Q","E","C"},
@@ -1534,77 +1531,7 @@ end})
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
--- ===== 4. KEYBINDS (до buildConfig!) =====
-SettingsTab:AddSeparator()
-SettingsTab:AddLabel("KEYBINDS", "keyboard")
-SettingsTab:AddSeparator()
-
-local keybindFreecam = SettingsTab:AddKeybind({
-    Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera",
-    Callback = function()
-        if freecamConn then stopFreeCam() else startFreeCam() end
-    end,
-})
-
-local keybindESP = SettingsTab:AddKeybind({
-    Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye",
-    Callback = function()
-        Flags.ESP = not Flags.ESP
-        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-    end,
-})
-
-local keybindFullbright = SettingsTab:AddKeybind({
-    Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun",
-    Callback = function()
-        Flags.Fullbright = not Flags.Fullbright
-        setFullbright(Flags.Fullbright)
-    end,
-})
-
-local keybindAutoRun = SettingsTab:AddKeybind({
-    Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap",
-    Callback = function() Flags.AutoRun = not Flags.AutoRun end,
-})
-
-local keybindSpider = SettingsTab:AddKeybind({
-    Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up",
-    Callback = function()
-        Flags.Spider = not Flags.Spider
-        if not Flags.Spider then clearSpiderVelocity() end
-    end,
-})
-
-local keybindTrigger = SettingsTab:AddKeybind({
-    Title = "Trigger Bot Keybind", Subtitle = "По умолчанию пусто", Icon = "crosshair",
-    Callback = function() Flags.TriggerBot = not Flags.TriggerBot end,
-})
-
-local keybindHitbox = SettingsTab:AddKeybind({
-    Title = "Hitbox Keybind", Subtitle = "По умолчанию пусто", Icon = "box",
-    Callback = function()
-        Flags.HitboxEnabled = not Flags.HitboxEnabled
-        if not Flags.HitboxEnabled then restoreAllHitboxes() end
-    end,
-})
-
-local keybindNoRecoil = SettingsTab:AddKeybind({
-    Title = "No Recoil Keybind", Subtitle = "По умолчанию пусто", Icon = "target",
-    Callback = function()
-        Flags.NoRecoil = not Flags.NoRecoil
-        if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
-    end,
-})
-
-local keybindHideUI = SettingsTab:AddKeybind({
-    Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
-    Callback = function()
-        local sg = Window.Gui
-        if sg then sg.Enabled = not sg.Enabled end
-    end,
-})
-
--- ===== 5. SYSTEM CONFIG =====
+-- 4. SYSTEM CONFIG (ВЫШЕ БИНДОВ)
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("SYSTEM CONFIG", "save")
 SettingsTab:AddSeparator()
@@ -1622,6 +1549,76 @@ local savedConfigs = SettingsTab:AddDropdown({
     Options = Window.ConfigManager:GetConfigs(),
 })
 
+-- 5. KEYBINDS (ПОСЛЕ КОНФИГОВ)
+SettingsTab:AddSeparator()
+SettingsTab:AddLabel("KEYBINDS", "keyboard")
+SettingsTab:AddSeparator()
+
+local keybindFreecam = SettingsTab:AddKeybind({
+    Title = "FreeCam Keybind", Subtitle = "По умолчанию пусто", Icon = "camera",
+    Callback = function()
+        freecamToggle:Set(not Flags.FreeCam)
+    end,
+})
+
+local keybindESP = SettingsTab:AddKeybind({
+    Title = "ESP Keybind", Subtitle = "По умолчанию пусто", Icon = "eye",
+    Callback = function()
+        espToggle:Set(not Flags.ESP)
+    end,
+})
+
+local keybindFullbright = SettingsTab:AddKeybind({
+    Title = "Fullbright Keybind", Subtitle = "По умолчанию пусто", Icon = "sun",
+    Callback = function()
+        fullbrightToggle:Set(not Flags.Fullbright)
+    end,
+})
+
+local keybindAutoRun = SettingsTab:AddKeybind({
+    Title = "AutoRun Keybind", Subtitle = "По умолчанию пусто", Icon = "zap",
+    Callback = function()
+        autoRunToggle:Set(not Flags.AutoRun)
+    end,
+})
+
+local keybindSpider = SettingsTab:AddKeybind({
+    Title = "Spider Keybind", Subtitle = "По умолчанию пусто", Icon = "arrow-up",
+    Callback = function()
+        spiderToggle:Set(not Flags.Spider)
+    end,
+})
+
+local keybindTrigger = SettingsTab:AddKeybind({
+    Title = "Trigger Bot Keybind", Subtitle = "По умолчанию пусто", Icon = "crosshair",
+    Callback = function()
+        triggerBotToggle:Set(not Flags.TriggerBot)
+    end,
+})
+
+local keybindHitbox = SettingsTab:AddKeybind({
+    Title = "Hitbox Keybind", Subtitle = "По умолчанию пусто", Icon = "box",
+    Callback = function()
+        hitboxToggle:Set(not Flags.HitboxEnabled)
+    end,
+})
+
+local keybindNoRecoil = SettingsTab:AddKeybind({
+    Title = "No Recoil Keybind", Subtitle = "По умолчанию пусто", Icon = "target",
+    Callback = function()
+        noRecoilToggle:Set(not Flags.NoRecoil)
+    end,
+})
+
+local keybindHideUI = SettingsTab:AddKeybind({
+    Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete,
+    Callback = function()
+        local sg = Window.Gui
+        if sg then sg.Enabled = not sg.Enabled end
+    end,
+})
+
+-- ===== CONFIG FUNCTIONS =====
 local function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
@@ -1691,7 +1688,7 @@ local function buildConfig(name)
     -- Settings
     cfg:RegisterElement("StatsHUD", statsHudToggle)
 
-    -- Глобальные бинды — теперь сохраняются в тот же конфиг
+    -- Бинды
     cfg:RegisterElement("BindFreecam",    keybindFreecam)
     cfg:RegisterElement("BindESP",        keybindESP)
     cfg:RegisterElement("BindFullbright", keybindFullbright)
@@ -1705,8 +1702,7 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== SAVE / LOAD / DELETE =====
-
+-- ===== BUTTONS =====
 SettingsTab:AddButton({Title="Save Config", Text="Save", Callback=function()
     local ok, err = pcall(function()
         local name = configNameBox:Get()
@@ -1724,7 +1720,6 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         if not name or name == "" then error("no config") end
         configNameBox:Set(name)
 
-        -- сброс флагов, которые не покрываются config:Load()
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
@@ -1739,34 +1734,20 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
 
         buildConfig(name):Load()
 
-        -- применяем побочные эффекты после того как значения загрузились.
-        -- Callback'и тогглов уже отработали через el:Set() внутри config:Load(),
-        -- здесь только то, что завязано на Flags, а не на контрол.
-
         if Flags.FreeCam then
             if not freecamConn then startFreeCam() end
         else
             if freecamConn then stopFreeCam() end
         end
-
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
-
         if not Flags.Spider then clearSpiderVelocity() end
-
         applyRapidFire()
-
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
-
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
-
-        if not Flags.FPSPing and HudPanel then
-            destroyHud()
-        elseif Flags.FPSPing and not HudPanel then
-            createHud()
-        end
+        if not Flags.FPSPing and HudPanel then destroyHud()
+        elseif Flags.FPSPing and not HudPanel then createHud() end
 
         Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
@@ -1784,7 +1765,7 @@ SettingsTab:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callbac
     if not ok then warn("[config] delete:", err) end
 end})
 
--- ===== 6. Автообновление срока ключа =====
+-- ===== Auto-update key label =====
 task.spawn(function()
     while true do
         task.wait(30)
