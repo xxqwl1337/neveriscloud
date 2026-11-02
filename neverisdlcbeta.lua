@@ -176,7 +176,38 @@ local function keyRemainingText()
 end
 -- ===== END KEY SYSTEM =====
 
-local VantixUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua"))()
+-- ===== БЕЗОПАСНАЯ ЗАГРУЗКА UI =====
+local function safeHttpGet(url)
+    local ok, data = pcall(game.HttpGet, game, url)
+    if ok and data then return data end
+    return nil
+end
+
+local uiCode = safeHttpGet("https://pastebin.com/raw/zbr1tE3J")
+if not uiCode then
+    uiCode = safeHttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/neverisUI2.lua")
+end
+
+if not uiCode then
+    game:GetService("Players").LocalPlayer:Kick("Не удалось загрузить UI библиотеку")
+    return
+end
+
+local VantixUI
+local okUI, errUI = pcall(function()
+    VantixUI = loadstring(uiCode)()
+end)
+
+if not okUI or not VantixUI then
+    game:GetService("Players").LocalPlayer:Kick("Библиотека VantixUI не загрузилась: " .. tostring(errUI))
+    return
+end
+
+if type(VantixUI.CreateWindow) ~= "function" then
+    game:GetService("Players").LocalPlayer:Kick("VantixUI.CreateWindow отсутствует. Библиотека битая.")
+    return
+end
+-- =====================================
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -752,7 +783,7 @@ LP.CharacterAdded:Connect(function()
     if freecamConn then stopFreeCam() end
 end)
 
--- ===== AUTORUN (REWORK v0.2.1) =====
+-- ===== AUTORUN =====
 local defaultWalkSpeed = 16
 local autoRunActive = false
 local autoRunKeyHeld = false
@@ -789,7 +820,6 @@ local function applyAutoRun()
     end
 
     if Flags.AutoRun then
-        -- эмуляция зажатия Shift (для встроенного спринта)
         if not autoRunKeyHeld then
             local ok = pcall(function()
                 autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
@@ -798,13 +828,10 @@ local function applyAutoRun()
                 autoRunKeyHeld = true
             end
         end
-
-        -- fallback: движение вперёд + ускорение
         autoRunActive = true
         if hum.WalkSpeed <= defaultWalkSpeed then
             hum.WalkSpeed = defaultWalkSpeed + 8
         end
-
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
         if dir.Magnitude > 0.01 then
@@ -1747,7 +1774,8 @@ local keybindHideUI = SettingsTab:AddKeybind({
     end,
 })
 
-local function buildConfig(name)
+-- ФИКС ЛИМИТА ЛОКАЛЬНЫХ ПЕРЕМЕННЫХ: УБРАН LOCAL У БОЛЬШОЙ ФУНКЦИИ
+function buildConfig(name)
     local cfg = Window.ConfigManager:CreateConfig(name)
 
     cfg:RegisterElement("Aimbot", aimbotToggle)
@@ -1834,13 +1862,15 @@ SettingsTab:AddSeparator()
 
 Window.ConfigManager:SetFolder("cloudclient_configs")
 
-local configNameBox = SettingsTab:AddTextBox({
+-- ФИКС ЛИМИТА: УБРАН LOCAL
+configNameBox = SettingsTab:AddTextBox({
     Title = "Config Name",
     Placeholder = "Enter name...",
     Default = "default",
 })
 
-local savedConfigs = SettingsTab:AddDropdown({
+-- ФИКС ЛИМИТА: УБРАН LOCAL
+savedConfigs = SettingsTab:AddDropdown({
     Title = "Saved Configs",
     Options = Window.ConfigManager:GetConfigs(),
 })
