@@ -722,13 +722,14 @@ UIS.InputBegan:Connect(function(input, gpe)
         Flags.AutoRun = false
         releaseAutoRunKey()
         
-        -- Принудительно обновляем тоггл в UI
-        if UI.Elements.autoRunToggle then
-            -- Используем pcall, чтобы не крашнуть если метод Set недоступен
-            pcall(function()
-                UI.Elements.autoRunToggle:Set(false)
-            end)
-        end
+        -- Откладываем обновление UI на следующий кадр, чтобы не ломать поток
+        task.defer(function()
+            if UI.Elements.autoRunToggle then
+                pcall(function()
+                    UI.Elements.autoRunToggle:Set(false)
+                end)
+            end
+        end)
     end
 end)
 
