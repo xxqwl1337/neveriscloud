@@ -714,7 +714,7 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (ИСПРАВЛЕН: держит и вертикаль, и горизонталь) =====
+-- ===== NO RECOIL (ИДЕАЛЬНЫЙ) =====
 local noRecoilActive = false
 local savedRecoilCFrame = nil
 local lastShotTime = 0
@@ -725,7 +725,7 @@ local function resetNoRecoilState()
     lastShotTime = 0
 end
 
--- Сохраняем CFrame в момент нажатия ЛКМ (до выстрела и отдачи)
+-- Ловим момент выстрела
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -734,35 +734,41 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Постоянная проверка во время стрельбы
+-- Ловим движения мыши, чтобы обновлять точку прицела во время стрельбы
+UIS.InputChanged:Connect(function(input, gpe)
+    if gpe then return end
+    if not Flags.NoRecoil then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        -- Если игрок сам двигает мышкой во время стрельбы, сдвигаем точку сохранения
+        -- (чтобы блокировка отдачи не мешала целиться)
+        if os.clock() - lastShotTime <= 0.2 and savedRecoilCFrame then
+            local delta = input.Delta
+            -- Вращаем сохранённый CFrame на движение мыши
+            local newCF = savedRecoilCFrame * CFrame.Angles(-math.rad(delta.Y * 0.1), -math.rad(delta.X * 0.1), 0)
+            -- Защита от вылета за полюс
+            local pitch = math.asin(math.clamp(newCF.LookVector.Y, -1, 1))
+            if math.abs(pitch) < math.rad(89) then
+                savedRecoilCFrame = newCF
+            end
+        end
+    end
+end)
+
+-- Каждый кадр возвращаем камеру к сохранённой точке (убираем отдачу)
 RunService.RenderStepped:Connect(function()
     if not Flags.NoRecoil then
-        if noRecoilActive then
-            noRecoilActive = false
-            savedRecoilCFrame = nil
-            lastShotTime = 0
-        end
+        if noRecoilActive then resetNoRecoilState() end
         return
     end
     noRecoilActive = true
 
-    -- Держим камеру только 0.15 секунды после выстрела
-    if os.clock() - lastShotTime > 0.15 then return end
+    -- Работаем только пока идёт стрельба (0.2 секунды после выстрела)
+    if os.clock() - lastShotTime > 0.2 then return end
     if not savedRecoilCFrame then return end
 
-    local current = Camera.CFrame
-    -- Смотрим, куда сейчас смотрит камера и куда смотрела до выстрела
-    local currentLook = current.LookVector
-    local savedLook   = savedRecoilCFrame.LookVector
-
-    -- Вычисляем угол отклонения (и по X, и по Y)
-    local dot = currentLook:Dot(savedLook)
-    -- Если камера ушла от исходной точки (отдача)
-    if dot < 0.9999 then
-        -- Возвращаем камеру в исходную позицию (и по вертикали, и по горизонтали),
-        -- НО позицию (место, где камера находится в мире) берём текущую.
-        Camera.CFrame = CFrame.new(current.Position) * savedRecoilCFrame.Rotation
-    end
+    -- Принудительно ставим камеру туда, где она была до выстрела
+    -- (это убивает визуальную отдачу, пуля летит точно в точку)
+    Camera.CFrame = savedRecoilCFrame
 end)
 
 -- ===== FULLBRIGHT =====
