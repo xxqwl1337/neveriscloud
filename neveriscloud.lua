@@ -701,18 +701,38 @@ local function updateSpider()
     end
 end
 
--- ===== NO RECOIL (MAX) =====
-local noRecoilConn        = nil
-local noRecoilShotConn    = nil
-local recoilTargetCF      = nil
-local recoilActive        = false
-local recoilLastInput     = 0
-local RECOIL_HOLD_TIME    = 0.45
-
--- мгновенный сброс отдачи на каждом выстреле
+-- ===== NO RECOIL (LOCK CAMERA) =====
+local noRecoilConn     = nil
+local noRecoilShotConn = nil
+local lockedCamCF      = nil
+local recoilActive     = false
+local recoilLastInput  = 0
+local RECOIL_HOLD_TIME = 0.45
 local savedMotorTransforms = {}
 
--- ищем оружие где угодно: Tool, Model с Handle, GunComponents
+-- хукаем сеттер Camera.CFrame: пока стреляем — всегда возвращаем lockedCamCF
+pcall(function()
+    local camIndex
+    camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+        if self == Camera and key == "CFrame" and Flags.NoRecoil and recoilActive and lockedCamCF then
+            -- отдаём нашу точку, оригинальное значение пушек игнорим
+            return camIndex(self, key, lockedCamCF)
+        end
+        return camIndex(self, key, value)
+    end)
+end)
+
+-- то же для Camera.Focus и Camera.CFrame-производных через __index (читать будем нашу точку)
+pcall(function()
+    local camIndexGet
+    camIndexGet = hookmetamethod(game, "__index", function(self, key)
+        if self == Camera and Flags.NoRecoil and recoilActive and lockedCamCF then
+            if key == "CFrame" then return lockedCamCF end
+        end
+        return camIndexGet(self, key)
+    end)
+end)
+
 local function findTool(char)
     if not char then return nil end
     local tool = char:FindFirstChildOfClass("Tool")
@@ -734,8 +754,8 @@ local function stopNoRecoil()
         pcall(function() noRecoilShotConn:Disconnect() end)
         noRecoilShotConn = nil
     end
-    recoilActive   = false
-    recoilTargetCF = nil
+    recoilActive  = false
+    lockedCamCF   = nil
 
     local char = LP.Character
     if char then
@@ -750,17 +770,15 @@ local function stopNoRecoil()
 end
 
 local function startNoRecoil()
-    -- убиваем старый бинд на случай ре-экзека
     pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
     if noRecoilConn then return end
 
-    -- ловим каждый клик (включая удержание)
     noRecoilShotConn = UIS.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
         recoilLastInput = os.clock()
         recoilActive    = false
-        recoilTargetCF  = nil
+        lockedCamCF     = nil
     end)
 
     noRecoilConn = RunService:BindToRenderStep("CloudNoRecoil", Enum.RenderPriority.Camera.Value + 1, function()
@@ -769,16 +787,13 @@ local function startNoRecoil()
         local char = LP.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
-        local tool = findTool(char)
         local lmb  = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
 
-        -- держим окно активной компенсации пока зажат ЛКМ
         if lmb then recoilLastInput = os.clock() end
         local now      = os.clock()
         local shooting = lmb and (now - recoilLastInput <= RECOIL_HOLD_TIME)
 
-        -- Мгновенный сброс CameraOffset и Motor6D на каждом кадре.
-        -- Это гарантирует нулевую отдачу по этим каналам.
+        -- сброс offset и motor каждый кадр
         if hum and hum.CameraOffset.Magnitude > 0.0001 then
             hum.CameraOffset = Vector3.zero
         end
@@ -797,20 +812,25 @@ local function startNoRecoil()
 
         if not shooting then
             if recoilActive then
-                recoilActive   = false
-                recoilTargetCF = nil
+                recoilActive = false
+                lockedCamCF  = nil
             end
             return
         end
 
         if not hrp then return end
 
-        -- Camera CFrame — относительно HRP, чтобы ходьба не багалась
-        if not recoilActive or not recoilTargetCF then
-            recoilTargetCF = hrp.CFrame:ToObjectSpace(Camera.CFrame)
-            recoilActive   = true
+        -- фиксируем камеру ОТНОСИТЕЛЬНО HRP на момент первого выстрела серии
+        if not recoilActive or not lockedCamCF then
+            lockedCamCF  = hrp.CFrame * hrp.CFrame:ToObjectSpace(Camera.CFrame)
+            recoilActive = true
+        else
+            -- с каждым кадром пересчитываем абсолютную точку относительно текущего HRP,
+            -- чтобы при ходьбе камера ехала с персонажем, а не залипала
+            lockedCamCF = hrp.CFrame * hrp.CFrame:ToObjectSpace(lockedCamCF)
         end
-        Camera.CFrame = hrp.CFrame * recoilTargetCF
+
+        Camera.CFrame = lockedCamCF
     end)
 end
 
