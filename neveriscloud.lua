@@ -1614,31 +1614,11 @@ end})
 SettingsTab:AddSeparator()
 local statsHudToggle = SettingsTab:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
 
--- 4. SYSTEM CONFIG (ВЫШЕ БИНДОВ)
-SettingsTab:AddSeparator()
-SettingsTab:AddLabel("SYSTEM CONFIG", "save")
-SettingsTab:AddSeparator()
-
-Window.ConfigManager:SetFolder("cloudclient_configs")
-
-local configNameBox = SettingsTab:AddTextBox({
-    Title = "Config Name",
-    Placeholder = "Enter name...",
-    Default = "default",
-})
-
-local savedConfigs = SettingsTab:AddDropdown({
-    Title = "Saved Configs",
-    Options = Window.ConfigManager:GetConfigs(),
-})
-
--- 5. KEYBINDS
+-- 4. KEYBINDS
 SettingsTab:AddSeparator()
 SettingsTab:AddLabel("KEYBINDS", "keyboard")
 SettingsTab:AddSeparator()
 
--- ВАЖНО: теперь бинды меняют сам тоггл, а не просто Flags.
--- Это заставляет UI визуально переключиться.
 local keybindFreecam = SettingsTab:AddKeybind({
     Title = "FreeCam Keybind", Icon = "camera",
     Callback = function()
@@ -1792,7 +1772,24 @@ local function buildConfig(name)
     return cfg
 end
 
--- ===== BUTTONS =====
+-- ===== SYSTEM CONFIG (В САМОМ НИЗУ) =====
+SettingsTab:AddSeparator()
+SettingsTab:AddLabel("SYSTEM CONFIG", "save")
+SettingsTab:AddSeparator()
+
+Window.ConfigManager:SetFolder("cloudclient_configs")
+
+local configNameBox = SettingsTab:AddTextBox({
+    Title = "Config Name",
+    Placeholder = "Enter name...",
+    Default = "default",
+})
+
+local savedConfigs = SettingsTab:AddDropdown({
+    Title = "Saved Configs",
+    Options = Window.ConfigManager:GetConfigs(),
+})
+
 SettingsTab:AddButton({Title="Save Config", Text="Save", Callback=function()
     local ok, err = pcall(function()
         local name = configNameBox:Get()
