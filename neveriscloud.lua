@@ -201,7 +201,7 @@ local Flags = {
     ESP = false, ESPMode = "Chams",
     Box = false, Distance = false, Name = false, Health = false, Line = false,
     Skeleton = false, WeaponESP = false,
-    MaxDistance = 1000,
+    MaxDistance = 1500,
     ESPColor = Color3.fromRGB(255, 0, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
     BoxColor = Color3.fromRGB(255,255,255), LineColor = Color3.fromRGB(255,255,255),
@@ -214,7 +214,7 @@ local Flags = {
     AimPart = "Head", AimSmooth = 5, AimFOV = 120, AimTeamCheck = true,
     AimKey = Enum.UserInputType.MouseButton2, AimPrediction = 0, HitChance = 100,
     HitboxEnabled = false, HitboxSize = 2.0, HitboxTransparency = 50,
-    TriggerBot = false, TriggerDelay = 0, TriggerFOV = 5, TriggerTeamCheck = true,
+    TriggerBot = false, TriggerDelay = 50, TriggerFOV = 15, TriggerTeamCheck = true,
     NoRecoil = false,
     SkyColorEnabled = false, SkyColor = Color3.fromRGB(100, 150, 255),
 }
@@ -413,19 +413,33 @@ local function getClosestTarget()
 end
 
 -- ===== AIM ASSIST + AIM LOCK =====
-RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Camera.Value + 2, function(dt)
-    if not Flags.Aimbot or not CurrentTargetPart then return end
-    if not UIS:IsMouseButtonPressed(Flags.AimKey) then return end
-    if not Flags.AimAssist and not Flags.AimlockMode then return end
-    local camPos = Camera.CFrame.Position
-    local targetPos = CurrentTargetPart.Position
-    if Flags.AimPrediction > 0 then
-        targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
+    if not Flags.Aimbot or not CurrentTargetPart then
+        if Camera.CameraType == Enum.CameraType.Scriptable then
+            Camera.CameraType = Enum.CameraType.Custom
+        end
+        return
     end
-    local lookCF = CFrame.lookAt(camPos, targetPos)
+
+    local aiming = UIS:IsMouseButtonPressed(Flags.AimKey)
+
     if Flags.AimlockMode then
-        Camera.CFrame = lookCF
-    else
+        if Camera.CameraType ~= Enum.CameraType.Scriptable then
+            Camera.CameraType = Enum.CameraType.Scriptable
+        end
+        local camPos = Camera.CFrame.Position
+        local targetPos = CurrentTargetPart.Position
+        if Flags.AimPrediction > 0 then
+            targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+        end
+        Camera.CFrame = CFrame.lookAt(camPos, targetPos)
+    elseif Flags.AimAssist and aiming then
+        local camPos = Camera.CFrame.Position
+        local targetPos = CurrentTargetPart.Position
+        if Flags.AimPrediction > 0 then
+            targetPos = targetPos + (getVelocity(CurrentTargetPart) * Flags.AimPrediction)
+        end
+        local lookCF = CFrame.lookAt(camPos, targetPos)
         local base = 1 / math.max(1, Flags.AimSmooth)
         local alpha = 1 - (1 - base) ^ (dt * 60)
         Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
@@ -462,19 +476,27 @@ local function tryTriggerShot()
         if hitChar ~= CurrentTargetPart.Parent then return end
     end
 
-    if isCrosshairOnTarget(CurrentTargetPart) then
-        triggerLastShot = os.clock()
-        if mouse1click then
-            pcall(mouse1click)
-        else
-            pcall(function()
-                local vim = game:GetService("VirtualInputManager")
-                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
-                task.wait(0.01)
-                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
-            end)
-        end
+    if not isCrosshairOnTarget(CurrentTargetPart) then return end
+
+    triggerLastShot = os.clock()
+
+    local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        pcall(function() tool:Activate() end)
+        return
     end
+
+    if mouse1click then
+        pcall(mouse1click)
+        return
+    end
+
+    pcall(function()
+        local vim = game:GetService("VirtualInputManager")
+        vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
+        task.wait(0.01)
+        vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
+    end)
 end
 
 RunService.RenderStepped:Connect(function()
@@ -694,7 +716,6 @@ RunService.RenderStepped:Connect(function()
     end
     noRecoilActive = true
 
-    -- компенсируем отдачу только 0.15 сек после выстрела
     if os.clock() - lastShotTime > 0.15 then return end
     if not savedRecoilCFrame then return end
 
@@ -703,7 +724,6 @@ RunService.RenderStepped:Connect(function()
     local savedPitch   = math.asin(math.clamp(savedRecoilCFrame.LookVector.Y, -1, 1))
     local pitchDiff = currentPitch - savedPitch
 
-    -- если питч ушёл вверх больше чем на 0.5° — компенсируем (yaw оставляем свободным)
     if pitchDiff > math.rad(0.5) then
         local yaw = math.atan2(-current.LookVector.X, -current.LookVector.Z)
         Camera.CFrame = CFrame.new(current.Position) * CFrame.fromEulerAnglesYXZ(savedPitch, yaw, 0)
@@ -1218,8 +1238,8 @@ local aimKeyBind = AimbotTab:AddKeybind({Title="Aim Key", Icon="mouse-pointer", 
 AimbotTab:AddSeparator(); AimbotTab:AddLabel("TRIGGER BOT", "crosshair"); AimbotTab:AddSeparator()
 
 triggerBotToggle = AimbotTab:AddToggle({Title="Trigger Bot", Subtitle="Авто-выстрел при наведении", Icon="crosshair", Default=false, Callback=function(s) Flags.TriggerBot=s end})
-local triggerFovSlider = AimbotTab:AddSlider({Title="Trigger FOV", Icon="circle", Min=1, Max=30, Default=5, Callback=function(v) Flags.TriggerFOV=v end})
-local triggerDelaySlider = AimbotTab:AddSlider({Title="Trigger Delay (ms)", Icon="clock", Min=0, Max=500, Default=0, Callback=function(v) Flags.TriggerDelay=v end})
+local triggerFovSlider = AimbotTab:AddSlider({Title="Trigger FOV", Icon="circle", Min=1, Max=60, Default=15, Callback=function(v) Flags.TriggerFOV=v end})
+local triggerDelaySlider = AimbotTab:AddSlider({Title="Trigger Delay (ms)", Icon="clock", Min=0, Max=500, Default=50, Callback=function(v) Flags.TriggerDelay=v end})
 local triggerTeamToggle = AimbotTab:AddToggle({Title="Trigger Team Check", Icon="users", Default=true, Callback=function(s) Flags.TriggerTeamCheck=s end})
 
 AimbotTab:AddSeparator(); AimbotTab:AddLabel("HITBOX EXPANDER", "box"); AimbotTab:AddSeparator()
@@ -1266,7 +1286,7 @@ local lineToggle = VisualsTab:AddToggle({Title="Line", Icon="move", Default=fals
 local skeletonToggle = VisualsTab:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
 local weaponToggle = VisualsTab:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
 
-local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=100, Max=1000, Default=1000, Callback=function(v)
+local espDistSlider = VisualsTab:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=1500, Callback=function(v)
     Flags.MaxDistance=v
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
@@ -1472,14 +1492,12 @@ SettingsTab:AddButton({Title="Load Config", Text="Load", Callback=function()
         configNameBox:Set(name)
 
         -- [FIX] Сбрасываем ТОЛЬКО новые флаги, которые протекают между конфигами.
-        -- ESP, Fullbright, FreeCam, AutoRun, Spider, FPSPing, Crosshair — НЕ трогаем,
-        -- они и так корректно восстанавливались из конфига.
         Flags.HitboxEnabled      = false
         Flags.HitboxSize         = 2.0
         Flags.HitboxTransparency = 50
         Flags.TriggerBot         = false
-        Flags.TriggerDelay       = 0
-        Flags.TriggerFOV         = 5
+        Flags.TriggerDelay       = 50
+        Flags.TriggerFOV         = 15
         Flags.TriggerTeamCheck   = true
         Flags.NoRecoil           = false
         Flags.SkyColorEnabled    = false
