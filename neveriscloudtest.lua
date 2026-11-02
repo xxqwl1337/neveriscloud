@@ -1,6 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + AutoRun/Spider + Crosshair + Visuals + Config
-    Version: 0.4.0 (Stable AutoRun + Stealth Spider)
+    Version: 0.5.0 (LinearVelocity Spider + Fixed AutoRun)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -206,7 +206,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.4.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.5.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
@@ -687,7 +687,7 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (СТАБИЛЬНЫЙ, НЕ СБИВАЕТСЯ) =====
+-- ===== AUTORUN (СТАБИЛЬНЫЙ, ИГНОРИРУЕТ CTRL) =====
 local function forceReleaseAutoRun()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
@@ -729,7 +729,7 @@ LP.CharacterAdded:Connect(function()
     CC.Refs.autoRunKeyHeld = false
 end)
 
--- ===== SPIDER (МАКСИМАЛЬНО СКРЫТНЫЙ) =====
+-- ===== SPIDER (LinearVelocity + Плавность) =====
 local spiderRayParams = RaycastParams.new()
 spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
 spiderRayParams.FilterDescendantsInstances = {LP.Character}
@@ -748,7 +748,7 @@ local function updateSpider()
     if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
     if not Flags.Spider then clearSpiderVelocity(); return end
 
-    -- Строгая проверка стены ТОЛЬКО вперед (куда смотрит камера)
+    -- Проверка стены только по направлению взгляда
     spiderRayParams.FilterDescendantsInstances = {char}
     local origin = hrp.Position
     local lookDir = Camera.CFrame.LookVector
@@ -765,7 +765,7 @@ local function updateSpider()
         return
     end
 
-    -- Направление (вверх/вниз)
+    -- Направление
     local up = 0
     if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
     elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -Flags.SpiderSpeed
@@ -773,14 +773,16 @@ local function updateSpider()
 
     if up ~= 0 then
         if not CC.Refs.spiderBV then
-            CC.Refs.spiderBV = Instance.new("BodyVelocity")
-            CC.Refs.spiderBV.MaxForce = Vector3.new(0, 3000, 0) -- Еще мягче
-            CC.Refs.spiderBV.P = 500 -- Еще мягче
+            CC.Refs.spiderBV = Instance.new("LinearVelocity")
+            CC.Refs.spiderBV.MaxForce = 3000
+            CC.Refs.spiderBV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+            CC.Refs.spiderBV.ForceLimitMode = Enum.ForceLimitMode.Magnitude
             CC.Refs.spiderBV.Parent = hrp
+            CC.Refs.spiderBV.Attachment0 = Instance.new("Attachment", hrp)
         end
-        -- Плавно меняем скорость, чтобы не было резких рывков
+        -- Плавно меняем скорость
         local targetVel = Vector3.new(0, up, 0)
-        CC.Refs.spiderBV.Velocity = CC.Refs.spiderBV.Velocity:Lerp(targetVel, 0.25)
+        CC.Refs.spiderBV.VectorVelocity = CC.Refs.spiderBV.VectorVelocity:Lerp(targetVel, 0.2)
     else
         clearSpiderVelocity()
     end
