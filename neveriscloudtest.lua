@@ -687,8 +687,8 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== AUTORUN (СТАБИЛЬНЫЙ, ИГНОРИРУЕТ CTRL) =====
-local function forceReleaseAutoRun()
+-- ===== AUTORUN (С ИНТЕРАКТИВНОЙ ОБРАБОТКОЙ CTRL) =====
+local function releaseAutoRunKey()
     if CC.Refs.autoRunKeyHeld then
         pcall(function()
             CC.Refs.autoRunVIM:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
@@ -697,22 +697,7 @@ local function forceReleaseAutoRun()
     end
 end
 
-local function applyAutoRun()
-    -- Если тоггл выключен — отпускаем Shift и выходим
-    if not Flags.AutoRun then
-        forceReleaseAutoRun()
-        return
-    end
-
-    -- Проверяем персонажа
-    local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then
-        forceReleaseAutoRun()
-        return
-    end
-
-    -- Держим Shift зажатым, если он ещё не зажат
+local function forceAutoRunKey()
     if not CC.Refs.autoRunKeyHeld then
         local ok = pcall(function()
             CC.Refs.autoRunVIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
@@ -723,7 +708,46 @@ local function applyAutoRun()
     end
 end
 
--- При респавне сбрасываем флаг, чтобы в следующем кадре заново зажать Shift
+-- Слушаем нажатие/отпускание Ctrl
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        -- Игрок присел -> отпускаем Shift, чтобы игра не сбросила бег
+        releaseAutoRunKey()
+    end
+end)
+
+UIS.InputEnded:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        -- Игрок встал -> если AutoRun включен, зажимаем Shift обратно
+        if Flags.AutoRun then
+            forceAutoRunKey()
+        end
+    end
+end)
+
+-- Основной цикл: держим Shift, если AutoRun включен и персонаж жив
+local function applyAutoRun()
+    if not Flags.AutoRun then
+        releaseAutoRunKey()
+        return
+    end
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        releaseAutoRunKey()
+        return
+    end
+
+    -- Если мы НЕ в приседе, держим Shift
+    if not UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+        forceAutoRunKey()
+    end
+end
+
+-- Сброс при респавне
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
     CC.Refs.autoRunKeyHeld = false
