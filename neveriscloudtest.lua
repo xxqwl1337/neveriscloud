@@ -1,6 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
+    BUILD: v0.2.0.1
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -206,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.0.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.1 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -395,27 +396,26 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV SYSTEM (Мгновенный и без лагов) =====
+-- ===== FOV SYSTEM (Без лагов и дерганий) =====
+local fovConnection = nil
 local function applyFOV()
-    if CC.Refs.zoomConn then return end
-    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
+    if fovConnection then return end
+    fovConnection = RunService.RenderStepped:Connect(function()
         local isScoping = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         
-        local target = 70 -- Дефолт
+        local target = 70
         if Flags.CameraZoom and Flags.ZoomActive then
-            target = 35 -- Зум работает всегда
+            target = 35
         elseif Flags.FOVChanger then
             if isScoping then
-                target = 70 -- В прицеле принудительно 70 (без лагов)
+                target = 70
             else
-                target = Flags.FOVValue -- Без прицела - твое значение
+                target = Flags.FOVValue
             end
         end
         
-        -- Мгновенная установка без Lerp, чтобы не было лагов
-        if Camera.FieldOfView ~= target then
-            Camera.FieldOfView = target
-        end
+        -- Мгновенная установка. Без проверок и Lerp, чтобы не было дерганий
+        Camera.FieldOfView = target
     end)
 end
 applyFOV()
@@ -1241,7 +1241,6 @@ UI.Tabs.Loot:AddSeparator()
 -- ===== UI: MISC =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
--- Убрали лишний пробел (AddSeparator убрали перед Label)
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
