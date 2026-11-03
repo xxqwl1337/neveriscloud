@@ -1,15 +1,15 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.6
+    BUILD: v0.2.1.7
 ]]
 
--- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
+-- ===== ГЛАВНАЯ ТАБЛИЦА =====
 _G.CC = {
-    Flags = {},      -- Настройки (вкл/выкл)
-    UI = { Tabs = {}, Elements = {} }, -- Все кнопки, слайдеры и вкладки
-    Refs = {},       -- Ссылки на объекты (соединения, парты и т.д.)
-    Lib = nil        -- Библиотека UI
+    Flags = {},
+    UI = { Tabs = {}, Elements = {} },
+    Refs = {},
+    Lib = nil
 }
 
 local CC = _G.CC
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.6", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.6 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.7 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -240,6 +240,7 @@ Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
 -- FOV
 Flags.FOVEnabled = false
+Flags.FOVBindActive = false
 Flags.FOVValue = 70
 Flags.DefaultFOV = 70
 -- REMOVE CONSTRUCTIONS
@@ -309,7 +310,7 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
+-- ===== FOV: HOOK-КОНТРОЛЛЕР =====
 CC.Refs.DefaultFOV    = 70
 CC.Refs.fovAnimValue  = Camera.FieldOfView
 CC.Refs.gameWantsFOV  = Camera.FieldOfView
@@ -320,7 +321,7 @@ CC.Refs._fovReading   = false
 
 local function getDesiredFOV()
     if Flags.CameraZoom and Flags.ZoomActive then return 35 end
-    if Flags.FOVEnabled then return Flags.FOVValue end
+    if Flags.FOVEnabled and Flags.FOVBindActive then return Flags.FOVValue end
     return nil
 end
 
@@ -433,17 +434,17 @@ local function fovWorldToViewport(pos)
     return Vector3.new(sx, sy, -rel.Z)
 end
 
--- ===== REMOVE CONSTRUCTIONS (СНАЙПЕР) =====
+-- ===== REMOVE CONSTRUCTIONS (СКРЫТИЕ + ВОЗВРАТ) =====
 CC.Refs.CleanerConn = nil
 CC.Refs.LastWallScan = 0
+CC.Refs.HiddenWalls = {}
 
 local function toggleRemoveConstructions(state)
     Flags.RemoveConstructions = state
+    
     if state then
         if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
-        
         CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
-            -- Сканируем раз в 0.4 сек
             if os.clock() - (CC.Refs.LastWallScan or 0) < 0.4 then return end
             CC.Refs.LastWallScan = os.clock()
 
@@ -455,7 +456,6 @@ local function toggleRemoveConstructions(state)
             params.FilterType = Enum.RaycastFilterType.Exclude
             params.FilterDescendantsInstances = {char}
 
-            -- Встроенная функция (C++) - ищет в радиусе без лагов
             local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, Flags.RemoveDistance, params)
             local destroyed = {}
 
@@ -463,10 +463,14 @@ local function toggleRemoveConstructions(state)
                 local model = part.Parent
                 if model and model:IsA("Model") and not destroyed[model] then
                     local name = string.lower(model.Name)
-                    -- Удаляем всё, где есть "wall" (но не двери/крыши)
                     if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
                         destroyed[model] = true
-                        model:Destroy()
+                        
+                        table.insert(CC.Refs.HiddenWalls, {
+                            model = model,
+                            originalCFrame = model:GetPivot()
+                        })
+                        model:PivotTo(CFrame.new(0, -5000, 0))
                     end
                 end
             end
@@ -476,6 +480,12 @@ local function toggleRemoveConstructions(state)
             CC.Refs.CleanerConn:Disconnect()
             CC.Refs.CleanerConn = nil
         end
+        for _, data in ipairs(CC.Refs.HiddenWalls) do
+            if data.model and data.model.Parent then
+                data.model:PivotTo(data.originalCFrame)
+            end
+        end
+        CC.Refs.HiddenWalls = {}
     end
 end
 
@@ -1424,23 +1434,50 @@ UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-ho
     CC.Refs.fovSettled = false
 end})
 
+-- БИНД ДЛЯ FOV
+UI.Elements.keybindFOV = UI.Tabs.Misc:AddKeybind({
+    Title = "FOV Keybind",
+    Subtitle = "Зажми для активации FOV",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.C,
+    Callback = function(key, pressed)
+        if pressed then
+            Flags.FOVBindActive = true
+        else
+            Flags.FOVBindActive = false
+        end
+    end
+})
+
 UI.Tabs.Misc:AddSeparator()
 
 -- REMOVE CONSTRUCTIONS
 UI.Elements.removeConstructionsToggle = UI.Tabs.Misc:AddToggle({
     Title = "Remove Constructions",
-    Subtitle = "Удаляет стены вокруг тебя",
+    Subtitle = "Скрывает стены вокруг тебя",
     Icon = "box",
     Default = false,
     Callback = function(s)
         toggleRemoveConstructions(s)
     end
 })
-UI.Tabs.Misc:AddSlider({
+
+UI.Elements.removeDistanceSlider = UI.Tabs.Misc:AddSlider({
     Title = "Remove Distance",
     Icon = "ruler",
     Min = 50, Max = 150, Default = 75,
     Callback = function(v) Flags.RemoveDistance = v end
+})
+
+-- БИНД ДЛЯ REMOVE CONSTRUCTIONS
+UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({
+    Title = "Remove Constructions Keybind",
+    Subtitle = "Вкл/Выкл стены",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.V,
+    Callback = function()
+        UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions)
+    end
 })
 
 -- ===== UI: SETTINGS =====
@@ -1470,16 +1507,6 @@ UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright
 UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
-
-UI.Elements.keybindRemoveConstructions = UI.Tabs.Settings:AddKeybind({
-    Title = "Remove Wall Keybind", 
-    Icon = "box", 
-    Default = Enum.KeyCode.V, 
-    Callback = function() 
-        UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions) 
-    end 
-})
-
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -1576,8 +1603,9 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
 
     cfg:RegisterElement("RemoveWall", UI.Elements.removeConstructionsToggle)
+    cfg:RegisterElement("RemoveDist", UI.Elements.removeDistanceSlider)
     cfg:RegisterElement("BindRemoveWall", UI.Elements.keybindRemoveConstructions)
-    cfg:RegisterElement("RemoveDistance", UI.Elements.removeConstructionsToggle)
+    cfg:RegisterElement("BindFOV", UI.Elements.keybindFOV)
 
     return cfg
 end
