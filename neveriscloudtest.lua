@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.7
+    BUILD: v0.2.1.8
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.8", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.7 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.8 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -240,7 +240,6 @@ Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
 -- FOV
 Flags.FOVEnabled = false
-Flags.FOVBindActive = false
 Flags.FOVValue = 70
 Flags.DefaultFOV = 70
 -- REMOVE CONSTRUCTIONS
@@ -310,7 +309,7 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР =====
+-- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
 CC.Refs.DefaultFOV    = 70
 CC.Refs.fovAnimValue  = Camera.FieldOfView
 CC.Refs.gameWantsFOV  = Camera.FieldOfView
@@ -321,7 +320,7 @@ CC.Refs._fovReading   = false
 
 local function getDesiredFOV()
     if Flags.CameraZoom and Flags.ZoomActive then return 35 end
-    if Flags.FOVEnabled and Flags.FOVBindActive then return Flags.FOVValue end
+    if Flags.FOVEnabled then return Flags.FOVValue end
     return nil
 end
 
@@ -439,7 +438,6 @@ CC.Refs.CleanerConn = nil
 CC.Refs.LastWallScan = 0
 CC.Refs.HiddenWalls = {}
 
--- Создаем скрытую папку для стен (она не рендерится, если ее нет в workspace)
 local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "CC_HiddenWalls"
 
@@ -447,7 +445,7 @@ local function toggleRemoveConstructions(state)
     Flags.RemoveConstructions = state
     
     if state then
-        hiddenFolder.Parent = game:GetService("ReplicatedStorage") -- Прячем в RS, чтобы не рендерилось
+        hiddenFolder.Parent = game:GetService("ReplicatedStorage")
         
         if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
         CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
@@ -472,7 +470,6 @@ local function toggleRemoveConstructions(state)
                     if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
                         destroyed[model] = true
                         
-                        -- СОХРАНЯЕМ И ПЕРЕНОСИМ
                         table.insert(CC.Refs.HiddenWalls, {
                             model = model,
                             originalParent = model.Parent
@@ -483,7 +480,6 @@ local function toggleRemoveConstructions(state)
             end
         end)
     else
-        -- ВЫКЛЮЧАЕМ И ВОЗВРАЩАЕМ
         if CC.Refs.CleanerConn then
             CC.Refs.CleanerConn:Disconnect()
             CC.Refs.CleanerConn = nil
@@ -1444,18 +1440,14 @@ UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-ho
     CC.Refs.fovSettled = false
 end})
 
--- БИНД ДЛЯ FOV
+-- БИНД ДЛЯ FOV (ПРОСТО ПЕРЕКЛЮЧАЕТ ТУМБЛЕР)
 UI.Elements.keybindFOV = UI.Tabs.Misc:AddKeybind({
     Title = "FOV Keybind",
-    Subtitle = "Зажми для активации FOV",
+    Subtitle = "Вкл/Выкл FOV",
     Icon = "keyboard",
     Default = Enum.KeyCode.C,
-    Callback = function(key, pressed)
-        if pressed then
-            Flags.FOVBindActive = true
-        else
-            Flags.FOVBindActive = false
-        end
+    Callback = function()
+        UI.Elements.fovToggle:Set(not Flags.FOVEnabled)
     end
 })
 
