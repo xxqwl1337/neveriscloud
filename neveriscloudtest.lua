@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.0.5
+    BUILD: v0.2.0.7
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.0.5", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.0.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.5 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.7 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -270,21 +270,6 @@ local function isAimHeld()
         elseif k.EnumType == Enum.KeyCode then
             return UIS:IsKeyDown(k)
         end
-    end
-    return false
-end
-
--- ФУНКЦИЯ ПРОВЕРКИ: Есть ли оружие в руках (Viewmodel)
-local function hasWeaponEquipped()
-    -- 1. Проверяем стандартный Tool
-    local char = LP.Character
-    if char and char:FindFirstChildOfClass("Tool") then
-        return true
-    end
-    -- 2. Проверяем Viewmodel в камере (как в Rust Decoy)
-    local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
-    if vm and #vm:GetChildren() > 0 then
-        return true
     end
     return false
 end
@@ -411,29 +396,10 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV SYSTEM (Умный хук под прицел + проверка оружия) =====
-local isGameScoping = false
-
+-- ===== FOV SYSTEM (Статичный FOV, без прицела) =====
 local function applyFOV()
     if CC.Refs.zoomConn then return end
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
-        -- Проверяем, есть ли оружие
-        local weaponInHand = hasWeaponEquipped()
-
-        -- Если прицеливаемся и есть оружие
-        if weaponInHand and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-            if not isGameScoping then
-                isGameScoping = true
-                Camera.FieldOfView = 70 -- Возвращаем дефолтный для прицела
-            end
-            return -- Скипаем наш FOV, пока прицеливаемся
-        else
-            if isGameScoping then
-                isGameScoping = false
-            end
-        end
-
-        -- Обычный FOV (или если нет оружия, то тоже применяем, если включено)
         if Flags.FOVChanger then
             local target = Flags.CameraZoom and Flags.ZoomActive and 35 or Flags.FOVValue
             if Camera.FieldOfView ~= target then
@@ -557,6 +523,10 @@ local function getClosestTarget()
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
 
+    -- Универсальная формула для FOV Circle, чтобы он подстраивался под любой FOV
+    local currentFOV = Camera.FieldOfView
+    local fovMultiplier = currentFOV / 70 -- 70 - стандарт, от него считаем
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
             if Flags.AimTeamCheck and LP.Team and plr.Team and plr.Team == LP.Team then continue end
@@ -565,7 +535,9 @@ local function getClosestTarget()
                 local sp = Camera:WorldToScreenPoint(part.Position)
                 if sp.Z > 0 then
                     local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
-                    if screenDist < Flags.AimFOV then
+                    -- Адаптируем AimFOV под широкий экран
+                    local scaledAimFOV = Flags.AimFOV * fovMultiplier
+                    if screenDist < scaledAimFOV then
                         local worldDist = (part.Position - localPos).Magnitude
                         if worldDist < shortest then shortest = worldDist; closest = plr; closestPart = part end
                     end
@@ -668,7 +640,10 @@ fovCircle.Filled = false; fovCircle.Visible = false; fovCircle.NumSides = 64
 RunService.RenderStepped:Connect(function()
     if Flags.Aimbot then
         fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-        fovCircle.Radius = Flags.AimFOV; fovCircle.Visible = true
+        -- Подстраиваем радиус круга под FOV
+        local fovMultiplier = Camera.FieldOfView / 70
+        fovCircle.Radius = Flags.AimFOV * fovMultiplier
+        fovCircle.Visible = true
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
