@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.4
+    BUILD: v0.2.1.5
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.45", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.5", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.4 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.5 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -306,6 +306,64 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
+-- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
+-- Визуально камера показывает fovAnimValue (наше значение).
+-- Игра при чтении Camera.FieldOfView видит gameWantsFOV (её родное), чтобы не палила нас.
+-- Когда функция выключена — оба хука полностью прозрачны.
+
+CC.Refs.DefaultFOV    = 70
+CC.Refs.fovAnimValue  = Camera.FieldOfView   -- визуальное значение, что видит рендер
+CC.Refs.gameWantsFOV  = Camera.FieldOfView   -- что игра ХОЧЕТ (отдаём ей при чтении)
+CC.Refs.fovAnimActive = false
+CC.Refs.lastRealFOV   = Camera.FieldOfView
+CC.Refs._fovWriting   = false                 -- reentrancy-флаг: мы сами пишем сейчас
+CC.Refs._fovReading   = false                 -- reentrancy-флаг: мы сами читаем сейчас
+
+local function getDesiredFOV()
+    if Flags.CameraZoom and Flags.ZoomActive then return 35 end
+    if Flags.FOVEnabled then return Flags.FOVValue end
+    return nil
+end
+
+-- Единая точка записи в движок (в обход наших хуков, чтобы не крутить рекурсию)
+local function rawSetFOV(value)
+    CC.Refs._fovWriting = true
+    pcall(function() Camera.FieldOfView = value end)
+    CC.Refs._fovWriting = false
+end
+
+-- Хук записи: игра пишет -> запоминаем её желание, но в движок пишем НАШЕ визуальное
+do
+    local ok, err = pcall(function()
+        local oldNewIndex
+        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            if key == "FieldOfView"
+                and typeof(self) == "Instance"
+                and self:IsA("Camera") then
+                -- всегда запоминаем что игра хочет видеть у себя (это же значение отдаём при чтении)
+                CC.Refs.gameWantsFOV = value
+                CC.Refs.lastRealFOV  = value
+
+                -- если это наша собственная запись через rawSetFOV — не вмешиваемся
+                if CC.Refs._fovWriting then
+                    return oldNewIndex(self, key, value)
+                end
+
+                -- если FOV-функция активна — игра не имеет права менять визуал
+                if getDesiredFOV() then
+                    return oldNewIndex(self, key, CC.Refs.fovAnimValue)
+                end
+            end
+            return oldNewIndex(self, key, value)
+        end)
+    end)
+    if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
+end
+
+-- Хук чтения: игра читает -> отдаём ЕЁ значение, чтобы детект спринта не палился
+do
+    local ok, err = pcall(function()
+        local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
             if key == "FieldOfView"
                 and typeof(self) == "Instance"
@@ -319,6 +377,92 @@ CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
             end
             return oldIndex(self, key)
         end)
+    end)
+    if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
+end
+
+-- Контроллер: гонит визуальный fovAnimValue к target. Игру не трогает — она видит своё.
+local function startFOVController()
+    if CC.Refs.zoomConn then return end
+    if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then
+        CC.Refs.DefaultFOV = Camera.FieldOfView
+        Flags.DefaultFOV = CC.Refs.DefaultFOV
+    end
+    CC.Refs.fovAnimValue = Camera.FieldOfView
+    CC.Refs.gameWantsFOV = Camera.FieldOfView
+
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        local target = getDesiredFOV()
+
+        if not target then
+            -- режим "не трогаем": плавно возвращаемся к дефолту и отпускаем визуал
+            if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) > 0.1 then
+                CC.Refs.fovAnimActive = true
+                local alpha = math.min(dt * 12, 1)
+                CC.Refs.fovAnimValue = CC.Refs.fovAnimValue
+                    + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
+                if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) <= 0.1 then
+                    CC.Refs.fovAnimValue = CC.Refs.DefaultFOV
+                    CC.Refs.fovAnimActive = false
+                end
+                rawSetFOV(CC.Refs.fovAnimValue)
+            elseif CC.Refs.fovAnimActive then
+                CC.Refs.fovAnimActive = false
+            end
+            return
+        end
+
+        -- активный режим: плавно гоним визуал к target
+        CC.Refs.fovAnimActive = true
+        local cur = CC.Refs.fovAnimValue
+        if math.abs(cur - target) <= 0.01 then
+            CC.Refs.fovAnimValue = target
+        else
+            local alpha = math.min(dt * 12, 1)
+            CC.Refs.fovAnimValue = cur + (target - cur) * alpha
+            if math.abs(CC.Refs.fovAnimValue - target) <= 0.1 then
+                CC.Refs.fovAnimValue = target
+            end
+        end
+
+        -- пишем напрямую, минуя наши хуки
+        rawSetFOV(CC.Refs.fovAnimValue)
+    end)
+end
+
+local function stopFOVController()
+    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
+    CC.Refs.fovAnimActive = false
+end
+
+local function applyCameraZoom()
+    startFOVController()
+end
+applyCameraZoom()
+
+-- ===== УТИЛИТА: проекция с учётом нашего реального FOV =====
+-- Camera:WorldToViewportPoint читает FieldOfView через __index-хук (получает gameWantsFOV=70),
+-- а рендер идёт по fovAnimValue (120). Считаем проекцию сами — совпадёт с картинкой.
+local function fovWorldToViewport(pos)
+    local realFov
+    if getDesiredFOV() then
+        realFov = CC.Refs.fovAnimValue
+    else
+        realFov = Camera.FieldOfView
+    end
+    local rel = Camera.CFrame:PointToObjectSpace(pos)
+    if rel.Z >= 0 then
+        return Vector3.new(0, 0, -1)
+    end
+    local tanHalf = math.tan(math.rad(realFov) * 0.5)
+    local vs = Camera.ViewportSize
+    local aspect  = vs.X / vs.Y
+    local nx = rel.X / (-rel.Z * tanHalf * aspect)
+    local ny = rel.Y / (-rel.Z * tanHalf)
+    local sx = (nx + 1) * 0.5 * vs.X
+    local sy = (1 - ny) * 0.5 * vs.Y
+    return Vector3.new(sx, sy, -rel.Z)
+end
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
@@ -528,7 +672,7 @@ local function getClosestTarget()
             if Flags.AimTeamCheck and LP.Team and plr.Team and plr.Team == LP.Team then continue end
             local part = getAimPart(plr.Character)
             if part then
-                local sp = Camera:WorldToScreenPoint(part.Position)
+                local sp = fovWorldToViewport(part.Position)
                 if sp.Z > 0 then
                     local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
                     if screenDist < Flags.AimFOV then
@@ -578,7 +722,7 @@ local function isCrosshairOnTarget(part)
     if not part then return false end
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
-    local sp = Camera:WorldToViewportPoint(part.Position)
+    local sp = fovWorldToViewport(part.Position)
     if sp.Z <= 0 then return false end
     local dist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
     return dist <= Flags.TriggerFOV
@@ -967,7 +1111,7 @@ local function updateSkeleton(plr, char)
     for i, conn in ipairs(sk.conns) do
         local p1 = char:FindFirstChild(conn[1]); local p2 = char:FindFirstChild(conn[2]); local line = sk.lines[i]
         if p1 and p2 then
-            local s1 = Camera:WorldToViewportPoint(p1.Position); local s2 = Camera:WorldToViewportPoint(p2.Position)
+            local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
             if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SkeletonColor; line.Visible = true
             elseif line.Visible then line.Visible = false end
         elseif line.Visible then line.Visible = false end
@@ -1032,7 +1176,7 @@ local function updateESP()
             local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
             updateHighlightDistance(plr, dist, false); continue
         end
-        local sp = Camera:WorldToViewportPoint(root.Position)
+        local sp = fovWorldToViewport(root.Position)
         if sp.Z <= 0 then
             if d.Box.Visible then d.Box.Visible=false end; if d.Name.Visible then d.Name.Visible=false end; if d.Health.Visible then d.Health.Visible=false end
             if d.Line.Visible then d.Line.Visible=false end; if d.Distance.Visible then d.Distance.Visible=false end; if d.Weapon.Visible then d.Weapon.Visible=false end
@@ -1042,7 +1186,7 @@ local function updateESP()
         local sx, sy = sp.X, sp.Y
         local headPart = char:FindFirstChild("Head") or root
         local headPos = headPart.Position + Vector3.new(0,1.5,0); local feetPos = root.Position - Vector3.new(0,2.5,0)
-        local hS = Camera:WorldToViewportPoint(headPos); local fS = Camera:WorldToViewportPoint(feetPos)
+        local hS = fovWorldToViewport(headPos); local fS = fovWorldToViewport(feetPos)
         if Flags.Box and hS.Z > 0 and fS.Z > 0 then
             local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
             d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y); d.Box.Color = Flags.BoxColor
@@ -1429,7 +1573,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         Flags.FOVEnabled = false
         Flags.FOVValue = 70
         CC.Refs.fovSettled = false
-        CC.Refs.fovLockedValue = nil
         pcall(function() UI.Elements.fovToggle:Set(false) end)
         pcall(function() UI.Elements.fovSlider:Set(70) end)
 
