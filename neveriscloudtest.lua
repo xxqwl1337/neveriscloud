@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.0.3
+    BUILD: v0.2.0.4
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.0.3", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.0.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.3 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.4 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -396,53 +396,35 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV SYSTEM (Перехват изменения FOV) =====
-local isUpdatingFOV = false
-local originalFOV = Camera.FieldOfView
-
-pcall(function()
-    local oldIndex
-    oldIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-        -- Перехватываем изменение FOV
-        if self == Camera and key == "FieldOfView" then
-            -- Если это не мы сами меняем FOV, значит игра (например, при прицеливании)
-            if not isUpdatingFOV then
-                originalFOV = value -- Запоминаем, что игра хочет поставить (например, 70 при зуме)
-                -- Если скрипт включен, мы сразу перебиваем FOV игры на наш
-                if Flags.FOVChanger then
-                    isUpdatingFOV = true
-                    oldIndex(self, key, Flags.FOVValue)
-                    isUpdatingFOV = false
-                    return
-                end
-            end
-        end
-        return oldIndex(self, key, value)
-    end)
-end)
+-- ===== FOV SYSTEM (Умный хук под прицел) =====
+local isGameScoping = false
 
 local function applyFOV()
     if CC.Refs.zoomConn then return end
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
-        if not Flags.FOVChanger then
-            if not isUpdatingFOV then
-                isUpdatingFOV = true
-                Camera.FieldOfView = originalFOV
-                isUpdatingFOV = false
+        -- Если игра сама меняет FOV (ты нажал ПКМ и игра прицелилась)
+        local isScopingNow = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+        if isScopingNow then
+            -- Если мы только что начали прицеливаться
+            if not isGameScoping then
+                isGameScoping = true
+                -- Отпускаем контроль, пусть игра сама ставит FOV (например, 70)
+                Camera.FieldOfView = 70 
             end
-            return
-        end
-        
-        local target = 70
-        if Flags.CameraZoom and Flags.ZoomActive then
-            target = 35
+            return -- Скипаем наш FOV, пока прицеливаемся
         else
-            target = Flags.FOVValue
+            if isGameScoping then
+                isGameScoping = false
+            end
         end
-        
-        isUpdatingFOV = true
-        Camera.FieldOfView = target
-        isUpdatingFOV = false
+
+        -- Обычный FOV, если не прицеливаемся
+        if Flags.FOVChanger then
+            local target = Flags.CameraZoom and Flags.ZoomActive and 35 or Flags.FOVValue
+            if Camera.FieldOfView ~= target then
+                Camera.FieldOfView = target
+            end
+        end
     end)
 end
 applyFOV()
