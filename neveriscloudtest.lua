@@ -395,31 +395,25 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV SYSTEM (Camera Zoom + FOV Changer) =====
+-- ===== FOV SYSTEM (Мгновенный и без лагов) =====
 local function applyFOV()
     if CC.Refs.zoomConn then return end
-    CC.Refs.defaultFOV = 70
-    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
         local isScoping = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         
-        local target
+        local target = 70 -- Дефолт
         if Flags.CameraZoom and Flags.ZoomActive then
-            target = 35
+            target = 35 -- Зум работает всегда
         elseif Flags.FOVChanger then
             if isScoping then
-                -- Если игрок в прицеле (ПКМ), ставим нормальный FOV, чтобы не было "рыбьего глаза"
-                target = 70 
+                target = 70 -- В прицеле принудительно 70 (без лагов)
             else
-                target = Flags.FOVValue
+                target = Flags.FOVValue -- Без прицела - твое значение
             end
-        else
-            target = CC.Refs.defaultFOV
         end
         
-        local current = Camera.FieldOfView
-        if math.abs(target - current) > 0.1 then
-            Camera.FieldOfView = current + (target - current) * (dt * 15)
-        else
+        -- Мгновенная установка без Lerp, чтобы не было лагов
+        if Camera.FieldOfView ~= target then
             Camera.FieldOfView = target
         end
     end)
@@ -1247,8 +1241,7 @@ UI.Tabs.Loot:AddSeparator()
 -- ===== UI: MISC =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
--- Убрали лишний пробел: делаем аккуратный разделитель
-UI.Tabs.Misc:AddSeparator()
+-- Убрали лишний пробел (AddSeparator убрали перед Label)
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
