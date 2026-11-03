@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.0.4
+    BUILD: v0.2.0.5
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.0.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.0.5", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.4 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.5 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -270,6 +270,21 @@ local function isAimHeld()
         elseif k.EnumType == Enum.KeyCode then
             return UIS:IsKeyDown(k)
         end
+    end
+    return false
+end
+
+-- ФУНКЦИЯ ПРОВЕРКИ: Есть ли оружие в руках (Viewmodel)
+local function hasWeaponEquipped()
+    -- 1. Проверяем стандартный Tool
+    local char = LP.Character
+    if char and char:FindFirstChildOfClass("Tool") then
+        return true
+    end
+    -- 2. Проверяем Viewmodel в камере (как в Rust Decoy)
+    local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
+    if vm and #vm:GetChildren() > 0 then
+        return true
     end
     return false
 end
@@ -396,20 +411,20 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV SYSTEM (Умный хук под прицел) =====
+-- ===== FOV SYSTEM (Умный хук под прицел + проверка оружия) =====
 local isGameScoping = false
 
 local function applyFOV()
     if CC.Refs.zoomConn then return end
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function()
-        -- Если игра сама меняет FOV (ты нажал ПКМ и игра прицелилась)
-        local isScopingNow = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-        if isScopingNow then
-            -- Если мы только что начали прицеливаться
+        -- Проверяем, есть ли оружие
+        local weaponInHand = hasWeaponEquipped()
+
+        -- Если прицеливаемся и есть оружие
+        if weaponInHand and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
             if not isGameScoping then
                 isGameScoping = true
-                -- Отпускаем контроль, пусть игра сама ставит FOV (например, 70)
-                Camera.FieldOfView = 70 
+                Camera.FieldOfView = 70 -- Возвращаем дефолтный для прицела
             end
             return -- Скипаем наш FOV, пока прицеливаемся
         else
@@ -418,7 +433,7 @@ local function applyFOV()
             end
         end
 
-        -- Обычный FOV, если не прицеливаемся
+        -- Обычный FOV (или если нет оружия, то тоже применяем, если включено)
         if Flags.FOVChanger then
             local target = Flags.CameraZoom and Flags.ZoomActive and 35 or Flags.FOVValue
             if Camera.FieldOfView ~= target then
