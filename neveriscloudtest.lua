@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.0.1
+    BUILD: v0.2.1.0
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.0.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.1 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.0 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -238,6 +238,10 @@ Flags.WeaponColorEnabled = false
 Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
 Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
+-- FOV
+Flags.FOVEnabled = false
+Flags.FOVValue = 70
+Flags.DefaultFOV = 70
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -301,8 +305,92 @@ CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.
 CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
-CC.Refs.defaultFOV = Camera.FieldOfView
 CC.Refs.zoomConn = nil
+
+-- ===== ЕДИНЫЙ КОНТРОЛЛЕР FOV (Zoom + FOV Slider) =====
+-- Один источник правды. Цель:
+--   * Zoom активен -> 35
+--   * FOV включён   -> Flags.FOVValue
+--   * иначе         -> Flags.DefaultFOV (дефолт роблокса)
+-- Плавно lerp-им. Никакие другие коннекты FOV не трогают.
+CC.Refs.DefaultFOV = 70
+CC.Refs.fovTarget = 70
+CC.Refs.fovLocked = false   -- жёсткий лок от других систем (когда FOV-слайдер включён)
+
+local function getDesiredFOV()
+    if Flags.CameraZoom and Flags.ZoomActive then
+        return 35
+    end
+    if Flags.FOVEnabled then
+        return Flags.FOVValue
+    end
+    return Flags.DefaultFOV
+end
+
+local function startFOVController()
+    if CC.Refs.zoomConn then return end
+    -- запоминаем дефолт один раз, если ещё не запомнили
+    if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then
+        CC.Refs.DefaultFOV = Camera.FieldOfView
+        Flags.DefaultFOV = CC.Refs.DefaultFOV
+    end
+
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        -- пока зажат ПКМ (прицеливание оружия) — не трогаем, игра сама зумит
+        if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) and not Flags.FOVEnabled then
+            return
+        end
+
+        local target = getDesiredFOV()
+        CC.Refs.fovTarget = target
+
+        local current = Camera.FieldOfView
+        if math.abs(target - current) > 0.05 then
+            -- быстрый, но плавный lerp; dt*18 ~ 0.35s на переход
+            local speed = (Flags.CameraZoom and Flags.ZoomActive) and 25 or 12
+            Camera.FieldOfView = current + (target - current) * math.min(dt * speed, 1)
+        else
+            Camera.FieldOfView = target
+        end
+    end)
+end
+
+-- если FOV-слайдер включён — жёстко фиксируем значение (перебиваем игру, если она меняет)
+local function enforceFOVLock()
+    if not Flags.FOVEnabled then return end
+    if Flags.CameraZoom and Flags.ZoomActive then return end -- zoom имеет приоритет
+    if math.abs(Camera.FieldOfView - Flags.FOVValue) > 0.1 then
+        Camera.FieldOfView = Flags.FOVValue
+    end
+end
+
+local function startFOVEnforcer()
+    if CC.Refs.fovEnforcerConn then return end
+    CC.Refs.fovEnforcerConn = RunService.Heartbeat:Connect(function()
+        enforceFOVLock()
+    end)
+end
+
+local function stopFOVEnforcer()
+    if CC.Refs.fovEnforcerConn then
+        CC.Refs.fovEnforcerConn:Disconnect()
+        CC.Refs.fovEnforcerConn = nil
+    end
+end
+
+local function applyCameraZoom()
+    -- коннект один на всю жизнь скрипта, пересоздавать не надо
+    startFOVController()
+end
+applyCameraZoom()
+
+-- при выходе FOV-слайдера из строя — плавно вернуть дефолт
+local function resetFOVToDefault()
+    Flags.FOVEnabled = false
+    stopFOVEnforcer()
+    -- плавный возврат сделает контроллер, т.к. getDesiredFOV вернёт DefaultFOV
+    startFOVController()
+end
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
@@ -393,27 +481,6 @@ end
 local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
-
--- ===== CAMERA ZOOM (Fixed for scope) =====
-local function applyCameraZoom()
-    if CC.Refs.zoomConn then return end
-    CC.Refs.defaultFOV = 70
-    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
-        -- Если зажат ПКМ (прицел), не трогаем FOV, чтобы игра сама сделала зум оружия
-        if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-            return 
-        end
-
-        local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or CC.Refs.defaultFOV
-        local current = Camera.FieldOfView
-        if math.abs(target - current) > 0.1 then
-            Camera.FieldOfView = current + (target - current) * (dt * 15)
-        else
-            Camera.FieldOfView = target
-        end
-    end)
-end
-applyCameraZoom()
 
 -- ===== ХИТБОКС =====
 local function restoreHitbox(char)
@@ -800,9 +867,13 @@ end
 local function applyRapidFire()
     if CC.Refs.rapidFireConn then CC.Refs.rapidFireConn:Disconnect(); CC.Refs.rapidFireConn = nil end
     if not Flags.RapidFire then return end
+    local lastShot = 0
     CC.Refs.rapidFireConn = RunService.Heartbeat:Connect(function()
         if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
         if UI.Window.Gui and UI.Window.Gui.Enabled then return end
+        local now = os.clock()
+        if now - lastShot < (Flags.RapidFireDelay / 1000) then return end
+        lastShot = now
         if mouse1click then pcall(mouse1click)
         else
             local vim = game:GetService("VirtualInputManager")
@@ -1120,7 +1191,7 @@ task.spawn(function()
             if hum and CC.Refs.hpRow then CC.Refs.hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))) end
             if CC.Refs.statusRow then CC.Refs.statusRow:Set(Flags.ESP and "ESP on" or "ESP off") end
         elseif CC.Refs.HudPanel then destroyHud() end
-        RunService.Heartbeat:Wait()
+        task.wait(0.1)
     end
 end)
 
@@ -1247,6 +1318,36 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt})
 
+-- FOV (прям под зумом)
+UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="scan", Default=false, Callback=function(s)
+    Flags.FOVEnabled = s
+    if s then
+        startFOVController()
+        startFOVEnforcer()
+        -- мгновенно целимся в значение (без lerp-задержки при включении)
+        Flags.FOVValue = math.clamp(Flags.FOVValue, Flags.DefaultFOV, 120)
+        task.spawn(function()
+            local deadline = os.clock() + 0.6
+            while os.clock() < deadline and Flags.FOVEnabled do
+                local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or Flags.FOVValue
+                if math.abs(Camera.FieldOfView - target) < 0.1 then break end
+                task.wait(0.02)
+            end
+        end)
+    else
+        stopFOVEnforcer()
+        -- плавный возврат к дефолту
+    end
+end})
+
+UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="scan", Min=70, Max=120, Default=70, Callback=function(v)
+    Flags.FOVValue = v
+    -- если включён — жёстко фиксируем сразу, чтобы не было лага
+    if Flags.FOVEnabled and not (Flags.CameraZoom and Flags.ZoomActive) then
+        Camera.FieldOfView = v
+    end
+end})
+
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
 
@@ -1274,6 +1375,7 @@ UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright
 UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
+UI.Elements.keybindFOV = UI.Tabs.Settings:AddKeybind({Title = "FOV Keybind", Icon = "scan", Callback = function() UI.Elements.fovToggle:Set(not Flags.FOVEnabled) end})
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -1351,6 +1453,8 @@ UI.buildConfig = function(name)
 
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
     cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
+    cfg:RegisterElement("FOVEnabled", UI.Elements.fovToggle)
+    cfg:RegisterElement("FOVValue", UI.Elements.fovSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
@@ -1365,6 +1469,7 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
     cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
+    cfg:RegisterElement("BindFOV",        UI.Elements.keybindFOV)
     cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
 
     return cfg
@@ -1413,6 +1518,12 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        -- FOV после загрузки
+        if Flags.FOVEnabled then
+            startFOVController(); startFOVEnforcer()
+        else
+            stopFOVEnforcer()
+        end
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
         elseif Flags.FPSPing and not CC.Refs.HudPanel then createHud() end
