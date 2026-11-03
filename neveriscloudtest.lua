@@ -207,7 +207,7 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.45", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.4 loaded", Icon = "check", Duration = 4 })
 
@@ -306,68 +306,11 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
--- Визуально камера показывает fovAnimValue (наше значение).
--- Игра при чтении Camera.FieldOfView видит gameWantsFOV (её родное), чтобы не палила нас.
--- Когда функция выключена — оба хука полностью прозрачны.
-
-CC.Refs.DefaultFOV    = 70
-CC.Refs.fovAnimValue  = Camera.FieldOfView   -- визуальное значение, что видит рендер
-CC.Refs.gameWantsFOV  = Camera.FieldOfView   -- что игра ХОЧЕТ (отдаём ей при чтении)
-CC.Refs.fovAnimActive = false
-CC.Refs.lastRealFOV   = Camera.FieldOfView
-CC.Refs._fovWriting   = false                 -- reentrancy-флаг: мы сами пишем сейчас
-
-local function getDesiredFOV()
-    if Flags.CameraZoom and Flags.ZoomActive then return 35 end
-    if Flags.FOVEnabled then return Flags.FOVValue end
-    return nil
-end
-
--- Единая точка записи в движок (в обход наших хуков, чтобы не крутить рекурсию)
-local function rawSetFOV(value)
-    CC.Refs._fovWriting = true
-    pcall(function() Camera.FieldOfView = value end)
-    CC.Refs._fovWriting = false
-end
-
--- Хук записи: игра пишет -> запоминаем её желание, но в движок пишем НАШЕ визуальное
-do
-    local ok, err = pcall(function()
-        local oldNewIndex
-        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if key == "FieldOfView"
-                and typeof(self) == "Instance"
-                and self:IsA("Camera") then
-                -- всегда запоминаем что игра хочет видеть у себя (это же значение отдаём при чтении)
-                CC.Refs.gameWantsFOV = value
-                CC.Refs.lastRealFOV  = value
-
-                -- если это наша собственная запись через rawSetFOV — не вмешиваемся
-                if CC.Refs._fovWriting then
-                    return oldNewIndex(self, key, value)
-                end
-
-                -- если FOV-функция активна — игра не имеет права менять визуал
-                if getDesiredFOV() then
-                    return oldNewIndex(self, key, CC.Refs.fovAnimValue)
-                end
-            end
-            return oldNewIndex(self, key, value)
-        end)
-    end)
-    if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
-end
-
--- Хук чтения: игра читает -> отдаём ЕЁ значение, чтобы детект спринта не палился
-do
-    local ok, err = pcall(function()
-        local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
             if key == "FieldOfView"
                 and typeof(self) == "Instance"
                 and self:IsA("Camera") then
-                if CC.Refs._fovWriting then
+                if CC.Refs._fovWriting or CC.Refs._fovReading then
                     return oldIndex(self, key)
                 end
                 if getDesiredFOV() then
@@ -376,69 +319,6 @@ do
             end
             return oldIndex(self, key)
         end)
-    end)
-    if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
-end
-
--- Контроллер: гонит визуальный fovAnimValue к target. Игру не трогает — она видит своё.
-local function startFOVController()
-    if CC.Refs.zoomConn then return end
-    if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then
-        CC.Refs.DefaultFOV = Camera.FieldOfView
-        Flags.DefaultFOV = CC.Refs.DefaultFOV
-    end
-    CC.Refs.fovAnimValue = Camera.FieldOfView
-    CC.Refs.gameWantsFOV = Camera.FieldOfView
-
-    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
-        local target = getDesiredFOV()
-
-        if not target then
-            -- режим "не трогаем": плавно возвращаемся к дефолту и отпускаем визуал
-            if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) > 0.1 then
-                CC.Refs.fovAnimActive = true
-                local alpha = math.min(dt * 12, 1)
-                CC.Refs.fovAnimValue = CC.Refs.fovAnimValue
-                    + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
-                if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) <= 0.1 then
-                    CC.Refs.fovAnimValue = CC.Refs.DefaultFOV
-                    CC.Refs.fovAnimActive = false
-                end
-                rawSetFOV(CC.Refs.fovAnimValue)
-            elseif CC.Refs.fovAnimActive then
-                CC.Refs.fovAnimActive = false
-            end
-            return
-        end
-
-        -- активный режим: плавно гоним визуал к target
-        CC.Refs.fovAnimActive = true
-        local cur = CC.Refs.fovAnimValue
-        if math.abs(cur - target) <= 0.01 then
-            CC.Refs.fovAnimValue = target
-        else
-            local alpha = math.min(dt * 12, 1)
-            CC.Refs.fovAnimValue = cur + (target - cur) * alpha
-            if math.abs(CC.Refs.fovAnimValue - target) <= 0.1 then
-                CC.Refs.fovAnimValue = target
-            end
-        end
-
-        -- пишем напрямую, минуя наши хуки (иначе __newindex перезапишет на fovAnimValue же —
-        -- это no-op, но лучше избежать лишних вызовов)
-        rawSetFOV(CC.Refs.fovAnimValue)
-    end)
-end
-
-local function stopFOVController()
-    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
-    CC.Refs.fovAnimActive = false
-end
-
-local function applyCameraZoom()
-    startFOVController()
-end
-applyCameraZoom()
 
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
