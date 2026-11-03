@@ -306,33 +306,52 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР =====
--- Идея: пока FOV включён, ВСЕ записи в Camera.FieldOfView подменяются на наше значение.
--- Плавный переход (вкл/выкл/зум) ведём сами через fovAnimValue, игра его не видит.
+-- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
+-- Визуально камера показывает fovAnimValue (наше значение).
+-- Игра при чтении Camera.FieldOfView видит gameWantsFOV (её родное), чтобы не палила нас.
+-- Когда функция выключена — оба хука полностью прозрачны.
+
 CC.Refs.DefaultFOV    = 70
-CC.Refs.fovAnimValue  = Camera.FieldOfView  -- текущее "наше" значение, к которому едем
-CC.Refs.fovAnimActive = false                -- идёт ли плавный переход
+CC.Refs.fovAnimValue  = Camera.FieldOfView   -- визуальное значение, что видит рендер
+CC.Refs.gameWantsFOV  = Camera.FieldOfView   -- что игра ХОЧЕТ (отдаём ей при чтении)
+CC.Refs.fovAnimActive = false
 CC.Refs.lastRealFOV   = Camera.FieldOfView
+CC.Refs._fovWriting   = false                 -- reentrancy-флаг: мы сами пишем сейчас
 
 local function getDesiredFOV()
     if Flags.CameraZoom and Flags.ZoomActive then return 35 end
     if Flags.FOVEnabled then return Flags.FOVValue end
-    return nil  -- nil = не трогать, отдаём игре
+    return nil
 end
 
--- Хук записи: игра пишет FieldOfView -> если мы активны, подменяем на fovAnimValue
+-- Единая точка записи в движок (в обход наших хуков, чтобы не крутить рекурсию)
+local function rawSetFOV(value)
+    CC.Refs._fovWriting = true
+    pcall(function() Camera.FieldOfView = value end)
+    CC.Refs._fovWriting = false
+end
+
+-- Хук записи: игра пишет -> запоминаем её желание, но в движок пишем НАШЕ визуальное
 do
     local ok, err = pcall(function()
         local oldNewIndex
         oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if self == Camera and key == "FieldOfView" then
-                local target = getDesiredFOV()
-                if target then
-                    -- мы управляем FOV: игра не имеет права писать своё
-                    CC.Refs.lastRealFOV = value  -- запоминаем что хотела игра (для отладки)
+            if key == "FieldOfView"
+                and typeof(self) == "Instance"
+                and self:IsA("Camera") then
+                -- всегда запоминаем что игра хочет видеть у себя (это же значение отдаём при чтении)
+                CC.Refs.gameWantsFOV = value
+                CC.Refs.lastRealFOV  = value
+
+                -- если это наша собственная запись через rawSetFOV — не вмешиваемся
+                if CC.Refs._fovWriting then
+                    return oldNewIndex(self, key, value)
+                end
+
+                -- если FOV-функция активна — игра не имеет права менять визуал
+                if getDesiredFOV() then
                     return oldNewIndex(self, key, CC.Refs.fovAnimValue)
                 end
-                CC.Refs.lastRealFOV = value
             end
             return oldNewIndex(self, key, value)
         end)
@@ -340,13 +359,20 @@ do
     if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
 end
 
--- Хук чтения: пока активны, отдаём наше значение, а не то что в движке
+-- Хук чтения: игра читает -> отдаём ЕЁ значение, чтобы детект спринта не палился
 do
     local ok, err = pcall(function()
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
-            if self == Camera and key == "FieldOfView" and getDesiredFOV() then
-                return CC.Refs.fovAnimValue
+            if key == "FieldOfView"
+                and typeof(self) == "Instance"
+                and self:IsA("Camera") then
+                if CC.Refs._fovWriting then
+                    return oldIndex(self, key)
+                end
+                if getDesiredFOV() then
+                    return CC.Refs.gameWantsFOV
+                end
             end
             return oldIndex(self, key)
         end)
@@ -354,7 +380,7 @@ do
     if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
 end
 
--- Плавная анимация fovAnimValue к target. Игра при этом пишет что угодно — хук её гасит.
+-- Контроллер: гонит визуальный fovAnimValue к target. Игру не трогает — она видит своё.
 local function startFOVController()
     if CC.Refs.zoomConn then return end
     if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then
@@ -362,12 +388,15 @@ local function startFOVController()
         Flags.DefaultFOV = CC.Refs.DefaultFOV
     end
     CC.Refs.fovAnimValue = Camera.FieldOfView
+    CC.Refs.gameWantsFOV = Camera.FieldOfView
 
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
         local target = getDesiredFOV()
+
         if not target then
-            -- режим "не трогаем": плавно возвращаемся к дефолту и отпускаем
-            if CC.Refs.fovAnimActive then
+            -- режим "не трогаем": плавно возвращаемся к дефолту и отпускаем визуал
+            if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) > 0.1 then
+                CC.Refs.fovAnimActive = true
                 local alpha = math.min(dt * 12, 1)
                 CC.Refs.fovAnimValue = CC.Refs.fovAnimValue
                     + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
@@ -375,15 +404,14 @@ local function startFOVController()
                     CC.Refs.fovAnimValue = CC.Refs.DefaultFOV
                     CC.Refs.fovAnimActive = false
                 end
-                -- пока анимируем — двигаем камеру напрямую через API, хуки это пропустят
-                -- (они уже отдают nil из getDesiredFOV, значит пишем через oldNewIndex)
-                -- Чтобы не плодить копий oldNewIndex, просто пишем через Camera.FieldOfView —
-                -- хук пропустит запись, т.к. target == nil.
-                Camera.FieldOfView = CC.Refs.fovAnimValue
+                rawSetFOV(CC.Refs.fovAnimValue)
+            elseif CC.Refs.fovAnimActive then
+                CC.Refs.fovAnimActive = false
             end
             return
         end
-        -- режим "мы рулим": плавно гоним fovAnimValue к target
+
+        -- активный режим: плавно гоним визуал к target
         CC.Refs.fovAnimActive = true
         local cur = CC.Refs.fovAnimValue
         if math.abs(cur - target) <= 0.01 then
@@ -395,13 +423,16 @@ local function startFOVController()
                 CC.Refs.fovAnimValue = target
             end
         end
-        -- принудительно вгоняем в камеру (хук __newindex пропустит, target не nil)
-        Camera.FieldOfView = CC.Refs.fovAnimValue
+
+        -- пишем напрямую, минуя наши хуки (иначе __newindex перезапишет на fovAnimValue же —
+        -- это no-op, но лучше избежать лишних вызовов)
+        rawSetFOV(CC.Refs.fovAnimValue)
     end)
 end
 
 local function stopFOVController()
     if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
+    CC.Refs.fovAnimActive = false
 end
 
 local function applyCameraZoom()
