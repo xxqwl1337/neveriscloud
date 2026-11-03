@@ -1,7 +1,6 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.0.8
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +206,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.0.8", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.8 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -238,8 +237,6 @@ Flags.WeaponColorEnabled = false
 Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
 Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
-Flags.FOVChanger = false
-Flags.FOVValue = 70
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -396,21 +393,12 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== FOV & CAMERA ZOOM SYSTEM =====
-local function applyFOVSystem()
-    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect() end
+-- ===== CAMERA ZOOM =====
+local function applyCameraZoom()
+    if CC.Refs.zoomConn then return end
+    CC.Refs.defaultFOV = 70
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
-        local target = 70
-        
-        -- Зум работает всегда, если зажат
-        if Flags.CameraZoom and Flags.ZoomActive then
-            target = 35
-        -- Если включен FOV Changer, берем его значение
-        elseif Flags.FOVChanger then
-            target = Flags.FOVValue
-        end
-
-        -- Плавная интерполяция (Lerp) для устранения дерганий
+        local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or CC.Refs.defaultFOV
         local current = Camera.FieldOfView
         if math.abs(target - current) > 0.1 then
             Camera.FieldOfView = current + (target - current) * (dt * 15)
@@ -419,7 +407,7 @@ local function applyFOVSystem()
         end
     end)
 end
-applyFOVSystem()
+applyCameraZoom()
 
 -- ===== ХИТБОКС =====
 local function restoreHitbox(char)
@@ -534,10 +522,6 @@ local function getClosestTarget()
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
 
-    -- Универсальная формула для FOV Circle, чтобы он подстраивался под любой FOV
-    local currentFOV = Camera.FieldOfView
-    local fovMultiplier = currentFOV / 70
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
             if Flags.AimTeamCheck and LP.Team and plr.Team and plr.Team == LP.Team then continue end
@@ -546,8 +530,7 @@ local function getClosestTarget()
                 local sp = Camera:WorldToScreenPoint(part.Position)
                 if sp.Z > 0 then
                     local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
-                    local scaledAimFOV = Flags.AimFOV * fovMultiplier
-                    if screenDist < scaledAimFOV then
+                    if screenDist < Flags.AimFOV then
                         local worldDist = (part.Position - localPos).Magnitude
                         if worldDist < shortest then shortest = worldDist; closest = plr; closestPart = part end
                     end
@@ -650,9 +633,7 @@ fovCircle.Filled = false; fovCircle.Visible = false; fovCircle.NumSides = 64
 RunService.RenderStepped:Connect(function()
     if Flags.Aimbot then
         fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-        local fovMultiplier = Camera.FieldOfView / 70
-        fovCircle.Radius = Flags.AimFOV * fovMultiplier
-        fovCircle.Visible = true
+        fovCircle.Radius = Flags.AimFOV; fovCircle.Visible = true
     elseif fovCircle.Visible then fovCircle.Visible = false end
 end)
 
@@ -1249,6 +1230,7 @@ UI.Tabs.Loot:AddSeparator()
 -- ===== UI: MISC =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
+UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
@@ -1259,11 +1241,6 @@ UI.Tabs.Misc:AddSeparator()
 
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt})
-
-UI.Tabs.Misc:AddSeparator()
-
-UI.Elements.fovChangerToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Изменяет игровой FOV", Icon="eye", Default=false, Callback=function(s) Flags.FOVChanger=s end})
-UI.Elements.fovChangerSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="maximize", Min=70, Max=140, Default=70, Callback=function(v) Flags.FOVValue=v end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
@@ -1369,8 +1346,6 @@ UI.buildConfig = function(name)
 
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
     cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
-    cfg:RegisterElement("FOVChanger", UI.Elements.fovChangerToggle)
-    cfg:RegisterElement("FOVValue", UI.Elements.fovChangerSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
