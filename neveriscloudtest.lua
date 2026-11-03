@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.5
+    BUILD: v0.2.1.6
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.5", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.6", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.5 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.6 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -242,6 +242,9 @@ Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRa
 Flags.FOVEnabled = false
 Flags.FOVValue = 70
 Flags.DefaultFOV = 70
+-- REMOVE CONSTRUCTIONS
+Flags.RemoveConstructions = false
+Flags.RemoveDistance = 75
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -307,17 +310,13 @@ CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
 -- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
--- Визуально камера показывает fovAnimValue (наше значение).
--- Игра при чтении Camera.FieldOfView видит gameWantsFOV (её родное), чтобы не палила нас.
--- Когда функция выключена — оба хука полностью прозрачны.
-
 CC.Refs.DefaultFOV    = 70
-CC.Refs.fovAnimValue  = Camera.FieldOfView   -- визуальное значение, что видит рендер
-CC.Refs.gameWantsFOV  = Camera.FieldOfView   -- что игра ХОЧЕТ (отдаём ей при чтении)
+CC.Refs.fovAnimValue  = Camera.FieldOfView
+CC.Refs.gameWantsFOV  = Camera.FieldOfView
 CC.Refs.fovAnimActive = false
 CC.Refs.lastRealFOV   = Camera.FieldOfView
-CC.Refs._fovWriting   = false                 -- reentrancy-флаг: мы сами пишем сейчас
-CC.Refs._fovReading   = false                 -- reentrancy-флаг: мы сами читаем сейчас
+CC.Refs._fovWriting   = false
+CC.Refs._fovReading   = false
 
 local function getDesiredFOV()
     if Flags.CameraZoom and Flags.ZoomActive then return 35 end
@@ -325,34 +324,21 @@ local function getDesiredFOV()
     return nil
 end
 
--- Единая точка записи в движок (в обход наших хуков, чтобы не крутить рекурсию)
 local function rawSetFOV(value)
     CC.Refs._fovWriting = true
     pcall(function() Camera.FieldOfView = value end)
     CC.Refs._fovWriting = false
 end
 
--- Хук записи: игра пишет -> запоминаем её желание, но в движок пишем НАШЕ визуальное
 do
     local ok, err = pcall(function()
         local oldNewIndex
         oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if key == "FieldOfView"
-                and typeof(self) == "Instance"
-                and self:IsA("Camera") then
-                -- всегда запоминаем что игра хочет видеть у себя (это же значение отдаём при чтении)
+            if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
                 CC.Refs.gameWantsFOV = value
                 CC.Refs.lastRealFOV  = value
-
-                -- если это наша собственная запись через rawSetFOV — не вмешиваемся
-                if CC.Refs._fovWriting then
-                    return oldNewIndex(self, key, value)
-                end
-
-                -- если FOV-функция активна — игра не имеет права менять визуал
-                if getDesiredFOV() then
-                    return oldNewIndex(self, key, CC.Refs.fovAnimValue)
-                end
+                if CC.Refs._fovWriting then return oldNewIndex(self, key, value) end
+                if getDesiredFOV() then return oldNewIndex(self, key, CC.Refs.fovAnimValue) end
             end
             return oldNewIndex(self, key, value)
         end)
@@ -360,20 +346,13 @@ do
     if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
 end
 
--- Хук чтения: игра читает -> отдаём ЕЁ значение, чтобы детект спринта не палился
 do
     local ok, err = pcall(function()
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
-            if key == "FieldOfView"
-                and typeof(self) == "Instance"
-                and self:IsA("Camera") then
-                if CC.Refs._fovWriting or CC.Refs._fovReading then
-                    return oldIndex(self, key)
-                end
-                if getDesiredFOV() then
-                    return CC.Refs.gameWantsFOV
-                end
+            if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
+                if CC.Refs._fovWriting or CC.Refs._fovReading then return oldIndex(self, key) end
+                if getDesiredFOV() then return CC.Refs.gameWantsFOV end
             end
             return oldIndex(self, key)
         end)
@@ -381,7 +360,6 @@ do
     if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
 end
 
--- Контроллер: гонит визуальный fovAnimValue к target. Игру не трогает — она видит своё.
 local function startFOVController()
     if CC.Refs.zoomConn then return end
     if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then
@@ -393,14 +371,11 @@ local function startFOVController()
 
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
         local target = getDesiredFOV()
-
         if not target then
-            -- режим "не трогаем": плавно возвращаемся к дефолту и отпускаем визуал
             if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) > 0.1 then
                 CC.Refs.fovAnimActive = true
                 local alpha = math.min(dt * 12, 1)
-                CC.Refs.fovAnimValue = CC.Refs.fovAnimValue
-                    + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
+                CC.Refs.fovAnimValue = CC.Refs.fovAnimValue + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
                 if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) <= 0.1 then
                     CC.Refs.fovAnimValue = CC.Refs.DefaultFOV
                     CC.Refs.fovAnimActive = false
@@ -411,8 +386,6 @@ local function startFOVController()
             end
             return
         end
-
-        -- активный режим: плавно гоним визуал к target
         CC.Refs.fovAnimActive = true
         local cur = CC.Refs.fovAnimValue
         if math.abs(cur - target) <= 0.01 then
@@ -424,8 +397,6 @@ local function startFOVController()
                 CC.Refs.fovAnimValue = target
             end
         end
-
-        -- пишем напрямую, минуя наши хуки
         rawSetFOV(CC.Refs.fovAnimValue)
     end)
 end
@@ -441,8 +412,6 @@ end
 applyCameraZoom()
 
 -- ===== УТИЛИТА: проекция с учётом нашего реального FOV =====
--- Camera:WorldToViewportPoint читает FieldOfView через __index-хук (получает gameWantsFOV=70),
--- а рендер идёт по fovAnimValue (120). Считаем проекцию сами — совпадёт с картинкой.
 local function fovWorldToViewport(pos)
     local realFov
     if getDesiredFOV() then
@@ -462,6 +431,52 @@ local function fovWorldToViewport(pos)
     local sx = (nx + 1) * 0.5 * vs.X
     local sy = (1 - ny) * 0.5 * vs.Y
     return Vector3.new(sx, sy, -rel.Z)
+end
+
+-- ===== REMOVE CONSTRUCTIONS (СНАЙПЕР) =====
+CC.Refs.CleanerConn = nil
+CC.Refs.LastWallScan = 0
+
+local function toggleRemoveConstructions(state)
+    Flags.RemoveConstructions = state
+    if state then
+        if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
+        
+        CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
+            -- Сканируем раз в 0.4 сек
+            if os.clock() - (CC.Refs.LastWallScan or 0) < 0.4 then return end
+            CC.Refs.LastWallScan = os.clock()
+
+            local char = LP.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+            local params = OverlapParams.new()
+            params.FilterType = Enum.RaycastFilterType.Exclude
+            params.FilterDescendantsInstances = {char}
+
+            -- Встроенная функция (C++) - ищет в радиусе без лагов
+            local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, Flags.RemoveDistance, params)
+            local destroyed = {}
+
+            for _, part in ipairs(partsInRadius) do
+                local model = part.Parent
+                if model and model:IsA("Model") and not destroyed[model] then
+                    local name = string.lower(model.Name)
+                    -- Удаляем всё, где есть "wall" (но не двери/крыши)
+                    if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
+                        destroyed[model] = true
+                        model:Destroy()
+                    end
+                end
+            end
+        end)
+    else
+        if CC.Refs.CleanerConn then
+            CC.Refs.CleanerConn:Disconnect()
+            CC.Refs.CleanerConn = nil
+        end
+    end
 end
 
 -- ===== WEAPON COLOR =====
@@ -1409,6 +1424,25 @@ UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-ho
     CC.Refs.fovSettled = false
 end})
 
+UI.Tabs.Misc:AddSeparator()
+
+-- REMOVE CONSTRUCTIONS
+UI.Elements.removeConstructionsToggle = UI.Tabs.Misc:AddToggle({
+    Title = "Remove Constructions",
+    Subtitle = "Удаляет стены вокруг тебя",
+    Icon = "box",
+    Default = false,
+    Callback = function(s)
+        toggleRemoveConstructions(s)
+    end
+})
+UI.Tabs.Misc:AddSlider({
+    Title = "Remove Distance",
+    Icon = "ruler",
+    Min = 50, Max = 150, Default = 75,
+    Callback = function(v) Flags.RemoveDistance = v end
+})
+
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
 
@@ -1436,6 +1470,16 @@ UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright
 UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
+
+UI.Elements.keybindRemoveConstructions = UI.Tabs.Settings:AddKeybind({
+    Title = "Remove Wall Keybind", 
+    Icon = "box", 
+    Default = Enum.KeyCode.V, 
+    Callback = function() 
+        UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions) 
+    end 
+})
+
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -1531,6 +1575,10 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
     cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
 
+    cfg:RegisterElement("RemoveWall", UI.Elements.removeConstructionsToggle)
+    cfg:RegisterElement("BindRemoveWall", UI.Elements.keybindRemoveConstructions)
+    cfg:RegisterElement("RemoveDistance", UI.Elements.removeConstructionsToggle)
+
     return cfg
 end
 
@@ -1568,6 +1616,7 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         Flags.TriggerBot = false; Flags.TriggerDelay = 50; Flags.TriggerFOV = 15; Flags.TriggerTeamCheck = true
         Flags.NoRecoil = false; Flags.RapidFire = false
         Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
+        Flags.RemoveConstructions = false
 
         -- FOV сброс
         Flags.FOVEnabled = false
@@ -1575,6 +1624,8 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         CC.Refs.fovSettled = false
         pcall(function() UI.Elements.fovToggle:Set(false) end)
         pcall(function() UI.Elements.fovSlider:Set(70) end)
+        
+        pcall(function() UI.Elements.removeConstructionsToggle:Set(false) end)
 
         UI.buildConfig(name):Load()
 
