@@ -1,6 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
+    BUILD: v0.2.0.1
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -206,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.0.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.0.1 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -393,11 +394,16 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== CAMERA ZOOM =====
+-- ===== CAMERA ZOOM (Fixed for scope) =====
 local function applyCameraZoom()
     if CC.Refs.zoomConn then return end
     CC.Refs.defaultFOV = 70
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        -- Если зажат ПКМ (прицел), не трогаем FOV, чтобы игра сама сделала зум оружия
+        if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            return 
+        end
+
         local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or CC.Refs.defaultFOV
         local current = Camera.FieldOfView
         if math.abs(target - current) > 0.1 then
@@ -1230,7 +1236,6 @@ UI.Tabs.Loot:AddSeparator()
 -- ===== UI: MISC =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
-UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddLabel("PLAYER", "user")
 UI.Tabs.Misc:AddSeparator()
 
