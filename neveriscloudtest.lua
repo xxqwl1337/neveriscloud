@@ -222,6 +222,8 @@ Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
 Flags.FreeCam = false
 Flags.CameraZoom = false
 Flags.ZoomActive = false
+Flags.FOVChanger = false
+Flags.FOVValue = 70
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
 Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
@@ -393,12 +395,20 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== CAMERA ZOOM =====
-local function applyCameraZoom()
+-- ===== FOV SYSTEM (Camera Zoom + FOV Changer) =====
+local function applyFOV()
     if CC.Refs.zoomConn then return end
     CC.Refs.defaultFOV = 70
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
-        local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or CC.Refs.defaultFOV
+        local target
+        if Flags.CameraZoom and Flags.ZoomActive then
+            target = 35
+        elseif Flags.FOVChanger then
+            target = Flags.FOVValue
+        else
+            target = CC.Refs.defaultFOV
+        end
+        
         local current = Camera.FieldOfView
         if math.abs(target - current) > 0.1 then
             Camera.FieldOfView = current + (target - current) * (dt * 15)
@@ -407,7 +417,7 @@ local function applyCameraZoom()
         end
     end)
 end
-applyCameraZoom()
+applyFOV()
 
 -- ===== ХИТБОКС =====
 local function restoreHitbox(char)
@@ -1242,6 +1252,11 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt})
 
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.fovChangerToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Изменяет игровой FOV", Icon="eye", Default=false, Callback=function(s) Flags.FOVChanger=s end})
+UI.Elements.fovChangerSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="maximize", Min=30, Max=140, Default=70, Callback=function(v) Flags.FOVValue=v end})
+
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
 
@@ -1346,6 +1361,8 @@ UI.buildConfig = function(name)
 
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
     cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
+    cfg:RegisterElement("FOVChanger", UI.Elements.fovChangerToggle)
+    cfg:RegisterElement("FOVValue", UI.Elements.fovChangerSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
