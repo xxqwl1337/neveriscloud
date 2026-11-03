@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.2
+    BUILD: v0.2.1.3
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.2", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.3", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.2 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.3 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -305,12 +305,16 @@ CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.
 CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
-CC.Refs.zoomConn = nil
 
--- ===== ЕДИНЫЙ КОНТРОЛЛЕР FOV (Zoom + FOV Slider) =====
+-- ===== ЕДИНЫЙ ОПТИМИЗИРОВАННЫЙ КОНТРОЛЛЕР FOV =====
+-- Один RenderStepped-коннект. Property write ТОЛЬКО при реальной разнице > 0.01.
+-- Статичный FOV = 0 записей в камеру = 0 лага. Enforcer убран полностью.
 CC.Refs.DefaultFOV = 70
 CC.Refs.fovTarget = 70
-CC.Refs.fovEnforcerConn = nil
+CC.Refs.zoomConn = nil
+CC.Refs.lastWrittenFOV = -1
+CC.Refs.fovSettled = false
+CC.Refs.fovBlendSpeed = 10
 
 local function getDesiredFOV()
     if Flags.CameraZoom and Flags.ZoomActive then
@@ -329,45 +333,57 @@ local function startFOVController()
         Flags.DefaultFOV = CC.Refs.DefaultFOV
     end
 
+    CC.Refs.lastWrittenFOV = Camera.FieldOfView
+    CC.Refs.fovSettled = false
+
     CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        -- при зажатом ПКМ и выключенном FOV — не мешаем игре зумить оружие
         if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) and not Flags.FOVEnabled then
             return
         end
 
         local target = getDesiredFOV()
-        CC.Refs.fovTarget = target
-
         local current = Camera.FieldOfView
-        if math.abs(target - current) > 0.05 then
-            local speed = (Flags.CameraZoom and Flags.ZoomActive) and 25 or 12
-            Camera.FieldOfView = current + (target - current) * math.min(dt * speed, 1)
+
+        -- БЫСТРЫЙ ВЫХОД: цель совпадает с тем, что уже в камере -> ничего не пишем
+        if math.abs(current - target) <= 0.01 then
+            CC.Refs.fovSettled = true
+            return
+        end
+
+        local newFOV
+        if Flags.FOVEnabled and not (Flags.CameraZoom and Flags.ZoomActive) then
+            -- FOV-слайдер включён и не зум: ЖЁСТКО ставим (без lerp) — супер-статично
+            newFOV = target
+            CC.Refs.fovSettled = true
+        elseif Flags.CameraZoom and Flags.ZoomActive and not Flags.FOVEnabled then
+            -- только зум: жёстко 35
+            newFOV = 35
+            CC.Refs.fovSettled = true
         else
-            Camera.FieldOfView = target
+            -- переходное состояние (включение/выключение FOV или zoom off->FOV value) — плавный lerp
+            local speed = (Flags.CameraZoom and Flags.ZoomActive) and 22 or CC.Refs.fovBlendSpeed
+            local alpha = math.min(dt * speed, 1)
+            newFOV = current + (target - current) * alpha
+            if math.abs(newFOV - target) <= 0.05 then
+                newFOV = target
+                CC.Refs.fovSettled = true
+            else
+                CC.Refs.fovSettled = false
+            end
+        end
+
+        -- пишем ТОЛЬКО если реально отличается от последнего записанного
+        if math.abs(newFOV - CC.Refs.lastWrittenFOV) > 0.01 or math.abs(newFOV - current) > 0.01 then
+            Camera.FieldOfView = newFOV
+            CC.Refs.lastWrittenFOV = newFOV
         end
     end)
 end
 
-local function enforceFOVLock()
-    if not Flags.FOVEnabled then return end
-    if Flags.CameraZoom and Flags.ZoomActive then return end
-    if math.abs(Camera.FieldOfView - Flags.FOVValue) > 0.1 then
-        Camera.FieldOfView = Flags.FOVValue
-    end
-end
-
-local function startFOVEnforcer()
-    if CC.Refs.fovEnforcerConn then return end
-    CC.Refs.fovEnforcerConn = RunService.Heartbeat:Connect(function()
-        enforceFOVLock()
-    end)
-end
-
-local function stopFOVEnforcer()
-    if CC.Refs.fovEnforcerConn then
-        CC.Refs.fovEnforcerConn:Disconnect()
-        CC.Refs.fovEnforcerConn = nil
-    end
-end
+-- enforcer больше не нужен — заглушки для совместимости
+local function startFOVEnforcer() end
+local function stopFOVEnforcer() end
 
 local function applyCameraZoom()
     startFOVController()
@@ -1306,30 +1322,19 @@ UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddSeparator()
 
 -- fov
-UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="aperture", Default=false, Callback=function(s)
+UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="focus", Default=false, Callback=function(s)
     Flags.FOVEnabled = s
     if s then
-        startFOVController()
-        startFOVEnforcer()
         Flags.FOVValue = math.clamp(Flags.FOVValue, Flags.DefaultFOV, 120)
-        task.spawn(function()
-            local deadline = os.clock() + 0.6
-            while os.clock() < deadline and Flags.FOVEnabled do
-                local target = (Flags.CameraZoom and Flags.ZoomActive) and 35 or Flags.FOVValue
-                if math.abs(Camera.FieldOfView - target) < 0.1 then break end
-                task.wait(0.02)
-            end
-        end)
-    else
-        stopFOVEnforcer()
+        CC.Refs.fovSettled = false
+        startFOVController()
     end
+    -- при выключении контроллер сам плавно вернёт к DefaultFOV
 end})
 
-UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="gauge", Min=70, Max=120, Default=70, Callback=function(v)
+UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-horizontal", Min=70, Max=120, Default=70, Callback=function(v)
     Flags.FOVValue = v
-    if Flags.FOVEnabled and not (Flags.CameraZoom and Flags.ZoomActive) then
-        Camera.FieldOfView = v
-    end
+    CC.Refs.fovSettled = false
 end})
 
 -- ===== UI: SETTINGS =====
@@ -1484,7 +1489,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         UI.Elements.configNameBox:Set(name)
 
         -- ===== СБРОС ВСЕХ СОСТОЯНИЙ В ДЕФОЛТ ПЕРЕД ЗАГРУЗКОЙ =====
-        -- если в конфиге чего-то нет (старый конфиг) — останется дефолт, а не текущее значение
         UI.Elements.aspectToggle:Set(false)
         UI.Elements.aspectModeDropdown:Set("16:9")
 
@@ -1493,10 +1497,10 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         Flags.NoRecoil = false; Flags.RapidFire = false
         Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
 
-        -- FOV сброс: выключаем enforcer, ставим тогл false, слайдер 70
-        stopFOVEnforcer()
+        -- FOV сброс: флаги в дефолт, контроллер сам применит
         Flags.FOVEnabled = false
         Flags.FOVValue = 70
+        CC.Refs.fovSettled = false
         pcall(function() UI.Elements.fovToggle:Set(false) end)
         pcall(function() UI.Elements.fovSlider:Set(70) end)
 
@@ -1509,12 +1513,8 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
-        -- FOV после загрузки
-        if Flags.FOVEnabled then
-            startFOVController(); startFOVEnforcer()
-        else
-            stopFOVEnforcer()
-        end
+        -- FOV после загрузки — контроллер сам подхватит Flags.FOVEnabled/FOVValue
+        CC.Refs.fovSettled = false
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
         elseif Flags.FPSPing and not CC.Refs.HudPanel then createHud() end
