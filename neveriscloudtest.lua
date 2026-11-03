@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.8
+    BUILD: v0.2.2.0
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.8", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.2.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.8 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.2.0 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -309,7 +309,7 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР (раздельный: визуал / для игры) =====
+-- ===== FOV: HOOK-КОНТРОЛЛЕР (1 в 1 из v0.2.1.5) =====
 CC.Refs.DefaultFOV    = 70
 CC.Refs.fovAnimValue  = Camera.FieldOfView
 CC.Refs.gameWantsFOV  = Camera.FieldOfView
@@ -1420,7 +1420,7 @@ UI.Tabs.Misc:AddSeparator()
 
 -- zoom
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
-UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.LeftAlt})
+UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
 
 -- пустая строка-разделитель между zoom и fov
 UI.Tabs.Misc:AddSeparator()
@@ -1440,12 +1440,12 @@ UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-ho
     CC.Refs.fovSettled = false
 end})
 
--- БИНД ДЛЯ FOV (ПРОСТО ПЕРЕКЛЮЧАЕТ ТУМБЛЕР)
+-- БИНД ДЛЯ FOV (ПЕРЕКЛЮЧАЕТ ТУМБЛЕР)
 UI.Elements.keybindFOV = UI.Tabs.Misc:AddKeybind({
     Title = "FOV Keybind",
     Subtitle = "Вкл/Выкл FOV",
     Icon = "keyboard",
-    Default = Enum.KeyCode.C,
+    Default = Enum.KeyCode.Unknown,
     Callback = function()
         UI.Elements.fovToggle:Set(not Flags.FOVEnabled)
     end
@@ -1476,7 +1476,7 @@ UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({
     Title = "Remove Constructions Keybind",
     Subtitle = "Вкл/Выкл стены",
     Icon = "keyboard",
-    Default = Enum.KeyCode.V,
+    Default = Enum.KeyCode.Unknown,
     Callback = function()
         UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions)
     end
@@ -1515,14 +1515,14 @@ UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if not Flags.CameraZoom then return end
     local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
-    if zoomBind and input.KeyCode == zoomBind then
+    if zoomBind and zoomBind ~= Enum.KeyCode.Unknown and input.KeyCode == zoomBind then
         Flags.ZoomActive = true
     end
 end)
 
 UIS.InputEnded:Connect(function(input, gpe)
     local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
-    if zoomBind and input.KeyCode == zoomBind then
+    if zoomBind and zoomBind ~= Enum.KeyCode.Unknown and input.KeyCode == zoomBind then
         Flags.ZoomActive = false
     end
 end)
@@ -1638,7 +1638,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if not name or name == "" then error("no config") end
         UI.Elements.configNameBox:Set(name)
 
-        -- ===== СБРОС ВСЕХ СОСТОЯНИЙ В ДЕФОЛТ ПЕРЕД ЗАГРУЗКОЙ =====
         UI.Elements.aspectToggle:Set(false)
         UI.Elements.aspectModeDropdown:Set("16:9")
 
@@ -1648,13 +1647,11 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
         Flags.RemoveConstructions = false
 
-        -- FOV сброс
         Flags.FOVEnabled = false
         Flags.FOVValue = 70
         CC.Refs.fovSettled = false
         pcall(function() UI.Elements.fovToggle:Set(false) end)
         pcall(function() UI.Elements.fovSlider:Set(70) end)
-        
         pcall(function() UI.Elements.removeConstructionsToggle:Set(false) end)
 
         UI.buildConfig(name):Load()
