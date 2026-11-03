@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.1.1
+    BUILD: v0.2.1.2
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА (избавляемся от лимита 200 local) =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.1.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.1.2", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.1 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.1.2 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -1306,7 +1306,7 @@ UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddSeparator()
 
 -- fov
-UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="maximize", Default=false, Callback=function(s)
+UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="aperture", Default=false, Callback=function(s)
     Flags.FOVEnabled = s
     if s then
         startFOVController()
@@ -1325,7 +1325,7 @@ UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="�
     end
 end})
 
-UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="maximize", Min=70, Max=120, Default=70, Callback=function(v)
+UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="gauge", Min=70, Max=120, Default=70, Callback=function(v)
     Flags.FOVValue = v
     if Flags.FOVEnabled and not (Flags.CameraZoom and Flags.ZoomActive) then
         Camera.FieldOfView = v
@@ -1483,6 +1483,8 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if not name or name == "" then error("no config") end
         UI.Elements.configNameBox:Set(name)
 
+        -- ===== СБРОС ВСЕХ СОСТОЯНИЙ В ДЕФОЛТ ПЕРЕД ЗАГРУЗКОЙ =====
+        -- если в конфиге чего-то нет (старый конфиг) — останется дефолт, а не текущее значение
         UI.Elements.aspectToggle:Set(false)
         UI.Elements.aspectModeDropdown:Set("16:9")
 
@@ -1490,6 +1492,13 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         Flags.TriggerBot = false; Flags.TriggerDelay = 50; Flags.TriggerFOV = 15; Flags.TriggerTeamCheck = true
         Flags.NoRecoil = false; Flags.RapidFire = false
         Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
+
+        -- FOV сброс: выключаем enforcer, ставим тогл false, слайдер 70
+        stopFOVEnforcer()
+        Flags.FOVEnabled = false
+        Flags.FOVValue = 70
+        pcall(function() UI.Elements.fovToggle:Set(false) end)
+        pcall(function() UI.Elements.fovSlider:Set(70) end)
 
         UI.buildConfig(name):Load()
 
@@ -1500,6 +1509,7 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         setFullbright(Flags.Fullbright)
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        -- FOV после загрузки
         if Flags.FOVEnabled then
             startFOVController(); startFOVEnforcer()
         else
