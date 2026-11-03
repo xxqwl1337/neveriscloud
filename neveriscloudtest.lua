@@ -434,15 +434,21 @@ local function fovWorldToViewport(pos)
     return Vector3.new(sx, sy, -rel.Z)
 end
 
--- ===== REMOVE CONSTRUCTIONS (СКРЫТИЕ + ВОЗВРАТ) =====
+-- ===== REMOVE CONSTRUCTIONS (ПЕРЕНОС В ПАПКУ) =====
 CC.Refs.CleanerConn = nil
 CC.Refs.LastWallScan = 0
 CC.Refs.HiddenWalls = {}
+
+-- Создаем скрытую папку для стен (она не рендерится, если ее нет в workspace)
+local hiddenFolder = Instance.new("Folder")
+hiddenFolder.Name = "CC_HiddenWalls"
 
 local function toggleRemoveConstructions(state)
     Flags.RemoveConstructions = state
     
     if state then
+        hiddenFolder.Parent = game:GetService("ReplicatedStorage") -- Прячем в RS, чтобы не рендерилось
+        
         if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
         CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
             if os.clock() - (CC.Refs.LastWallScan or 0) < 0.4 then return end
@@ -466,26 +472,30 @@ local function toggleRemoveConstructions(state)
                     if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
                         destroyed[model] = true
                         
+                        -- СОХРАНЯЕМ И ПЕРЕНОСИМ
                         table.insert(CC.Refs.HiddenWalls, {
                             model = model,
-                            originalCFrame = model:GetPivot()
+                            originalParent = model.Parent
                         })
-                        model:PivotTo(CFrame.new(0, -5000, 0))
+                        model.Parent = hiddenFolder
                     end
                 end
             end
         end)
     else
+        -- ВЫКЛЮЧАЕМ И ВОЗВРАЩАЕМ
         if CC.Refs.CleanerConn then
             CC.Refs.CleanerConn:Disconnect()
             CC.Refs.CleanerConn = nil
         end
+        
         for _, data in ipairs(CC.Refs.HiddenWalls) do
-            if data.model and data.model.Parent then
-                data.model:PivotTo(data.originalCFrame)
+            if data.model and data.model.Parent == hiddenFolder then
+                data.model.Parent = data.originalParent
             end
         end
         CC.Refs.HiddenWalls = {}
+        hiddenFolder.Parent = nil
     end
 end
 
