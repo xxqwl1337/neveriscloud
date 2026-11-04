@@ -1,7 +1,7 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
+    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.4.2
+    BUILD: v0.2.5.8
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.4.2", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.5.8", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.4.2 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.5.8 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -225,8 +225,6 @@ Flags.CameraZoom = false
 Flags.ZoomActive = false
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.WorldTimeEnabled = false; Flags.WorldTimeValue = 12
-Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
-Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
 Flags.Aimbot = false; Flags.AimAssist = true; Flags.SilentAim = true; Flags.AimlockMode = false
 Flags.AimPart = "Head"; Flags.AimSmooth = 5; Flags.AimFOV = 120; Flags.AimTeamCheck = true
 Flags.AimKey = Enum.UserInputType.MouseButton2; Flags.AimPrediction = 0; Flags.HitChance = 100
@@ -239,6 +237,11 @@ Flags.WeaponColorEnabled = false
 Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
 Flags.WeaponMaterial = Enum.Material.Neon
 Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
+-- Crosshair State
+Flags.Crosshair = false; Flags.CrosshairType = "Cross"; Flags.CrosshairColor = Color3.fromRGB(0, 255, 0)
+Flags.CrosshairSize = 10; Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 5
+Flags.CrosshairDot = false; Flags.CrosshairOutline = false
+Flags.CrosshairDotSize = 2
 -- FOV
 Flags.FOVEnabled = false
 Flags.FOVValue = 70
@@ -664,17 +667,68 @@ local function setSkyColor(enabled, color)
     end
 end
 
--- ===== WEAPON COLOR =====
+-- ===== WEAPON COLOR (v11 — фикс SurfaceAppearance) =====
+local WEAPON_MATERIALS = {
+    "Neon", "ForceField", "Glass", "Ice",
+    "Marble", "Granite", "Metal", "DiamondPlate",
+}
+
+local MATERIALS_HIDE_TEXTURE = {
+    Neon = true, ForceField = true, Glass = true, Ice = true,
+    Marble = true, Granite = true, Metal = true, DiamondPlate = true,
+}
+
+local function saveOriginalProps(part)
+    if CC.Refs.OriginalWeaponProps[part] then return end
+    local specialMesh = part:FindFirstChildOfClass("SpecialMesh")
+    local surfaceApp = part:FindFirstChildOfClass("SurfaceAppearance")
+    local decals = {}
+    for _, child in ipairs(part:GetChildren()) do
+        if child:IsA("Decal") or child:IsA("Texture") then
+            decals[child] = child.Transparency
+        end
+    end
+    CC.Refs.OriginalWeaponProps[part] = {
+        Color = part.Color,
+        Material = part.Material,
+        TextureID = part:IsA("MeshPart") and part.TextureID or nil,
+        SpecialMeshTexture = specialMesh and specialMesh.TextureId or nil,
+        SpecialMeshId = specialMesh and specialMesh.MeshId or nil,
+        SurfaceAppearanceClone = surfaceApp and surfaceApp:Clone() or nil,
+        Decals = decals,
+    }
+end
+
 local function applyWeaponColorToModel(model)
     if not model then return end
     for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
-            if not CC.Refs.OriginalWeaponProps[part] then
-                CC.Refs.OriginalWeaponProps[part] = { Color = part.Color, Material = part.Material, TextureID = part:IsA("MeshPart") and part.TextureID or nil }
+            saveOriginalProps(part)
+            
+            -- Жёстко чистим текстуру у MeshPart
+            if part:IsA("MeshPart") then
+                pcall(function() part.TextureID = "" end)
             end
-            if part:IsA("MeshPart") and Flags.WeaponMaterial == Enum.Material.Neon then part.TextureID = "" end
-            part.Color = Flags.WeaponColor
-            part.Material = Flags.WeaponMaterial
+            
+            -- Убиваем SpecialMesh, SurfaceAppearance, Decal, Texture
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("SpecialMesh") then
+                    pcall(function() child.TextureId = "" end)
+                    pcall(function() child.MeshId = "" end)
+                elseif child:IsA("SurfaceAppearance") then
+                    pcall(function() child:Destroy() end)
+                elseif child:IsA("Decal") or child:IsA("Texture") then
+                    pcall(function() child.Transparency = 1 end)
+                end
+            end
+            
+            -- Красим дважды (иногда первый SetProperty кэшируется)
+            pcall(function() part.Color = Flags.WeaponColor end)
+            pcall(function() part.Material = Flags.WeaponMaterial end)
+            task.defer(function()
+                pcall(function() part.Color = Flags.WeaponColor end)
+                pcall(function() part.Material = Flags.WeaponMaterial end)
+            end)
         end
     end
 end
@@ -685,50 +739,133 @@ local function restoreWeaponColorFromModel(model)
         if part:IsA("BasePart") then
             local orig = CC.Refs.OriginalWeaponProps[part]
             if orig then
-                part.Color = orig.Color; part.Material = orig.Material
-                if orig.TextureID and part:IsA("MeshPart") then part.TextureID = orig.TextureID end
+                pcall(function() part.Color = orig.Color end)
+                pcall(function() part.Material = orig.Material end)
+                if orig.TextureID and part:IsA("MeshPart") then
+                    pcall(function() part.TextureID = orig.TextureID end)
+                end
+                if orig.SpecialMeshTexture then
+                    local sm = part:FindFirstChildOfClass("SpecialMesh")
+                    if sm then pcall(function() sm.TextureId = orig.SpecialMeshTexture end) end
+                end
+                if orig.SpecialMeshId then
+                    local sm = part:FindFirstChildOfClass("SpecialMesh")
+                    if sm then pcall(function() sm.MeshId = orig.SpecialMeshId end) end
+                end
+                if orig.SurfaceAppearanceClone then
+                    local current = part:FindFirstChildOfClass("SurfaceAppearance")
+                    if current then current:Destroy() end
+                    local newSA = orig.SurfaceAppearanceClone:Clone()
+                    newSA.Parent = part
+                end
+                if orig.Decals then
+                    for decal, trans in pairs(orig.Decals) do
+                        if decal and decal.Parent then
+                            pcall(function() decal.Transparency = trans end)
+                        end
+                    end
+                end
                 CC.Refs.OriginalWeaponProps[part] = nil
             end
         end
     end
 end
 
-local function findWeaponModels()
+local BODY_PARTS = {
+    Head = true, Torso = true, UpperTorso = true, LowerTorso = true,
+    HumanoidRootPart = true, Humanoid = true,
+    ["Left Arm"] = true, ["Right Arm"] = true,
+    ["Left Leg"] = true, ["Right Leg"] = true,
+    LeftUpperArm = true, RightUpperArm = true,
+    LeftLowerArm = true, RightLowerArm = true,
+    LeftHand = true, RightHand = true,
+    LeftUpperLeg = true, RightUpperLeg = true,
+    LeftLowerLeg = true, RightLowerLeg = true,
+    LeftFoot = true, RightFoot = true,
+}
+
+local IGNORED_CLASSES = {
+    Humanoid = true, Animator = true, HumanoidDescription = true,
+    Accessory = true, ["Accoutrement"] = true,
+    Shirt = true, Pants = true, ShirtGraphic = true,
+    CharacterMesh = true, BodyColors = true,
+    Script = true, LocalScript = true, ModuleScript = true,
+    Sound = true, Animation = true,
+    ParticleEmitter = true, Fire = true, Smoke = true, Sparkles = true,
+    BillboardGui = true, SurfaceGui = true, Highlight = true,
+    Folder = true,
+}
+
+local function collectHeldItems()
     local models = {}
+    local seen = {}
     local char = LP.Character
-    if char then
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then table.insert(models, tool) end
-        for _, child in ipairs(char:GetChildren()) do
-            if child:IsA("Model") and (child:FindFirstChild("Handle") or child:FindFirstChild("GunComponents")) then table.insert(models, child) end
+    if not char then return models end
+
+    local function add(m)
+        if m and typeof(m) == "Instance" and not seen[m] then
+            seen[m] = true
+            table.insert(models, m)
         end
     end
-    local vm = Camera:FindFirstChild("Viewmodel") or Camera:FindFirstChild("ViewModel")
-    if vm then
-        table.insert(models, vm)
-        for _, child in ipairs(vm:GetChildren()) do
-            if child:IsA("Model") then table.insert(models, child) end
+
+    -- 1. Tools в Character
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Tool") then add(child) end
+    end
+
+    -- 2. Model-дети Character, не части тела
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Model") and not child:IsA("Tool") then
+            if not BODY_PARTS[child.Name] and not IGNORED_CLASSES[child.ClassName] then
+                local hasPart = false
+                for _, sub in ipairs(child:GetChildren()) do
+                    if sub:IsA("BasePart") then hasPart = true; break end
+                end
+                if hasPart then add(child) end
+            end
         end
     end
+
+    -- 3. Голые BasePart в Character
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("BasePart") and not BODY_PARTS[child.Name] then add(child) end
+    end
+
+    -- 4. ВСЕ Model в Camera
+    for _, child in ipairs(Camera:GetChildren()) do
+        if child:IsA("Model") then add(child) end
+    end
+
     return models
 end
 
 local function startWeaponColor()
-    if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect() end
+    if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end
+    for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end
+    CC.Refs.lastWeaponModels = {}
+
     CC.Refs.weaponColorConn = RunService.Heartbeat:Connect(function()
         if not Flags.WeaponColorEnabled then
             for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end
             CC.Refs.lastWeaponModels = {}
             return
         end
-        local currentModels = findWeaponModels()
+
+        local currentModels = collectHeldItems()
+
         for _, oldM in ipairs(CC.Refs.lastWeaponModels) do
-            local stillEquipped = false
-            for _, newM in ipairs(currentModels) do if oldM == newM then stillEquipped = true; break end end
-            if not stillEquipped then restoreWeaponColorFromModel(oldM) end
+            local stillThere = false
+            for _, newM in ipairs(currentModels) do
+                if oldM == newM then stillThere = true; break end
+            end
+            if not stillThere then restoreWeaponColorFromModel(oldM) end
         end
+
         CC.Refs.lastWeaponModels = currentModels
-        for _, m in ipairs(currentModels) do applyWeaponColorToModel(m) end
+        for _, m in ipairs(currentModels) do
+            applyWeaponColorToModel(m)
+        end
     end)
 end
 
@@ -753,6 +890,156 @@ end
 local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
+
+-- ===== CROSSHAIR (v10 — идеальный ровный прицел с круглой точкой) =====
+local crossDrawings = {
+    lines = {},
+    outline = {},
+    dot = Drawing.new("Square"),
+    dotOutline = Drawing.new("Square"),
+    circle = nil,
+    circleOutline = nil,
+    circleDot = nil,
+    circleDotOutline = nil
+}
+
+local function updateCrosshair()
+    if not Flags.Crosshair then
+        for _, d in pairs(crossDrawings.lines) do d.Visible = false end
+        for _, d in pairs(crossDrawings.outline) do d.Visible = false end
+        crossDrawings.dot.Visible = false
+        crossDrawings.dotOutline.Visible = false
+        if crossDrawings.circle then crossDrawings.circle.Visible = false end
+        if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
+        if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end
+        if crossDrawings.circleDotOutline then crossDrawings.circleDotOutline.Visible = false end
+        return
+    end
+
+    local vs = Camera.ViewportSize
+    -- Идеальный центр экрана
+    local cx = math.floor(vs.X / 2)
+    local cy = math.floor(vs.Y / 2)
+    
+    local color = Flags.CrosshairColor
+    local trans = 1 - (Flags.CrosshairTransparency / 100)
+    local cType = Flags.CrosshairType
+    local size = math.max(1, math.floor(Flags.CrosshairSize))
+    local thick = math.max(1, math.floor(Flags.CrosshairThickness))
+    local gap = math.max(0, math.floor(Flags.CrosshairDistance))
+
+    -- Прячем всё старое
+    for _, d in pairs(crossDrawings.lines) do d.Visible = false end
+    for _, d in pairs(crossDrawings.outline) do d.Visible = false end
+    crossDrawings.dot.Visible = false
+    crossDrawings.dotOutline.Visible = false
+    if crossDrawings.circle then crossDrawings.circle.Visible = false end
+    if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
+    if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end
+    if crossDrawings.circleDotOutline then crossDrawings.circleDotOutline.Visible = false end
+
+    local function drawLine(index, x1, y1, x2, y2, isOutline)
+        local tbl = isOutline and crossDrawings.outline or crossDrawings.lines
+        if not tbl[index] then
+            tbl[index] = Drawing.new("Line")
+        end
+        local line = tbl[index]
+        line.Visible = true
+        -- Добавляем 0.5 пикселя для идеальной центровки линий
+        line.From = Vector2.new(x1 + 0.5, y1 + 0.5)
+        line.To = Vector2.new(x2 + 0.5, y2 + 0.5)
+        line.Color = isOutline and Color3.new(0, 0, 0) or color
+        line.Thickness = isOutline and (thick + 1) or thick
+        line.Transparency = isOutline and (trans * 0.7) or trans
+    end
+
+    if cType == "Cross" then
+        -- Верх
+        drawLine(1, cx, cy - gap - size, cx, cy - gap)
+        if Flags.CrosshairOutline then drawLine(1, cx, cy - gap - size, cx, cy - gap, true) end
+        
+        -- Низ
+        drawLine(2, cx, cy + gap, cx, cy + gap + size)
+        if Flags.CrosshairOutline then drawLine(2, cx, cy + gap, cx, cy + gap + size, true) end
+        
+        -- Лево
+        drawLine(3, cx - gap - size, cy, cx - gap, cy)
+        if Flags.CrosshairOutline then drawLine(3, cx - gap - size, cy, cx - gap, cy, true) end
+        
+        -- Право
+        drawLine(4, cx + gap, cy, cx + gap + size, cy)
+        if Flags.CrosshairOutline then drawLine(4, cx + gap, cy, cx + gap + size, cy, true) end
+
+    elseif cType == "T-Shape" then
+        -- Низ
+        drawLine(1, cx, cy + gap, cx, cy + gap + size)
+        if Flags.CrosshairOutline then drawLine(1, cx, cy + gap, cx, cy + gap + size, true) end
+        
+        -- Лево
+        drawLine(2, cx - gap - size, cy, cx - gap, cy)
+        if Flags.CrosshairOutline then drawLine(2, cx - gap - size, cy, cx - gap, cy, true) end
+        
+        -- Право
+        drawLine(3, cx + gap, cy, cx + gap + size, cy)
+        if Flags.CrosshairOutline then drawLine(3, cx + gap, cy, cx + gap + size, cy, true) end
+
+    elseif cType == "Circle" then
+        if not crossDrawings.circle then
+            crossDrawings.circle = Drawing.new("Circle")
+            crossDrawings.circle.Filled = false
+            crossDrawings.circle.NumSides = 32
+            crossDrawings.circleOutline = Drawing.new("Circle")
+            crossDrawings.circleOutline.Filled = false
+            crossDrawings.circleOutline.NumSides = 32
+        end
+        
+        if Flags.CrosshairOutline then
+            crossDrawings.circleOutline.Visible = true
+            crossDrawings.circleOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
+            crossDrawings.circleOutline.Radius = size + gap
+            crossDrawings.circleOutline.Thickness = thick + 1
+            crossDrawings.circleOutline.Color = Color3.new(0, 0, 0)
+            crossDrawings.circleOutline.Transparency = trans * 0.5
+        end
+
+        crossDrawings.circle.Visible = true
+        crossDrawings.circle.Position = Vector2.new(cx + 0.5, cy + 0.5)
+        crossDrawings.circle.Radius = size + gap
+        crossDrawings.circle.Thickness = thick
+        crossDrawings.circle.Color = color
+        crossDrawings.circle.Transparency = trans
+    end
+
+    -- ИДЕАЛЬНАЯ КРУГЛАЯ ТОЧКА В ЦЕНТРЕ
+    if Flags.CrosshairDot then
+        if not crossDrawings.circleDot then
+            crossDrawings.circleDot = Drawing.new("Circle")
+            crossDrawings.circleDot.Filled = true
+            crossDrawings.circleDot.NumSides = 16
+            crossDrawings.circleDotOutline = Drawing.new("Circle")
+            crossDrawings.circleDotOutline.Filled = true
+            crossDrawings.circleDotOutline.NumSides = 16
+        end
+        
+        local dotSize = math.max(1, math.floor(Flags.CrosshairDotSize))
+        
+        if Flags.CrosshairOutline then
+            crossDrawings.circleDotOutline.Visible = true
+            crossDrawings.circleDotOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
+            crossDrawings.circleDotOutline.Radius = dotSize + 1
+            crossDrawings.circleDotOutline.Color = Color3.new(0, 0, 0)
+            crossDrawings.circleDotOutline.Transparency = trans * 0.5
+        end
+
+        crossDrawings.circleDot.Visible = true
+        crossDrawings.circleDot.Position = Vector2.new(cx + 0.5, cy + 0.5)
+        crossDrawings.circleDot.Radius = dotSize
+        crossDrawings.circleDot.Color = color
+        crossDrawings.circleDot.Transparency = trans
+    end
+end
+
+RunService.RenderStepped:Connect(updateCrosshair)
 
 -- ===== ХИТБОКС =====
 local function restoreHitbox(char)
@@ -953,31 +1240,6 @@ RunService.RenderStepped:Connect(function()
         fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         fovCircle.Radius = Flags.AimFOV; fovCircle.Visible = true
     elseif fovCircle.Visible then fovCircle.Visible = false end
-end)
-
--- ===== CROSSHAIR =====
-local crossTop    = Drawing.new("Line"); crossTop.Visible = false
-local crossBottom = Drawing.new("Line"); crossBottom.Visible = false
-local crossLeft   = Drawing.new("Line"); crossLeft.Visible = false
-local crossRight  = Drawing.new("Line"); crossRight.Visible = false
-
-RunService.RenderStepped:Connect(function()
-    if Flags.Crosshair then
-        local cx, cy = math.floor(Camera.ViewportSize.X/2), math.floor(Camera.ViewportSize.Y/2)
-        local sz = math.max(Flags.CrosshairSize, 4)
-        local gap = math.max(Flags.CrosshairDistance, 0)
-        local trans = 1 - (Flags.CrosshairTransparency / 100)
-        crossTop.From = Vector2.new(cx, cy - gap); crossTop.To = Vector2.new(cx, math.max(cy - gap - sz, 0))
-        crossBottom.From = Vector2.new(cx, cy + gap); crossBottom.To = Vector2.new(cx, cy + gap + sz)
-        crossLeft.From = Vector2.new(cx - gap, cy); crossLeft.To = Vector2.new(math.max(cx - gap - sz, 0), cy)
-        crossRight.From = Vector2.new(cx + gap, cy); crossRight.To = Vector2.new(cx + gap + sz, cy)
-        for _, line in ipairs({crossTop, crossBottom, crossLeft, crossRight}) do
-            line.Color = Flags.CrosshairColor; line.Thickness = Flags.CrosshairThickness
-            line.Transparency = trans; line.Visible = true
-        end
-    else
-        crossTop.Visible = false; crossBottom.Visible = false; crossLeft.Visible = false; crossRight.Visible = false
-    end
 end)
 
 -- ===== FREECAM =====
@@ -1422,33 +1684,7 @@ UI.Elements.weaponToggle = UI.Tabs.ESP:AddToggle({Title="Weapon ESP", Icon="swor
 
 UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
 
--- ===== UI: VISUALS =====
-UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "palette")
-
-UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("WEAPON SKIN", "paintbrush"); UI.Tabs.Visuals:AddSeparator()
-
-UI.Elements.weaponColorToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Weapon Color", Subtitle="Неон на любое оружие", Icon="palette", Default=false, Callback=function(s) Flags.WeaponColorEnabled=s; if s then startWeaponColor() else for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end; CC.Refs.lastWeaponModels = {}; if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end end end})
-
-UI.Elements.weaponColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Neon Color", Icon="droplet", Default=Flags.WeaponColor, Callback=function(c) Flags.WeaponColor=c; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end})
-
-UI.Elements.materialDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Material", Icon="gem", Options={"Neon", "ForceField"}, Default="Neon", Callback=function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end })
-
-UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("ASPECT RATIO", "monitor"); UI.Tabs.Visuals:AddSeparator()
-
-UI.Elements.aspectToggle = UI.Tabs.Visuals:AddToggle({Title="Aspect Ratio", Subtitle="Сжатие вертикали камеры", Icon="monitor", Default=false, Callback=function(s) Flags.AspectRatioEnabled = s; applyAspectRatio() end})
-
-UI.Elements.aspectModeDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Ratio", Icon="rectangle-horizontal", Options={"4:3", "16:9"}, Default="16:9", Callback=function(v) Flags.AspectRatioMode = v; if Flags.AspectRatioEnabled then startAspectRatio() end end })
-
-UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("CROSSHAIR", "crosshair"); UI.Tabs.Visuals:AddSeparator()
-
-UI.Elements.crosshairToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
-UI.Elements.crosshairColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-UI.Elements.crosshairSizeSlider = UI.Tabs.Visuals:AddSlider({Title="Size (Длина линий)", Icon="ruler", Min=4, Max=30, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
-UI.Elements.crosshairDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance (Отступ)", Icon="move", Min=0, Max=30, Default=4, Callback=function(v) Flags.CrosshairDistance=v end})
-UI.Elements.crosshairThickSlider = UI.Tabs.Visuals:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
-UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
-
--- ===== UI: WORLD (СКАЙ + СВЕТ) =====
+-- ===== UI: WORLD (СКАЙ + СВЕТ + WEAPON COLOR) =====
 UI.Tabs.World = UI.Window:AddTab("World", "sun")
 
 UI.Tabs.World:AddLabel("SKY", "cloud")
@@ -1540,6 +1776,55 @@ UI.Elements.worldTimeSlider = UI.Tabs.World:AddSlider({
     end
 })
 
+-- Weapon Color — перенесено из Visuals в самый низ World
+UI.Tabs.World:AddSeparator()
+UI.Tabs.World:AddLabel("WEAPON SKIN", "paintbrush")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.weaponColorToggle = UI.Tabs.World:AddToggle({
+    Title = "Enable Weapon Color",
+    Subtitle = "Неон на любое оружие",
+    Icon = "palette",
+    Default = false,
+    Callback = function(s)
+        Flags.WeaponColorEnabled = s
+        if s then
+            startWeaponColor()
+        else
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            CC.Refs.lastWeaponModels = {}
+            if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end
+        end
+    end
+})
+
+UI.Elements.weaponColorPicker = UI.Tabs.World:AddColorPicker({
+    Title = "Neon Color",
+    Icon = "droplet",
+    Default = Flags.WeaponColor,
+    Callback = function(c)
+        Flags.WeaponColor = c
+        if Flags.WeaponColorEnabled then
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end
+        end
+    end
+})
+
+UI.Elements.materialDropdown = UI.Tabs.World:AddDropdown({
+    Title = "Material",
+    Icon = "gem",
+    Options = WEAPON_MATERIALS,
+    Default = "Neon",
+    Callback = function(s)
+        Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon
+        if Flags.WeaponColorEnabled then
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do
+                applyWeaponColorToModel(m)
+            end
+        end
+    end
+})
+
 -- ===== UI: LOOT =====
 UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
 
@@ -1562,7 +1847,6 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
 
-UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddSeparator()
 
 -- fov
@@ -1618,6 +1902,29 @@ UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({
         UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions)
     end
 })
+
+-- ===== UI: MISC — ASPECT RATIO & CROSSHAIR (ПЕРЕНЕСЕНО) =====
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("ASPECT RATIO", "monitor")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.aspectToggle = UI.Tabs.Misc:AddToggle({Title="Aspect Ratio", Subtitle="Сжатие вертикали камеры", Icon="monitor", Default=false, Callback=function(s) Flags.AspectRatioEnabled = s; applyAspectRatio() end})
+UI.Elements.aspectModeDropdown = UI.Tabs.Misc:AddDropdown({ Title="Ratio", Icon="rectangle-horizontal", Options={"4:3", "16:9"}, Default="16:9", Callback=function(v) Flags.AspectRatioMode = v; if Flags.AspectRatioEnabled then startAspectRatio() end end })
+
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("CROSSHAIR SYSTEM", "crosshair")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.crosshairToggle = UI.Tabs.Misc:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+UI.Elements.crosshairType = UI.Tabs.Misc:AddDropdown({Title="Style", Icon="shape", Options={"Cross", "T-Shape", "Circle"}, Default="Cross", Callback=function(s) Flags.CrosshairType=s end})
+UI.Elements.crosshairOutlineToggle = UI.Tabs.Misc:AddToggle({Title="Outline (Обводка)", Icon="square", Default=false, Callback=function(s) Flags.CrosshairOutline=s end})
+UI.Elements.crosshairDotToggle = UI.Tabs.Misc:AddToggle({Title="Center Dot", Icon="circle", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
+UI.Elements.crosshairColorPicker = UI.Tabs.Misc:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+UI.Elements.crosshairSizeSlider = UI.Tabs.Misc:AddSlider({Title="Size (Длина)", Icon="ruler", Min=3, Max=40, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+UI.Elements.crosshairDistSlider = UI.Tabs.Misc:AddSlider({Title="Gap (Отступ)", Icon="move", Min=0, Max=30, Default=5, Callback=function(v) Flags.CrosshairDistance=v end})
+UI.Elements.crosshairThickSlider = UI.Tabs.Misc:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=6, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+UI.Elements.crosshairTranspSlider = UI.Tabs.Misc:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+UI.Elements.crosshairDotSizeSlider = UI.Tabs.Misc:AddSlider({Title="Dot Size", Icon="circle", Min=1, Max=10, Default=2, Callback=function(v) Flags.CrosshairDotSize=v end})
 
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
@@ -1703,12 +2010,16 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
     cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
 
-    cfg:RegisterElement("Crosshair", UI.Elements.crosshairToggle)
+    cfg:RegisterElement("CrosshairOn", UI.Elements.crosshairToggle)
+    cfg:RegisterElement("CrosshairType", UI.Elements.crosshairType)
+    cfg:RegisterElement("CrosshairOutline", UI.Elements.crosshairOutlineToggle)
+    cfg:RegisterElement("CrosshairDot", UI.Elements.crosshairDotToggle)
     cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker)
     cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider)
     cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider)
     cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider)
     cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
+    cfg:RegisterElement("CrosshairDotSize", UI.Elements.crosshairDotSizeSlider)
 
     cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle)
     cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker)
@@ -1793,6 +2104,16 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
             if Flags.WorldTimeEnabled then applyWorldTime() end
         else
             restoreLighting()
+        end
+
+        -- Weapon color
+        if Flags.WeaponColorEnabled then
+            if not CC.Refs.weaponColorConn then startWeaponColor() end
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end
+        else
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            CC.Refs.lastWeaponModels = {}
+            if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end
         end
 
         CC.Refs.fovSettled = false
