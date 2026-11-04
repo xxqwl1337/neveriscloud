@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Visuals + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.2.0
+    BUILD: v0.2.4.2
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.2.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.4.2", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.2.0 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.4.2 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -224,6 +224,7 @@ Flags.FreeCam = false
 Flags.CameraZoom = false
 Flags.ZoomActive = false
 Flags.FPSPing = false; Flags.Fullbright = false
+Flags.WorldTimeEnabled = false; Flags.WorldTimeValue = 12
 Flags.Crosshair = false; Flags.CrosshairColor = Color3.fromRGB(255, 255, 255); Flags.CrosshairSize = 10
 Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 4
 Flags.Aimbot = false; Flags.AimAssist = true; Flags.SilentAim = true; Flags.AimlockMode = false
@@ -309,7 +310,7 @@ CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
--- ===== FOV: HOOK-КОНТРОЛЛЕР (1 в 1 из v0.2.1.5) =====
+-- ===== FOV: HOOK-КОНТРОЛЛЕР =====
 CC.Refs.DefaultFOV    = 70
 CC.Refs.fovAnimValue  = Camera.FieldOfView
 CC.Refs.gameWantsFOV  = Camera.FieldOfView
@@ -330,34 +331,38 @@ local function rawSetFOV(value)
     CC.Refs._fovWriting = false
 end
 
-do
-    local ok, err = pcall(function()
-        local oldNewIndex
-        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
-                CC.Refs.gameWantsFOV = value
-                CC.Refs.lastRealFOV  = value
-                if CC.Refs._fovWriting then return oldNewIndex(self, key, value) end
-                if getDesiredFOV() then return oldNewIndex(self, key, CC.Refs.fovAnimValue) end
-            end
-            return oldNewIndex(self, key, value)
-        end)
-    end)
-    if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
-end
+local hasHookMeta = (typeof(hookmetamethod) == "function")
 
-do
-    local ok, err = pcall(function()
-        local oldIndex
-        oldIndex = hookmetamethod(game, "__index", function(self, key)
-            if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
-                if CC.Refs._fovWriting or CC.Refs._fovReading then return oldIndex(self, key) end
-                if getDesiredFOV() then return CC.Refs.gameWantsFOV end
-            end
-            return oldIndex(self, key)
+if hasHookMeta then
+    pcall(function()
+        local ok, err = pcall(function()
+            local oldNewIndex
+            oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+                if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
+                    CC.Refs.gameWantsFOV = value
+                    CC.Refs.lastRealFOV  = value
+                    if CC.Refs._fovWriting then return oldNewIndex(self, key, value) end
+                    if getDesiredFOV() then return oldNewIndex(self, key, CC.Refs.fovAnimValue) end
+                end
+                return oldNewIndex(self, key, value)
+            end)
         end)
+        if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
     end)
-    if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
+
+    pcall(function()
+        local ok, err = pcall(function()
+            local oldIndex
+            oldIndex = hookmetamethod(game, "__index", function(self, key)
+                if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
+                    if CC.Refs._fovWriting or CC.Refs._fovReading then return oldIndex(self, key) end
+                    if getDesiredFOV() then return CC.Refs.gameWantsFOV end
+                end
+                return oldIndex(self, key)
+            end)
+        end)
+        if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
+    end)
 end
 
 local function startFOVController()
@@ -495,6 +500,170 @@ local function toggleRemoveConstructions(state)
     end
 end
 
+-- ===== LIGHTING CONTROLLER (ГЛУШИЛКА СКРИПТОВ) =====
+CC.Refs.LightingOverride = false
+CC.Refs.OrigLighting = {}
+CC.Refs.DisabledScripts = {}
+
+local function captureLighting()
+    if CC.Refs.LightingOverride then return end
+    CC.Refs.LightingOverride = true
+    
+    CC.Refs.OrigLighting = {
+        Ambient = Lighting.Ambient,
+        Brightness = Lighting.Brightness,
+        ClockTime = Lighting.ClockTime,
+        ColorShift_Bottom = Lighting.ColorShift_Bottom,
+        ColorShift_Top = Lighting.ColorShift_Top,
+        EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
+        EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
+        FogColor = Lighting.FogColor,
+        FogEnd = Lighting.FogEnd,
+        FogStart = Lighting.FogStart,
+        GlobalShadows = Lighting.GlobalShadows,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        ShadowSoftness = Lighting.ShadowSoftness,
+        ExposureCompensation = Lighting.ExposureCompensation
+    }
+    
+    local containers = {Lighting, LP:FindFirstChild("PlayerScripts"), game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")}
+    
+    for _, container in ipairs(containers) do
+        if container then
+            for _, obj in ipairs(container:GetDescendants()) do
+                if obj:IsA("Script") or obj:IsA("LocalScript") then
+                    local src = obj.Source
+                    if src and (string.find(src, "ClockTime") or string.find(src, "Atmosphere") or string.find(src, "Lighting")) then
+                        if not obj.Disabled then
+                            obj.Disabled = true
+                            table.insert(CC.Refs.DisabledScripts, obj)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function restoreLighting()
+    if not CC.Refs.LightingOverride then return end
+    CC.Refs.LightingOverride = false
+    
+    for key, value in pairs(CC.Refs.OrigLighting) do
+        if type(key) == "string" then
+            pcall(function() Lighting[key] = value end)
+        end
+    end
+    
+    for _, obj in ipairs(CC.Refs.DisabledScripts) do
+        if obj and obj.Parent then
+            pcall(function() obj.Disabled = false end)
+        end
+    end
+    CC.Refs.DisabledScripts = {}
+end
+
+local function applyFullbright()
+    if not Flags.Fullbright then return end
+    
+    pcall(function()
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 12
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 1e5
+        Lighting.FogStart = 0
+        Lighting.Ambient = Color3.fromRGB(178,178,178)
+        Lighting.OutdoorAmbient = Color3.fromRGB(178,178,178)
+    end)
+
+    for _, obj in ipairs(Lighting:GetChildren()) do
+        if obj:IsA("Atmosphere") or obj:IsA("Clouds") then
+            obj:Destroy()
+        end
+    end
+end
+
+local function applyWorldTime()
+    if not Flags.WorldTimeEnabled then return end
+    
+    pcall(function()
+        Lighting.ClockTime = Flags.WorldTimeValue
+        Lighting.Brightness = 1
+        Lighting.GlobalShadows = true
+        Lighting.Ambient = Color3.fromRGB(100,100,100)
+        Lighting.OutdoorAmbient = Color3.fromRGB(100,100,100)
+        Lighting.FogEnd = 1000
+    end)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if Flags.Fullbright then
+            applyFullbright()
+        elseif Flags.WorldTimeEnabled then
+            applyWorldTime()
+        end
+    end
+end)
+
+if hasHookMeta then
+    local ok, err = pcall(function()
+        local oldNewIndex
+        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            if self == Lighting then
+                if Flags.Fullbright or Flags.WorldTimeEnabled then
+                    if key == "ClockTime" or key == "Brightness" or key == "GlobalShadows" or key == "Ambient" or key == "OutdoorAmbient" or key == "FogEnd" or key == "FogStart" then
+                        return
+                    end
+                end
+            end
+            return oldNewIndex(self, key, value)
+        end)
+    end)
+    if not ok then warn("[cloudclient] Lighting hook failed:", err) end
+end
+
+-- ===== SKY COLOR =====
+local function setSkyColor(enabled, color)
+    local lighting = Lighting
+    if not CC.Refs.origSky then
+        for _, child in ipairs(lighting:GetChildren()) do
+            if child:IsA("Sky") then CC.Refs.origSky = child:Clone(); break end
+        end
+    end
+    if enabled then
+        if not CC.Refs.customSky then
+            CC.Refs.customSky = Instance.new("Sky")
+            CC.Refs.customSky.Name = "CloudClientCustomSky"
+            CC.Refs.customSky.Parent = lighting
+        end
+        local c = color or Flags.SkyColor
+        CC.Refs.customSky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
+        CC.Refs.customSky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
+        CC.Refs.customSky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"
+        CC.Refs.customSky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"
+        CC.Refs.customSky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"
+        CC.Refs.customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
+        CC.Refs.customSky.SunAngularSize = 0
+        CC.Refs.customSky.MoonAngularSize = 0
+        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        if not cc then
+            cc = Instance.new("ColorCorrectionEffect")
+            cc.Name = "CloudClientSkyTint"
+            cc.Parent = lighting
+        end
+        cc.TintColor = c
+        cc.Brightness = 0
+        cc.Contrast = 0
+        cc.Saturation = 0
+    else
+        if CC.Refs.customSky then CC.Refs.customSky:Destroy(); CC.Refs.customSky = nil end
+        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        if cc then cc:Destroy() end
+    end
+end
+
 -- ===== WEAPON COLOR =====
 local function applyWeaponColorToModel(model)
     if not model then return end
@@ -624,67 +793,40 @@ local function updateHitboxes()
 end
 
 -- ===== SILENT AIM =====
-pcall(function()
-    local oldIndex
-    oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-            if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
-            local targetPos = CC.Refs.CurrentTargetPart.Position
-            if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
-            if key == "Hit" then return CFrame.new(targetPos)
-            elseif key == "Target" then return CC.Refs.CurrentTargetPart
-            elseif key == "UnitRay" then
+if hasHookMeta then
+    pcall(function()
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", function(self, key)
+            if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
+                if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
+                local targetPos = CC.Refs.CurrentTargetPart.Position
+                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
+                if key == "Hit" then return CFrame.new(targetPos)
+                elseif key == "Target" then return CC.Refs.CurrentTargetPart
+                elseif key == "UnitRay" then
+                    local origin = Camera.CFrame.Position
+                    local dir = (targetPos - origin).Unit
+                    return Ray.new(origin, dir * 1000)
+                elseif key == "Origin" then return Camera.CFrame.Position
+                elseif key == "Direction" then return (targetPos - Camera.CFrame.Position).Unit
+                end
+            end
+            return oldIndex(self, key)
+        end)
+    end)
+
+    pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
+                local targetPos = CC.Refs.CurrentTargetPart.Position
+                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
                 local origin = Camera.CFrame.Position
                 local dir = (targetPos - origin).Unit
                 return Ray.new(origin, dir * 1000)
-            elseif key == "Origin" then return Camera.CFrame.Position
-            elseif key == "Direction" then return (targetPos - Camera.CFrame.Position).Unit
             end
-        end
-        return oldIndex(self, key)
-    end)
-end)
-
-pcall(function()
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-            local targetPos = CC.Refs.CurrentTargetPart.Position
-            if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
-            local origin = Camera.CFrame.Position
-            local dir = (targetPos - origin).Unit
-            return Ray.new(origin, dir * 1000)
-        end
-        return oldNamecall(self, ...)
-    end)
-end)
-
-if hookfunction then
-    pcall(function()
-        local oldScreen = Camera.ScreenPointToRay
-        hookfunction(oldScreen, function(self, x, y, depth)
-            if self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-                local targetPos = CC.Refs.CurrentTargetPart.Position
-                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
-                local origin = self.CFrame.Position
-                local dir = (targetPos - origin).Unit
-                return Ray.new(origin, dir * 1000)
-            end
-            return oldScreen(self, x, y, depth)
-        end)
-    end)
-    pcall(function()
-        local oldViewport = Camera.ViewportPointToRay
-        hookfunction(oldViewport, function(self, x, y, depth)
-            if self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-                local targetPos = CC.Refs.CurrentTargetPart.Position
-                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
-                local origin = self.CFrame.Position
-                local dir = (targetPos - origin).Unit
-                return Ray.new(origin, dir * 1000)
-            end
-            return oldViewport(self, x, y, depth)
+            return oldNamecall(self, ...)
         end)
     end)
 end
@@ -885,25 +1027,27 @@ LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then
 -- ===== NO RECOIL =====
 local RECOIL_HOLD_TIME = 0.45
 
-pcall(function()
-    local camIndex
-    camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-        if self == Camera and key == "CFrame" and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
-            return camIndex(self, key, CC.Refs.lockedCamCF)
-        end
-        return camIndex(self, key, value)
+if hasHookMeta then
+    pcall(function()
+        local camIndex
+        camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            if self == Camera and key == "CFrame" and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
+                return camIndex(self, key, CC.Refs.lockedCamCF)
+            end
+            return camIndex(self, key, value)
+        end)
     end)
-end)
 
-pcall(function()
-    local camIndexGet
-    camIndexGet = hookmetamethod(game, "__index", function(self, key)
-        if self == Camera and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
-            if key == "CFrame" then return CC.Refs.lockedCamCF end
-        end
-        return camIndexGet(self, key)
+    pcall(function()
+        local camIndexGet
+        camIndexGet = hookmetamethod(game, "__index", function(self, key)
+            if self == Camera and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
+                if key == "CFrame" then return CC.Refs.lockedCamCF end
+            end
+            return camIndexGet(self, key)
+        end)
     end)
-end)
+end
 
 local function stopNoRecoil()
     if CC.Refs.noRecoilConn then
@@ -987,93 +1131,6 @@ local function applyRapidFire()
             end)
         end
     end)
-end
-
--- ===== FULLBRIGHT =====
-local FULLBRIGHT_VALUES = { Brightness=2, ClockTime=12, FogEnd=1e5, FogStart=0, GlobalShadows=false, Ambient=Color3.fromRGB(178,178,178), OutdoorAmbient=Color3.fromRGB(178,178,178) }
-
-local function captureAtmosphere()
-    CC.Refs.origAtmosphere = {}
-    for _, atm in ipairs(Lighting:GetChildren()) do
-        if atm:IsA("Atmosphere") then table.insert(CC.Refs.origAtmosphere, {obj=atm, Density=atm.Density, Offset=atm.Offset, Color=atm.Color, Decay=atm.Decay, Glare=atm.Glare, Haze=atm.Haze}) end
-    end
-    CC.Refs.origClouds = {}
-    for _, cl in ipairs(Lighting:GetChildren()) do
-        if cl:IsA("Clouds") then table.insert(CC.Refs.origClouds, {obj=cl, Cover=cl.Cover, Density=cl.Density, Color=cl.Color, Enabled=cl.Enabled}) end
-    end
-end
-captureAtmosphere()
-
-local function applyFullbrightOnce()
-    for key, val in pairs(FULLBRIGHT_VALUES) do if Lighting[key] ~= val then pcall(function() Lighting[key] = val end) end end
-    for _, atm in ipairs(Lighting:GetChildren()) do
-        if atm:IsA("Atmosphere") then
-            if atm.Density ~= 0 then pcall(function() atm.Density = 0 end) end
-            if atm.Haze ~= 0 then pcall(function() atm.Haze = 0 end) end
-            if atm.Glare ~= 0 then pcall(function() atm.Glare = 0 end) end
-        end
-    end
-    for _, cl in ipairs(Lighting:GetChildren()) do
-        if cl:IsA("Clouds") then
-            if cl.Cover ~= 0 then pcall(function() cl.Cover = 0 end) end
-            if cl.Density ~= 0 then pcall(function() cl.Density = 0 end) end
-        end
-    end
-end
-
-local function restoreLighting()
-    for key, val in pairs(CC.Refs.origLight) do pcall(function() Lighting[key] = val end) end
-    if CC.Refs.origAtmosphere then
-        for _, a in ipairs(CC.Refs.origAtmosphere) do
-            if a.obj and a.obj.Parent then pcall(function() a.obj.Density=a.Density; a.obj.Offset=a.Offset; a.obj.Color=a.Color; a.obj.Decay=a.Decay; a.obj.Glare=a.Glare; a.obj.Haze=a.Haze end) end
-        end
-    end
-    if CC.Refs.origClouds then
-        for _, c in ipairs(CC.Refs.origClouds) do
-            if c.obj and c.obj.Parent then pcall(function() c.obj.Cover=c.Cover; c.obj.Density=c.Density; c.obj.Color=c.Color; c.obj.Enabled=c.Enabled end) end
-        end
-    end
-end
-
-local function setFullbright(state)
-    if state then captureAtmosphere(); applyFullbrightOnce() else restoreLighting() end
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.25)
-        if Flags.Fullbright then applyFullbrightOnce() end
-    end
-end)
-
--- ===== SKY COLOR =====
-local function setSkyColor(enabled, color)
-    local lighting = Lighting
-    if not CC.Refs.origSky then
-        for _, child in ipairs(lighting:GetChildren()) do if child:IsA("Sky") then CC.Refs.origSky = child:Clone(); break end end
-    end
-    if enabled then
-        if not CC.Refs.customSky then
-            CC.Refs.customSky = Instance.new("Sky")
-            CC.Refs.customSky.Name = "CloudClientCustomSky"
-            CC.Refs.customSky.Parent = lighting
-        end
-        local c = color or Flags.SkyColor
-        CC.Refs.customSky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
-        CC.Refs.customSky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
-        CC.Refs.customSky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"
-        CC.Refs.customSky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"
-        CC.Refs.customSky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"
-        CC.Refs.customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
-        CC.Refs.customSky.SunAngularSize = 0; CC.Refs.customSky.MoonAngularSize = 0
-        local cc = lighting:FindFirstChild("CloudClientSkyTint")
-        if not cc then cc = Instance.new("ColorCorrectionEffect"); cc.Name = "CloudClientSkyTint"; cc.Parent = lighting end
-        cc.TintColor = c; cc.Brightness = 0; cc.Contrast = 0; cc.Saturation = 0
-    else
-        if CC.Refs.customSky then CC.Refs.customSky:Destroy(); CC.Refs.customSky = nil end
-        local cc = lighting:FindFirstChild("CloudClientSkyTint")
-        if cc then cc:Destroy() end
-    end
 end
 
 -- ===== ESP DRAWINGS =====
@@ -1382,11 +1439,6 @@ UI.Elements.aspectToggle = UI.Tabs.Visuals:AddToggle({Title="Aspect Ratio", Subt
 
 UI.Elements.aspectModeDropdown = UI.Tabs.Visuals:AddDropdown({ Title="Ratio", Icon="rectangle-horizontal", Options={"4:3", "16:9"}, Default="16:9", Callback=function(v) Flags.AspectRatioMode = v; if Flags.AspectRatioEnabled then startAspectRatio() end end })
 
-UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("SKY COLOR", "cloud"); UI.Tabs.Visuals:AddSeparator()
-
-UI.Elements.skyColorToggle = UI.Tabs.Visuals:AddToggle({Title="Custom Sky Color", Icon="cloud", Default=false, Callback=function(s) Flags.SkyColorEnabled=s; setSkyColor(s, Flags.SkyColor) end})
-UI.Elements.skyColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Sky Color", Icon="palette", Default=Flags.SkyColor, Callback=function(c) Flags.SkyColor=c; if Flags.SkyColorEnabled then setSkyColor(true, c) end end})
-
 UI.Tabs.Visuals:AddSeparator(); UI.Tabs.Visuals:AddLabel("CROSSHAIR", "crosshair"); UI.Tabs.Visuals:AddSeparator()
 
 UI.Elements.crosshairToggle = UI.Tabs.Visuals:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
@@ -1396,9 +1448,97 @@ UI.Elements.crosshairDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance (О
 UI.Elements.crosshairThickSlider = UI.Tabs.Visuals:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=5, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 UI.Elements.crosshairTranspSlider = UI.Tabs.Visuals:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
 
--- ===== UI: OTHER =====
-UI.Tabs.Other = UI.Window:AddTab("Other", "box")
-UI.Elements.fullbrightToggle = UI.Tabs.Other:AddToggle({Title="Fullbright", Icon="sun", Default=false, Callback=function(s) Flags.Fullbright=s; setFullbright(s) end})
+-- ===== UI: WORLD (СКАЙ + СВЕТ) =====
+UI.Tabs.World = UI.Window:AddTab("World", "sun")
+
+UI.Tabs.World:AddLabel("SKY", "cloud")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.skyColorToggle = UI.Tabs.World:AddToggle({
+    Title = "Custom Sky Color",
+    Subtitle = "Перекрашивает небо",
+    Icon = "cloud",
+    Default = false,
+    Callback = function(s)
+        Flags.SkyColorEnabled = s
+        setSkyColor(s, Flags.SkyColor)
+    end
+})
+
+UI.Elements.skyColorPicker = UI.Tabs.World:AddColorPicker({
+    Title = "Sky Color",
+    Icon = "palette",
+    Default = Flags.SkyColor,
+    Callback = function(c)
+        Flags.SkyColor = c
+        if Flags.SkyColorEnabled then setSkyColor(true, c) end
+    end
+})
+
+UI.Tabs.World:AddSeparator()
+UI.Tabs.World:AddLabel("LIGHTING", "sun")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.fullbrightToggle = UI.Tabs.World:AddToggle({
+    Title = "Fullbright",
+    Subtitle = "Освещает всё вокруг, небо не мигает",
+    Icon = "sun",
+    Default = false,
+    Callback = function(s)
+        Flags.Fullbright = s
+        pcall(function()
+            if s then
+                captureLighting()
+                applyFullbright()
+            else
+                if not Flags.WorldTimeEnabled then restoreLighting() end
+            end
+        end)
+    end
+})
+
+UI.Elements.keybindFullbright = UI.Tabs.World:AddKeybind({
+    Title = "Fullbright Keybind",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.Unknown,
+    Callback = function()
+        UI.Elements.fullbrightToggle:Set(not Flags.Fullbright)
+    end
+})
+
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.worldTimeToggle = UI.Tabs.World:AddToggle({
+    Title = "World Time",
+    Subtitle = "Фиксирует время суток",
+    Icon = "sun-moon",
+    Default = false,
+    Callback = function(s)
+        Flags.WorldTimeEnabled = s
+        pcall(function()
+            if s then
+                captureLighting()
+                applyWorldTime()
+            else
+                if not Flags.Fullbright then restoreLighting() end
+            end
+        end)
+    end
+})
+
+UI.Elements.worldTimeSlider = UI.Tabs.World:AddSlider({
+    Title = "Hour (1-24)",
+    Icon = "clock",
+    Min = 1,
+    Max = 24,
+    Default = 12,
+    Callback = function(v)
+        Flags.WorldTimeValue = v
+        pcall(function()
+            if Flags.WorldTimeEnabled then applyWorldTime() end
+        end)
+    end
+})
 
 -- ===== UI: LOOT =====
 UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
@@ -1422,7 +1562,6 @@ UI.Tabs.Misc:AddSeparator()
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
 
--- пустая строка-разделитель между zoom и fov
 UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddSeparator()
 
@@ -1440,7 +1579,6 @@ UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-ho
     CC.Refs.fovSettled = false
 end})
 
--- БИНД ДЛЯ FOV (ПЕРЕКЛЮЧАЕТ ТУМБЛЕР)
 UI.Elements.keybindFOV = UI.Tabs.Misc:AddKeybind({
     Title = "FOV Keybind",
     Subtitle = "Вкл/Выкл FOV",
@@ -1471,7 +1609,6 @@ UI.Elements.removeDistanceSlider = UI.Tabs.Misc:AddSlider({
     Callback = function(v) Flags.RemoveDistance = v end
 })
 
--- БИНД ДЛЯ REMOVE CONSTRUCTIONS
 UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({
     Title = "Remove Constructions Keybind",
     Subtitle = "Вкл/Выкл стены",
@@ -1505,7 +1642,6 @@ UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon
 UI.Tabs.Settings:AddSeparator(); UI.Tabs.Settings:AddLabel("KEYBINDS", "keyboard"); UI.Tabs.Settings:AddSeparator()
 
 UI.Elements.keybindESP = UI.Tabs.Settings:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
-UI.Elements.keybindFullbright = UI.Tabs.Settings:AddKeybind({Title = "Fullbright Keybind", Icon = "sun", Callback = function() UI.Elements.fullbrightToggle:Set(not Flags.Fullbright) end})
 UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
 UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
 UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
@@ -1584,6 +1720,11 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle)
     cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
 
+    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
+    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
+    cfg:RegisterElement("WorldTime", UI.Elements.worldTimeToggle)
+    cfg:RegisterElement("WorldTimeValue", UI.Elements.worldTimeSlider)
+
     cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
     cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
     cfg:RegisterElement("FOVEnabled", UI.Elements.fovToggle)
@@ -1592,13 +1733,11 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
     cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
 
-    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
     cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
 
     cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
     cfg:RegisterElement("BindCameraZoom", UI.Elements.keybindCameraZoom)
     cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
-    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
     cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
     cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
@@ -1638,22 +1777,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if not name or name == "" then error("no config") end
         UI.Elements.configNameBox:Set(name)
 
-        UI.Elements.aspectToggle:Set(false)
-        UI.Elements.aspectModeDropdown:Set("16:9")
-
-        Flags.HitboxEnabled = false; Flags.HitboxSize = 2.0; Flags.HitboxTransparency = 50
-        Flags.TriggerBot = false; Flags.TriggerDelay = 50; Flags.TriggerFOV = 15; Flags.TriggerTeamCheck = true
-        Flags.NoRecoil = false; Flags.RapidFire = false
-        Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
-        Flags.RemoveConstructions = false
-
-        Flags.FOVEnabled = false
-        Flags.FOVValue = 70
-        CC.Refs.fovSettled = false
-        pcall(function() UI.Elements.fovToggle:Set(false) end)
-        pcall(function() UI.Elements.fovSlider:Set(70) end)
-        pcall(function() UI.Elements.removeConstructionsToggle:Set(false) end)
-
         UI.buildConfig(name):Load()
 
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
@@ -1661,8 +1784,17 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
-        setFullbright(Flags.Fullbright)
+
+        -- Sky / Lighting
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        if Flags.Fullbright or Flags.WorldTimeEnabled then
+            captureLighting()
+            if Flags.Fullbright then applyFullbright() end
+            if Flags.WorldTimeEnabled then applyWorldTime() end
+        else
+            restoreLighting()
+        end
+
         CC.Refs.fovSettled = false
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
