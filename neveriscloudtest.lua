@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.5.8
+    BUILD: v0.2.5.9
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,9 +207,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.5.8", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.5.9", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.5.8 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.5.9 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -904,11 +904,11 @@ local crossDrawings = {
 }
 
 local function updateCrosshair()
-    if not Flags.Crosshair then
+    -- Показываем прицел, если включен сам прицел ИЛИ включена точка
+    local showAny = Flags.Crosshair or Flags.CrosshairDot
+    if not showAny then
         for _, d in pairs(crossDrawings.lines) do d.Visible = false end
         for _, d in pairs(crossDrawings.outline) do d.Visible = false end
-        crossDrawings.dot.Visible = false
-        crossDrawings.dotOutline.Visible = false
         if crossDrawings.circle then crossDrawings.circle.Visible = false end
         if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
         if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end
@@ -917,22 +917,25 @@ local function updateCrosshair()
     end
 
     local vs = Camera.ViewportSize
-    -- Идеальный центр экрана
     local cx = math.floor(vs.X / 2)
     local cy = math.floor(vs.Y / 2)
     
     local color = Flags.CrosshairColor
     local trans = 1 - (Flags.CrosshairTransparency / 100)
     local cType = Flags.CrosshairType
-    local size = math.max(1, math.floor(Flags.CrosshairSize))
+    
+    -- ФИКС БАГА: Толщина всегда нечётная, Длина всегда чётная
     local thick = math.max(1, math.floor(Flags.CrosshairThickness))
+    if thick % 2 == 0 then thick = thick + 1 end
+    
+    local size = math.max(2, math.floor(Flags.CrosshairSize))
+    if size % 2 == 1 then size = size + 1 end
+    
     local gap = math.max(0, math.floor(Flags.CrosshairDistance))
 
-    -- Прячем всё старое
+    -- Прячем старое
     for _, d in pairs(crossDrawings.lines) do d.Visible = false end
     for _, d in pairs(crossDrawings.outline) do d.Visible = false end
-    crossDrawings.dot.Visible = false
-    crossDrawings.dotOutline.Visible = false
     if crossDrawings.circle then crossDrawings.circle.Visible = false end
     if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
     if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end
@@ -945,7 +948,7 @@ local function updateCrosshair()
         end
         local line = tbl[index]
         line.Visible = true
-        -- Добавляем 0.5 пикселя для идеальной центровки линий
+        -- 0.5 пикселя для идеальной центровки, чтобы линии не съезжали
         line.From = Vector2.new(x1 + 0.5, y1 + 0.5)
         line.To = Vector2.new(x2 + 0.5, y2 + 0.5)
         line.Color = isOutline and Color3.new(0, 0, 0) or color
@@ -953,64 +956,55 @@ local function updateCrosshair()
         line.Transparency = isOutline and (trans * 0.7) or trans
     end
 
-    if cType == "Cross" then
-        -- Верх
-        drawLine(1, cx, cy - gap - size, cx, cy - gap)
-        if Flags.CrosshairOutline then drawLine(1, cx, cy - gap - size, cx, cy - gap, true) end
-        
-        -- Низ
-        drawLine(2, cx, cy + gap, cx, cy + gap + size)
-        if Flags.CrosshairOutline then drawLine(2, cx, cy + gap, cx, cy + gap + size, true) end
-        
-        -- Лево
-        drawLine(3, cx - gap - size, cy, cx - gap, cy)
-        if Flags.CrosshairOutline then drawLine(3, cx - gap - size, cy, cx - gap, cy, true) end
-        
-        -- Право
-        drawLine(4, cx + gap, cy, cx + gap + size, cy)
-        if Flags.CrosshairOutline then drawLine(4, cx + gap, cy, cx + gap + size, cy, true) end
+    -- РИСУЕМ ЛИНИИ (только если включен основной прицел)
+    if Flags.Crosshair then
+        if cType == "Cross" then
+            drawLine(1, cx, cy - gap - size, cx, cy - gap)
+            if Flags.CrosshairOutline then drawLine(1, cx, cy - gap - size, cx, cy - gap, true) end
+            drawLine(2, cx, cy + gap, cx, cy + gap + size)
+            if Flags.CrosshairOutline then drawLine(2, cx, cy + gap, cx, cy + gap + size, true) end
+            drawLine(3, cx - gap - size, cy, cx - gap, cy)
+            if Flags.CrosshairOutline then drawLine(3, cx - gap - size, cy, cx - gap, cy, true) end
+            drawLine(4, cx + gap, cy, cx + gap + size, cy)
+            if Flags.CrosshairOutline then drawLine(4, cx + gap, cy, cx + gap + size, cy, true) end
 
-    elseif cType == "T-Shape" then
-        -- Низ
-        drawLine(1, cx, cy + gap, cx, cy + gap + size)
-        if Flags.CrosshairOutline then drawLine(1, cx, cy + gap, cx, cy + gap + size, true) end
-        
-        -- Лево
-        drawLine(2, cx - gap - size, cy, cx - gap, cy)
-        if Flags.CrosshairOutline then drawLine(2, cx - gap - size, cy, cx - gap, cy, true) end
-        
-        -- Право
-        drawLine(3, cx + gap, cy, cx + gap + size, cy)
-        if Flags.CrosshairOutline then drawLine(3, cx + gap, cy, cx + gap + size, cy, true) end
+        elseif cType == "T-Shape" then
+            drawLine(1, cx, cy + gap, cx, cy + gap + size)
+            if Flags.CrosshairOutline then drawLine(1, cx, cy + gap, cx, cy + gap + size, true) end
+            drawLine(2, cx - gap - size, cy, cx - gap, cy)
+            if Flags.CrosshairOutline then drawLine(2, cx - gap - size, cy, cx - gap, cy, true) end
+            drawLine(3, cx + gap, cy, cx + gap + size, cy)
+            if Flags.CrosshairOutline then drawLine(3, cx + gap, cy, cx + gap + size, cy, true) end
 
-    elseif cType == "Circle" then
-        if not crossDrawings.circle then
-            crossDrawings.circle = Drawing.new("Circle")
-            crossDrawings.circle.Filled = false
-            crossDrawings.circle.NumSides = 32
-            crossDrawings.circleOutline = Drawing.new("Circle")
-            crossDrawings.circleOutline.Filled = false
-            crossDrawings.circleOutline.NumSides = 32
+        elseif cType == "Circle" then
+            if not crossDrawings.circle then
+                crossDrawings.circle = Drawing.new("Circle")
+                crossDrawings.circle.Filled = false
+                crossDrawings.circle.NumSides = 32
+                crossDrawings.circleOutline = Drawing.new("Circle")
+                crossDrawings.circleOutline.Filled = false
+                crossDrawings.circleOutline.NumSides = 32
+            end
+            
+            if Flags.CrosshairOutline then
+                crossDrawings.circleOutline.Visible = true
+                crossDrawings.circleOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
+                crossDrawings.circleOutline.Radius = size + gap
+                crossDrawings.circleOutline.Thickness = thick + 1
+                crossDrawings.circleOutline.Color = Color3.new(0, 0, 0)
+                crossDrawings.circleOutline.Transparency = trans * 0.5
+            end
+
+            crossDrawings.circle.Visible = true
+            crossDrawings.circle.Position = Vector2.new(cx + 0.5, cy + 0.5)
+            crossDrawings.circle.Radius = size + gap
+            crossDrawings.circle.Thickness = thick
+            crossDrawings.circle.Color = color
+            crossDrawings.circle.Transparency = trans
         end
-        
-        if Flags.CrosshairOutline then
-            crossDrawings.circleOutline.Visible = true
-            crossDrawings.circleOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
-            crossDrawings.circleOutline.Radius = size + gap
-            crossDrawings.circleOutline.Thickness = thick + 1
-            crossDrawings.circleOutline.Color = Color3.new(0, 0, 0)
-            crossDrawings.circleOutline.Transparency = trans * 0.5
-        end
-
-        crossDrawings.circle.Visible = true
-        crossDrawings.circle.Position = Vector2.new(cx + 0.5, cy + 0.5)
-        crossDrawings.circle.Radius = size + gap
-        crossDrawings.circle.Thickness = thick
-        crossDrawings.circle.Color = color
-        crossDrawings.circle.Transparency = trans
     end
 
-    -- ИДЕАЛЬНАЯ КРУГЛАЯ ТОЧКА В ЦЕНТРЕ
+    -- РИСУЕМ ТОЧКУ (независимо от того, включен основной прицел или нет)
     if Flags.CrosshairDot then
         if not crossDrawings.circleDot then
             crossDrawings.circleDot = Drawing.new("Circle")
@@ -1920,7 +1914,7 @@ UI.Elements.crosshairType = UI.Tabs.Misc:AddDropdown({Title="Style", Icon="shape
 UI.Elements.crosshairOutlineToggle = UI.Tabs.Misc:AddToggle({Title="Outline (Обводка)", Icon="square", Default=false, Callback=function(s) Flags.CrosshairOutline=s end})
 UI.Elements.crosshairDotToggle = UI.Tabs.Misc:AddToggle({Title="Center Dot", Icon="circle", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
 UI.Elements.crosshairColorPicker = UI.Tabs.Misc:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
-UI.Elements.crosshairSizeSlider = UI.Tabs.Misc:AddSlider({Title="Size (Длина)", Icon="ruler", Min=3, Max=40, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+UI.Elements.crosshairSizeSlider = UI.Tabs.Misc:AddSlider({Title="Size (Длина)", Icon="ruler", Min=2, Max=40, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
 UI.Elements.crosshairDistSlider = UI.Tabs.Misc:AddSlider({Title="Gap (Отступ)", Icon="move", Min=0, Max=30, Default=5, Callback=function(v) Flags.CrosshairDistance=v end})
 UI.Elements.crosshairThickSlider = UI.Tabs.Misc:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=6, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
 UI.Elements.crosshairTranspSlider = UI.Tabs.Misc:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
