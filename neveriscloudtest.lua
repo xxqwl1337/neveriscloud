@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + Visuals + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.8.1
+    BUILD: v0.3.1.0
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,27 +207,32 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.8.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.3.1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.8.1 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.3.1.0 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
 Flags.ESP_Sleeper = false
-Flags.ESP_SleeperColorEnabled = false
-Flags.SleeperColor = Color3.fromRGB(100, 200, 255)
-Flags.TeamCheck = false
-Flags.TeamColor = Color3.fromRGB(0, 255, 0)
+Flags.TeamCheck = true
+
+-- Дефолтные цвета
+Flags.ESPColor      = Color3.fromRGB(255, 0, 0)
+Flags.SleeperColor  = Color3.fromRGB(0, 200, 255)
+Flags.BoxColor      = Color3.fromRGB(255, 255, 255)
+Flags.TextColor     = Color3.fromRGB(255, 255, 255)
+Flags.LineColor     = Color3.fromRGB(255, 0, 0)
+Flags.SkeletonColor = Color3.fromRGB(69, 0, 0)
+Flags.TeamColor     = Color3.fromRGB(0, 255, 0)
+Flags.NPCColor      = Color3.fromRGB(255, 165, 0)
+Flags.AnimalColor   = Color3.fromRGB(255, 20, 147)
+
 Flags.Box = false; Flags.Distance = false; Flags.Name = false; Flags.Health = false; Flags.Line = false
 Flags.Skeleton = false; Flags.WeaponESP = false
 Flags.MaxDistance = 600
-Flags.ESPColor = Color3.fromRGB(255, 0, 255)
-Flags.TextColor = Color3.fromRGB(255, 255, 255)
-Flags.BoxColor = Color3.fromRGB(255,255,255); Flags.LineColor = Color3.fromRGB(255,255,255)
-Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
+
 -- NPC
 Flags.ESP_NPC = false
-Flags.NPCColor = Color3.fromRGB(255, 165, 0)
 Flags.NPCDistance = 200
 Flags.NPC_Name = true
 Flags.NPC_Box = true
@@ -235,22 +240,42 @@ Flags.NPC_Health = true
 Flags.NPC_Distance = true
 -- Animals
 Flags.ESP_Animals = false
-Flags.AnimalColor = Color3.fromRGB(150, 255, 100)
 Flags.AnimalDistance = 500
 Flags.Animal_Name = true
 Flags.Animal_Box = true
 Flags.Animal_Health = true
 Flags.Animal_Distance = true
+
+-- ===== AIMBOT STATE =====
+Flags.AimbotEnabled = false
+Flags.AimbotType = "Mouse"
+Flags.AimbotKey = Enum.UserInputType.MouseButton2
+Flags.AimbotBone = "Head"
+Flags.AimbotIgnoreTeam = true
+Flags.AimbotIgnoreSleepers = true
+Flags.AimbotIgnoreNPC = true
+Flags.AimbotIgnoreAnimals = true
+Flags.AimbotIgnoreWounded = false
+Flags.AimbotIgnoreWoundedPercent = 30
+Flags.AimbotVisibleCheck = true
+Flags.AimbotFOV = 120
+Flags.AimbotSmooth = 5
+Flags.AimbotPrediction = 0
+Flags.AimbotHitChance = 100
+Flags.AimbotDistanceLimit = 400
+Flags.AimbotDrawFOV = false
+Flags.AimbotDrawTarget = false
+Flags.AimbotDrawTargetColor = Color3.fromRGB(255, 0, 0)
+Flags.AimbotDrawFOVColor = Color3.fromRGB(255, 255, 255)
+Flags.AimbotAutoSwitch = true
+Flags.AimbotDebug = false
+
 Flags.FreeCam = false
 Flags.CameraZoom = false
 Flags.ZoomActive = false
 Flags.FPSPing = false; Flags.Fullbright = false
 Flags.WorldTimeEnabled = false; Flags.WorldTimeValue = 12
-Flags.Aimbot = false; Flags.AimAssist = true; Flags.SilentAim = true; Flags.AimlockMode = false
-Flags.AimPart = "Head"; Flags.AimSmooth = 5; Flags.AimFOV = 120; Flags.AimTeamCheck = true
-Flags.AimKey = Enum.UserInputType.MouseButton2; Flags.AimPrediction = 0; Flags.HitChance = 100
 Flags.HitboxEnabled = false; Flags.HitboxSize = 2.0; Flags.HitboxTransparency = 50
-Flags.TriggerBot = false; Flags.TriggerDelay = 50; Flags.TriggerFOV = 15; Flags.TriggerTeamCheck = true
 Flags.NoRecoil = false
 Flags.RapidFire = false; Flags.RapidFireDelay = 50
 Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
@@ -281,22 +306,13 @@ local function isAlive(char)
     return hum and hum.Health > 0
 end
 
-local function getAimPart(char)
-    if not char then return nil end
-    local part = char:FindFirstChild(Flags.AimPart) or char:FindFirstChild("Head")
-    if not part then
-        part = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-    end
-    return part
-end
-
 local function getVelocity(part)
     if not part then return Vector3.zero end
     return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 end
 
 local function isAimHeld()
-    local k = Flags.AimKey
+    local k = Flags.AimbotKey
     if typeof(k) == "EnumItem" then
         if k.EnumType == Enum.UserInputType then
             return UIS:IsMouseButtonPressed(k)
@@ -307,10 +323,97 @@ local function isAimHeld()
     return false
 end
 
+-- ===== TEAM CACHE & CHECK =====
+local _teammatesCache = {}
+local _teammatesCacheTime = 0
+
+local function cleanName(text)
+    if not text or text == "" then return "" end
+    local cleaned = text:gsub("^[%s%.•%-]+", "")
+    cleaned = cleaned:gsub("[%s%.•%-]+$", "")
+    return cleaned
+end
+
+local function refreshTeammatesCache()
+    local now = os.clock()
+    if now - _teammatesCacheTime < 0.5 then return end
+    _teammatesCacheTime = now
+    
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then _teammatesCache = {}; return end
+    local teamUI = pg:FindFirstChild("TeamUI")
+    if not teamUI then _teammatesCache = {}; return end
+    local teamFrame = teamUI:FindFirstChild("Team")
+    if not teamFrame then _teammatesCache = {}; return end
+    
+    local newCache = {}
+    for _, child in ipairs(teamFrame:GetChildren()) do
+        if child:IsA("TextLabel") and child.Text ~= "" then
+            local clean = cleanName(child.Text)
+            if clean ~= "" then
+                newCache[clean] = true
+            end
+        end
+    end
+    _teammatesCache = newCache
+end
+
 local function isTeammate(plr)
     if not plr or not LP then return false end
-    if not LP.Team or not plr.Team then return false end
-    return LP.Team == plr.Team
+    if plr == LP then return false end
+    refreshTeammatesCache()
+    return _teammatesCache[plr.Name] == true or _teammatesCache[plr.DisplayName] == true
+end
+
+-- ===== BONE POSITION =====
+local BONE_MAP = {
+    Head = "Head",
+    Chest = "UpperTorso",
+    Pelvis = "LowerTorso",
+    Nearest = nil,
+}
+
+local function getBonePosition(char, boneName)
+    if not char then return nil end
+    if boneName == "Nearest" then
+        local head = char:FindFirstChild("Head")
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+        if head and hrp then
+            local camPos = Camera.CFrame.Position
+            local headDist = (head.Position - camPos).Magnitude
+            local hrpDist = (hrp.Position - camPos).Magnitude
+            if headDist < hrpDist then return head else return hrp end
+        end
+        return head or hrp
+    end
+    local partName = BONE_MAP[boneName]
+    if not partName then return nil end
+    local part = char:FindFirstChild(partName)
+    if not part and partName == "UpperTorso" then part = char:FindFirstChild("Torso") end
+    if not part and partName == "LowerTorso" then part = char:FindFirstChild("Torso") end
+    return part
+end
+
+-- ===== ПРЕДСКАЗАНИЕ (улучшенное) =====
+-- Берёт только горизонтальную скорость, игнорирует прыжки
+local function getPredictedPosition(part)
+    if not part then return Vector3.zero end
+    local pos = part.Position
+    if Flags.AimbotPrediction <= 0 then return pos end
+    
+    local camPos = Camera.CFrame.Position
+    local dist = (pos - camPos).Magnitude
+    
+    local vel = getVelocity(part)
+    -- Только X и Z, чтобы не улетало вверх/вниз при прыжке
+    local horizVel = Vector3.new(vel.X, 0, vel.Z)
+    
+    -- Prediction factor: прорционально дистанции
+    -- 1 stud/s при prediction = 1 даст ~ (dist/100) studs смещения
+    local timeToHit = dist / 100  -- грубая аппроксимация (100 studs/s скорость пули)
+    local predicted = pos + horizVel * Flags.AimbotPrediction * timeToHit
+    
+    return predicted
 end
 
 -- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
@@ -585,7 +688,7 @@ local function updateSpider()
         local flat = Vector3.new(dir.X, 0, dir.Z)
         if flat.Magnitude > 0.01 then
             local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
-            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
+            if res and res.Instance and res.Instance.Collide then hit = res; break end
         end
     end
     if not hit then clearSpiderVelocity(); return end
@@ -1174,15 +1277,17 @@ local function updateHitboxes()
     end
 end
 
--- ===== SILENT AIM =====
+-- ===== SILENT AIM HOOKS =====
 if hasHookMeta then
     pcall(function()
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
-            if self == Mouse and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-                if math.random(1, 100) > Flags.HitChance then return oldIndex(self, key) end
-                local targetPos = CC.Refs.CurrentTargetPart.Position
-                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
+            if self == Mouse and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
+                if math.random(1, 100) > Flags.AimbotHitChance then return oldIndex(self, key) end
+                local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
+                if Flags.AimbotDebug then
+                    print(string.format("[Silent] Hit for %s, key: %s, target: %s", tostring(CC.Refs.CurrentTargetPart), tostring(key), tostring(targetPos)))
+                end
                 if key == "Hit" then return CFrame.new(targetPos)
                 elseif key == "Target" then return CC.Refs.CurrentTargetPart
                 elseif key == "UnitRay" then
@@ -1201,11 +1306,13 @@ if hasHookMeta then
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
-            if (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera and Flags.Aimbot and Flags.SilentAim and not Flags.AimlockMode and CC.Refs.CurrentTargetPart then
-                local targetPos = CC.Refs.CurrentTargetPart.Position
-                if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
+            if (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
+                local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
                 local origin = Camera.CFrame.Position
                 local dir = (targetPos - origin).Unit
+                if Flags.AimbotDebug then
+                    print(string.format("[Silent] Namecall %s, target: %s", method, tostring(targetPos)))
+                end
                 return Ray.new(origin, dir * 1000)
             end
             return oldNamecall(self, ...)
@@ -1213,128 +1320,225 @@ if hasHookMeta then
     end)
 end
 
+-- ===== VISIBLE CHECK =====
+local visRayParams = RaycastParams.new()
+visRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local function isVisible(targetPart)
+    if not targetPart then return false end
+    visRayParams.FilterDescendantsInstances = {LP.Character, targetPart.Parent}
+    local origin = Camera.CFrame.Position
+    local dir = (targetPart.Position - origin)
+    local result = workspace:Raycast(origin, dir, visRayParams)
+    return result == nil
+end
+
+-- ===== ПРОВЕРКА NPC/ANIMAL =====
+local function isPlayerCharacter(obj)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character == obj then return true end
+    end
+    return false
+end
+
+local function isNPCModel(model)
+    local name = string.lower(model.Name)
+    return name == "scientist" or name == "alien"
+end
+
+local function isAnimalModel(model)
+    local name = string.lower(model.Name)
+    return name == "bear" or name == "wolf" or name == "boar" or name == "stag"
+end
+
 -- ===== ПОИСК ЦЕЛИ =====
 local function getClosestTarget()
     local closest, closestPart
     local shortest = math.huge
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    local localPos = localRoot and localRoot.Position or Vector3.zero
+    if not localRoot then return nil, nil end
+    local localPos = localRoot.Position
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
 
+    -- Ищем игроков
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
-            if Flags.AimTeamCheck and isTeammate(plr) then continue end
-            local part = getAimPart(plr.Character)
+            if Flags.AimbotIgnoreTeam and isTeammate(plr) then continue end
+            
+            local char = plr.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            if Flags.AimbotIgnoreWounded and hum then
+                local hpPercent = (hum.Health / hum.MaxHealth) * 100
+                if hpPercent < Flags.AimbotIgnoreWoundedPercent then continue end
+            end
+            
+            local part = getBonePosition(char, Flags.AimbotBone)
             if part then
+                local dist = (part.Position - localPos).Magnitude
+                if dist > Flags.AimbotDistanceLimit then continue end
+                
                 local sp = fovWorldToViewport(part.Position)
                 if sp.Z > 0 then
                     local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
-                    if screenDist < Flags.AimFOV then
-                        local worldDist = (part.Position - localPos).Magnitude
-                        if worldDist < shortest then shortest = worldDist; closest = plr; closestPart = part end
+                    if screenDist < Flags.AimbotFOV then
+                        if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                        if dist < shortest then
+                            shortest = dist
+                            closest = plr
+                            closestPart = part
+                        end
                     end
                 end
             end
         end
     end
+
+    -- NPC (если включено)
+    if not Flags.AimbotIgnoreNPC then
+        for _, model in ipairs(CC.Refs.NPCList or {}) do
+            if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isNPCModel(model) then
+                local part = getBonePosition(model, Flags.AimbotBone)
+                if part then
+                    local dist = (part.Position - localPos).Magnitude
+                    if dist > Flags.AimbotDistanceLimit then continue end
+                    local sp = fovWorldToViewport(part.Position)
+                    if sp.Z > 0 then
+                        local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                        if screenDist < Flags.AimbotFOV then
+                            if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                            if dist < shortest then
+                                shortest = dist
+                                closest = model
+                                closestPart = part
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Animals (если включено)
+    if not Flags.AimbotIgnoreAnimals then
+        for _, model in ipairs(CC.Refs.AnimalList or {}) do
+            if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isAnimalModel(model) then
+                local part = getBonePosition(model, Flags.AimbotBone)
+                if part then
+                    local dist = (part.Position - localPos).Magnitude
+                    if dist > Flags.AimbotDistanceLimit then continue end
+                    local sp = fovWorldToViewport(part.Position)
+                    if sp.Z > 0 then
+                        local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                        if screenDist < Flags.AimbotFOV then
+                            if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                            if dist < shortest then
+                                shortest = dist
+                                closest = model
+                                closestPart = part
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     return closest, closestPart
 end
 
--- ===== AIM ASSIST + AIM LOCK =====
+-- ===== AIMBOT LOGIC =====
 RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
-    if not Flags.Aimbot or not CC.Refs.CurrentTargetPart then
+    if not Flags.AimbotEnabled then
+        CC.Refs.CurrentTargetPart = nil
         if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
         return
     end
-    local aiming = isAimHeld()
-    if Flags.AimlockMode and aiming then
-        if Camera.CameraType ~= Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Scriptable end
+
+    -- Обновляем цель
+    local target, part = getClosestTarget()
+    
+    -- Auto Switch: если текущая цель умерла/потеряна, сразу берём новую
+    if Flags.AimbotAutoSwitch then
+        if not part then
+            -- Нет целей — сбрасываем
+            CC.Refs.CurrentTarget = nil
+            CC.Refs.CurrentTargetPart = nil
+        else
+            -- Есть цель — обновляем
+            CC.Refs.CurrentTarget = target
+            CC.Refs.CurrentTargetPart = part
+        end
+    else
+        -- Auto Switch выключен: держим текущую цель, пока она не умрёт
+        if not CC.Refs.CurrentTargetPart or not CC.Refs.CurrentTargetPart.Parent then
+            CC.Refs.CurrentTarget = target
+            CC.Refs.CurrentTargetPart = part
+        end
+    end
+
+    if not CC.Refs.CurrentTargetPart then
+        if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
+        return
+    end
+
+    if not isAimHeld() then
+        if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
+        return
+    end
+
+    -- Mouse Aimbot
+    if Flags.AimbotType == "Mouse" then
         local camPos = Camera.CFrame.Position
-        local targetPos = CC.Refs.CurrentTargetPart.Position
-        if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
-        Camera.CFrame = CFrame.lookAt(camPos, targetPos)
-    elseif Flags.AimAssist and aiming then
-        local camPos = Camera.CFrame.Position
-        local targetPos = CC.Refs.CurrentTargetPart.Position
-        if Flags.AimPrediction > 0 then targetPos = targetPos + (getVelocity(CC.Refs.CurrentTargetPart) * Flags.AimPrediction) end
+        local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
         local lookCF = CFrame.lookAt(camPos, targetPos)
-        local base = 1 / math.max(1, Flags.AimSmooth)
+        local base = 1 / math.max(1, Flags.AimbotSmooth)
         local alpha = 1 - (1 - base) ^ (dt * 60)
         Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
-    else
-        if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
     end
 end)
 
--- ===== TRIGGER BOT =====
-local triggerLastShot = 0
-local triggerRayParams = RaycastParams.new()
-triggerRayParams.FilterType = Enum.RaycastFilterType.Exclude
-triggerRayParams.FilterDescendantsInstances = {LP.Character}
+-- ===== DRAW FOV & TARGET =====
+local drawFOV = Drawing.new("Circle")
+drawFOV.Thickness = 1
+drawFOV.Color = Color3.fromRGB(255, 255, 255)
+drawFOV.Filled = false
+drawFOV.Visible = false
+drawFOV.NumSides = 64
 
-local function isCrosshairOnTarget(part)
-    if not part then return false end
-    local vs = Camera.ViewportSize
-    local center = Vector2.new(vs.X/2, vs.Y/2)
-    local sp = fovWorldToViewport(part.Position)
-    if sp.Z <= 0 then return false end
-    local dist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
-    return dist <= Flags.TriggerFOV
-end
-
-local function tryTriggerShot()
-    if not Flags.TriggerBot or not CC.Refs.CurrentTargetPart then return end
-    if os.clock() - triggerLastShot < (Flags.TriggerDelay / 1000) then return end
-    if UI.Window.Gui and UI.Window.Gui.Enabled then return end
-
-    triggerRayParams.FilterDescendantsInstances = {LP.Character}
-    local origin = Camera.CFrame.Position
-    local dir = (CC.Refs.CurrentTargetPart.Position - origin)
-    local ray = workspace:Raycast(origin, dir, triggerRayParams)
-    if ray and ray.Instance then
-        local hitChar = ray.Instance:FindFirstAncestorOfClass("Model")
-        if hitChar ~= CC.Refs.CurrentTargetPart.Parent then return end
-    end
-    if not isCrosshairOnTarget(CC.Refs.CurrentTargetPart) then return end
-
-    triggerLastShot = os.clock()
-    local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-    if tool then tool:Activate(); return end
-
-    if mouse1click then pcall(mouse1click)
-    else
-        pcall(function()
-            local vim = game:GetService("VirtualInputManager")
-            vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
-            task.wait(0.01)
-            vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
-        end)
-    end
-end
+local drawTarget = Drawing.new("Circle")
+drawTarget.Thickness = 2
+drawTarget.Color = Color3.fromRGB(255, 0, 0)
+drawTarget.Filled = false
+drawTarget.Visible = false
+drawTarget.NumSides = 32
 
 RunService.RenderStepped:Connect(function()
-    if Flags.Aimbot or Flags.TriggerBot then
-        local _, part = getClosestTarget()
-        CC.Refs.CurrentTargetPart = part
+    -- Draw FOV
+    if Flags.AimbotEnabled and Flags.AimbotDrawFOV then
+        drawFOV.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+        drawFOV.Radius = Flags.AimbotFOV
+        drawFOV.Color = Flags.AimbotDrawFOVColor
+        drawFOV.Visible = true
     else
-        CC.Refs.CurrentTargetPart = nil
+        drawFOV.Visible = false
     end
-    if Flags.TriggerBot then tryTriggerShot() end
-end)
 
-RunService.Heartbeat:Connect(function() if Flags.HitboxEnabled then updateHitboxes() end end)
-
--- ===== FOV CIRCLE =====
-local fovCircle = Drawing.new("Circle")
-fovCircle.Thickness = 1; fovCircle.Color = Color3.fromRGB(255,255,255)
-fovCircle.Filled = false; fovCircle.Visible = false; fovCircle.NumSides = 64
-
-RunService.RenderStepped:Connect(function()
-    if Flags.Aimbot then
-        fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-        fovCircle.Radius = Flags.AimFOV; fovCircle.Visible = true
-    elseif fovCircle.Visible then fovCircle.Visible = false end
+    -- Draw Target
+    if Flags.AimbotEnabled and Flags.AimbotDrawTarget and CC.Refs.CurrentTargetPart then
+        local sp = fovWorldToViewport(CC.Refs.CurrentTargetPart.Position)
+        if sp.Z > 0 then
+            drawTarget.Position = Vector2.new(sp.X, sp.Y)
+            drawTarget.Radius = 20
+            drawTarget.Color = Flags.AimbotDrawTargetColor
+            drawTarget.Visible = true
+        else
+            drawTarget.Visible = false
+        end
+    else
+        drawTarget.Visible = false
+    end
 end)
 
 -- ===== FREECAM =====
@@ -1661,6 +1865,24 @@ local function updateESP()
         if Flags.Skeleton then updateSkeleton(plr, char)
         else local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end end
         updateHighlightDistance(plr, dist, true)
+
+        local hl = CC.Refs.Highlights[plr]
+        if hl and hl.Parent then
+            local wantTeam = Flags.TeamCheck and isTeammate(plr)
+            local wantColor = wantTeam and Flags.TeamColor or Flags.ESPColor
+            if hl.FillColor ~= wantColor then
+                hl.FillColor = wantColor
+                if Flags.ESPMode == "Chams" then
+                    hl.FillTransparency = 0
+                    hl.OutlineColor = wantColor
+                    hl.OutlineTransparency = 1
+                else
+                    hl.FillTransparency = 1
+                    hl.OutlineColor = wantColor
+                    hl.OutlineTransparency = 0
+                end
+            end
+        end
     end
 end
 
@@ -1734,7 +1956,7 @@ local function updateSleeperSkeleton(model)
         local p1 = model:FindFirstChild(conn[1]); local p2 = model:FindFirstChild(conn[2]); local line = sk.lines[i]
         if p1 and p2 then
             local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
-            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SkeletonColor; line.Visible = true
+            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SleeperColor; line.Visible = true
             elseif line.Visible then line.Visible = false end
         elseif line.Visible then line.Visible = false end
     end
@@ -1768,7 +1990,7 @@ local function updateSleeperESP()
     local vs = Camera.ViewportSize
     local list = CC.Refs.SleeperList or {}
     local alive = {}
-    local sleeperColor = Flags.ESP_SleeperColorEnabled and Flags.SleeperColor or Flags.ESPColor
+    local sleeperColor = Flags.SleeperColor
 
     for _, model in ipairs(list) do
         if model.Parent then
@@ -1779,7 +2001,6 @@ local function updateSleeperESP()
                 if dist <= Flags.MaxDistance then
                     alive[model] = true
 
-                    -- Highlight
                     local hl = CC.Refs.SleeperHighlights[model]
                     if not hl or not hl.Parent then
                         if hl then pcall(function() hl:Destroy() end) end
@@ -1802,7 +2023,6 @@ local function updateSleeperESP()
                     end
                     hl.Enabled = true
 
-                    -- Drawings
                     local head = model:FindFirstChild("Head")
                     local d = createSleeperDrawing(model)
                     local sp = fovWorldToViewport(root.Position)
@@ -1888,7 +2108,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(3)
+        task.wait(0.5)
         pcall(refreshSleeperList)
     end
 end)
@@ -2367,24 +2587,28 @@ end)
 -- ===== UI: AIMBOT =====
 UI.Tabs.Aimbot = UI.Window:AddTab("Aimbot", "crosshair")
 
-UI.Elements.aimbotToggle = UI.Tabs.Aimbot:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.Aimbot=s end})
-UI.Elements.aimAssistToggle = UI.Tabs.Aimbot:AddToggle({Title="Aim Assist", Subtitle="Двигает камеру на цель", Icon="eye", Default=true, Callback=function(s) Flags.AimAssist=s end})
-UI.Elements.silentAimToggle = UI.Tabs.Aimbot:AddToggle({Title="Silent Aim", Subtitle="Хук Mouse.Hit / UnitRay / ScreenPointToRay", Icon="crosshair", Default=true, Callback=function(s) Flags.SilentAim=s end})
-UI.Elements.aimlockToggle = UI.Tabs.Aimbot:AddToggle({Title="Aim Lock (rage)", Subtitle="Только при зажатой кнопке", Icon="lock", Default=false, Callback=function(s) Flags.AimlockMode=s end})
-UI.Elements.aimSmoothSlider = UI.Tabs.Aimbot:AddSlider({Title="Smoothness", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimSmooth=v end})
-UI.Elements.aimFovSlider = UI.Tabs.Aimbot:AddSlider({Title="Aim FOV", Icon="circle", Min=20, Max=400, Default=120, Callback=function(v) Flags.AimFOV=v end})
-UI.Elements.aimPredSlider = UI.Tabs.Aimbot:AddSlider({Title="Prediction", Icon="trending-up", Min=0, Max=0.5, Default=0, Callback=function(v) Flags.AimPrediction=v end})
-UI.Elements.aimChanceSlider = UI.Tabs.Aimbot:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.HitChance=v end})
-UI.Elements.aimPartDropdown = UI.Tabs.Aimbot:AddDropdown({Title="Target Part", Icon="user", Options={"Head","HumanoidRootPart","UpperTorso"}, Default="Head", Callback=function(s) Flags.AimPart=s end})
-UI.Elements.teamCheckToggle = UI.Tabs.Aimbot:AddToggle({Title="Team Check", Icon="users", Default=true, Callback=function(s) Flags.AimTeamCheck=s end})
-UI.Elements.aimKeyDropdown = UI.Tabs.Aimbot:AddDropdown({ Title = "Aim Key", Icon="mouse-pointer", Options = {"MouseButton2","MouseButton1","LeftShift","Q","E","C"}, Default = "MouseButton2", Callback = function(s) Flags.AimKey = Enum.UserInputType[s] or Enum.KeyCode[s] or Enum.UserInputType.MouseButton2 end })
-
-UI.Tabs.Aimbot:AddSeparator(); UI.Tabs.Aimbot:AddLabel("TRIGGER BOT", "crosshair"); UI.Tabs.Aimbot:AddSeparator()
-
-UI.Elements.triggerBotToggle = UI.Tabs.Aimbot:AddToggle({Title="Trigger Bot", Subtitle="Авто-выстрел при наведении", Icon="crosshair", Default=false, Callback=function(s) Flags.TriggerBot=s end})
-UI.Elements.triggerFovSlider = UI.Tabs.Aimbot:AddSlider({Title="Trigger FOV", Icon="circle", Min=1, Max=60, Default=15, Callback=function(v) Flags.TriggerFOV=v end})
-UI.Elements.triggerDelaySlider = UI.Tabs.Aimbot:AddSlider({Title="Trigger Delay (ms)", Icon="clock", Min=0, Max=500, Default=50, Callback=function(v) Flags.TriggerDelay=v end})
-UI.Elements.triggerTeamToggle = UI.Tabs.Aimbot:AddToggle({Title="Trigger Team Check", Icon="users", Default=true, Callback=function(s) Flags.TriggerTeamCheck=s end})
+UI.Elements.aimbotEnabled = UI.Tabs.Aimbot:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotEnabled=s end})
+UI.Elements.aimbotType = UI.Tabs.Aimbot:AddDropdown({Title="Aimbot Type", Icon="layers", Options={"Mouse", "Silent"}, Default="Mouse", Callback=function(v) Flags.AimbotType=v end})
+UI.Elements.aimbotBone = UI.Tabs.Aimbot:AddDropdown({Title="Bone", Icon="user", Options={"Nearest", "Head", "Chest", "Pelvis"}, Default="Head", Callback=function(v) Flags.AimbotBone=v end})
+UI.Elements.aimbotIgnoreTeam = UI.Tabs.Aimbot:AddToggle({Title="Ignore Team", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreTeam=s end})
+UI.Elements.aimbotIgnoreSleepers = UI.Tabs.Aimbot:AddToggle({Title="Ignore Sleepers", Icon="bed", Default=true, Callback=function(s) Flags.AimbotIgnoreSleepers=s end})
+UI.Elements.aimbotIgnoreNPC = UI.Tabs.Aimbot:AddToggle({Title="Ignore NPC", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreNPC=s end})
+UI.Elements.aimbotIgnoreAnimals = UI.Tabs.Aimbot:AddToggle({Title="Ignore Animals", Icon="paw-print", Default=true, Callback=function(s) Flags.AimbotIgnoreAnimals=s end})
+UI.Elements.aimbotIgnoreWounded = UI.Tabs.Aimbot:AddToggle({Title="Ignore Wounded", Icon="heart", Default=false, Callback=function(s) Flags.AimbotIgnoreWounded=s end})
+UI.Elements.aimbotIgnoreWoundedPercent = UI.Tabs.Aimbot:AddSlider({Title="Ignore Wounded %", Icon="percent", Min=1, Max=99, Default=30, Callback=function(v) Flags.AimbotIgnoreWoundedPercent=v end})
+UI.Elements.aimbotVisibleCheck = UI.Tabs.Aimbot:AddToggle({Title="Visible Check", Icon="eye", Default=true, Callback=function(s) Flags.AimbotVisibleCheck=s end})
+UI.Elements.aimbotFOV = UI.Tabs.Aimbot:AddSlider({Title="Target FOV", Icon="circle", Min=1, Max=400, Default=120, Callback=function(v) Flags.AimbotFOV=v end})
+UI.Elements.aimbotSmooth = UI.Tabs.Aimbot:AddSlider({Title="Mouse Aimbot Time", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimbotSmooth=v end})
+UI.Elements.aimbotPrediction = UI.Tabs.Aimbot:AddSlider({Title="Aim Prediction", Icon="trending-up", Min=0, Max=1, Default=0, Callback=function(v) Flags.AimbotPrediction=v end})
+UI.Elements.aimbotHitChance = UI.Tabs.Aimbot:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.AimbotHitChance=v end})
+UI.Elements.aimbotDistanceLimit = UI.Tabs.Aimbot:AddSlider({Title="Distance Limit", Icon="ruler", Min=1, Max=400, Default=400, Callback=function(v) Flags.AimbotDistanceLimit=v end})
+UI.Elements.aimbotDrawFOV = UI.Tabs.Aimbot:AddToggle({Title="Draw FOV", Icon="circle", Default=false, Callback=function(s) Flags.AimbotDrawFOV=s end})
+UI.Elements.aimbotDrawFOVColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw FOV Color", Icon="palette", Default=Flags.AimbotDrawFOVColor, Callback=function(c) Flags.AimbotDrawFOVColor=c end})
+UI.Elements.aimbotDrawTarget = UI.Tabs.Aimbot:AddToggle({Title="Draw Target", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotDrawTarget=s end})
+UI.Elements.aimbotDrawTargetColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw Target Color", Icon="palette", Default=Flags.AimbotDrawTargetColor, Callback=function(c) Flags.AimbotDrawTargetColor=c end})
+UI.Elements.aimbotAutoSwitch = UI.Tabs.Aimbot:AddToggle({Title="Auto Switch", Icon="repeat", Default=true, Callback=function(s) Flags.AimbotAutoSwitch=s end})
+UI.Elements.aimbotDebug = UI.Tabs.Aimbot:AddToggle({Title="Debug (print)", Icon="terminal", Default=false, Callback=function(s) Flags.AimbotDebug=s end})
+UI.Elements.aimbotKey = UI.Tabs.Aimbot:AddDropdown({Title="Aim Key", Icon="mouse-pointer", Options={"MouseButton2","MouseButton1","LeftShift","Q","E","C"}, Default="MouseButton2", Callback=function(s) Flags.AimbotKey = Enum.UserInputType[s] or Enum.KeyCode[s] or Enum.UserInputType.MouseButton2 end})
 
 UI.Tabs.Aimbot:AddSeparator(); UI.Tabs.Aimbot:AddLabel("HITBOX EXPANDER", "box"); UI.Tabs.Aimbot:AddSeparator()
 
@@ -2405,20 +2629,25 @@ UI.Tabs.Visuals:AddLabel("ESP PLAYER", "user")
 UI.Tabs.Visuals:AddSeparator()
 
 UI.Elements.espToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Player", Icon="eye", Default=false, Callback=function(s) Flags.ESP=s; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-UI.Elements.espModeDropdown = UI.Tabs.Visuals:AddDropdown({Title="Esp Player Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-UI.Elements.espDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance Player", Icon="ruler", Min=250, Max=2500, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
 UI.Elements.espColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Esp Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
     Flags.ESPColor=c
-    for _,hl in pairs(CC.Refs.Highlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
+    for plr, hl in pairs(CC.Refs.Highlights) do
+        if hl and hl.Parent then
+            local useTeam = Flags.TeamCheck and isTeammate(plr)
+            if not useTeam then
+                hl.FillColor = c
+                hl.OutlineColor = c
+            end
+        end
+    end
 end})
+UI.Elements.espModeDropdown = UI.Tabs.Visuals:AddDropdown({Title="Esp Player Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.espDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance Player", Icon="ruler", Min=250, Max=2500, Default=Flags.MaxDistance, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
 
 UI.Elements.sleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Sleeper", Icon="bed", Default=false, Callback=function(s) Flags.ESP_Sleeper=s end})
-UI.Elements.espSleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Sleeper", Icon="moon", Default=false, Callback=function(s) Flags.ESP_SleeperColorEnabled=s end})
 UI.Elements.sleeperColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Color Sleeper", Icon="palette", Default=Flags.SleeperColor, Callback=function(c)
     Flags.SleeperColor=c
-    if not Flags.ESP_SleeperColorEnabled then
-        for _,hl in pairs(CC.Refs.SleeperHighlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
-    end
+    for _,hl in pairs(CC.Refs.SleeperHighlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
 end})
 
 UI.Tabs.Visuals:AddSeparator()
@@ -2442,13 +2671,21 @@ UI.Tabs.Visuals:AddSeparator()
 UI.Tabs.Visuals:AddLabel("TEAM CHECK", "users")
 UI.Tabs.Visuals:AddSeparator()
 
-UI.Elements.teamCheckVisualToggle = UI.Tabs.Visuals:AddToggle({Title="Team Check", Subtitle="Работает если включен Esp Player", Icon="users", Default=false, Callback=function(s)
+UI.Elements.teamCheckVisualToggle = UI.Tabs.Visuals:AddToggle({Title="Team Check", Subtitle="Работает если включен Esp Player", Icon="users", Default=true, Callback=function(s)
     Flags.TeamCheck=s
     for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
 end})
 UI.Elements.teamColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Team Color", Icon="palette", Default=Flags.TeamColor, Callback=function(c)
     Flags.TeamColor=c
-    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+    for plr, hl in pairs(CC.Refs.Highlights) do
+        if hl and hl.Parent then
+            local useTeam = Flags.TeamCheck and isTeammate(plr)
+            if useTeam then
+                hl.FillColor = c
+                hl.OutlineColor = c
+            end
+        end
+    end
 end})
 
 UI.Tabs.Visuals:AddSeparator()
@@ -2458,7 +2695,7 @@ UI.Tabs.Visuals:AddSeparator()
 -- NPC
 UI.Elements.espNpcToggle = UI.Tabs.Visuals:AddToggle({Title="Esp NPC", Icon="users", Default=false, Callback=function(s) Flags.ESP_NPC=s end})
 UI.Elements.npcColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="NPC Color", Icon="palette", Default=Flags.NPCColor, Callback=function(c) Flags.NPCColor=c end})
-UI.Elements.npcDistSlider = UI.Tabs.Visuals:AddSlider({Title="NPC Distance", Icon="ruler", Min=100, Max=500, Default=200, Callback=function(v) Flags.NPCDistance=v end})
+UI.Elements.npcDistSlider = UI.Tabs.Visuals:AddSlider({Title="NPC Distance", Icon="ruler", Min=100, Max=500, Default=Flags.NPCDistance, Callback=function(v) Flags.NPCDistance=v end})
 
 UI.Elements.npcElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
     Title = "NPC Elements",
@@ -2479,7 +2716,7 @@ UI.Tabs.Visuals:AddSeparator()
 -- Animals
 UI.Elements.espAnimalsToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Animals", Icon="paw-print", Default=false, Callback=function(s) Flags.ESP_Animals=s end})
 UI.Elements.animalColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Animal Color", Icon="palette", Default=Flags.AnimalColor, Callback=function(c) Flags.AnimalColor=c end})
-UI.Elements.animalDistSlider = UI.Tabs.Visuals:AddSlider({Title="Animal Distance", Icon="ruler", Min=250, Max=1000, Default=500, Callback=function(v) Flags.AnimalDistance=v end})
+UI.Elements.animalDistSlider = UI.Tabs.Visuals:AddSlider({Title="Animal Distance", Icon="ruler", Min=250, Max=1000, Default=Flags.AnimalDistance, Callback=function(v) Flags.AnimalDistance=v end})
 
 UI.Elements.animalElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
     Title = "Animal Elements",
@@ -2809,22 +3046,28 @@ end)
 UI.buildConfig = function(name)
     local cfg = UI.Window.ConfigManager:CreateConfig(name)
 
-    cfg:RegisterElement("Aimbot", UI.Elements.aimbotToggle)
-    cfg:RegisterElement("AimAssist", UI.Elements.aimAssistToggle)
-    cfg:RegisterElement("SilentAim", UI.Elements.silentAimToggle)
-    cfg:RegisterElement("Aimlock", UI.Elements.aimlockToggle)
-    cfg:RegisterElement("AimSmooth", UI.Elements.aimSmoothSlider)
-    cfg:RegisterElement("AimFOV", UI.Elements.aimFovSlider)
-    cfg:RegisterElement("AimPrediction", UI.Elements.aimPredSlider)
-    cfg:RegisterElement("HitChance", UI.Elements.aimChanceSlider)
-    cfg:RegisterElement("AimPart", UI.Elements.aimPartDropdown)
-    cfg:RegisterElement("TeamCheck", UI.Elements.teamCheckToggle)
-    cfg:RegisterElement("AimKey", UI.Elements.aimKeyDropdown)
-
-    cfg:RegisterElement("TriggerBot", UI.Elements.triggerBotToggle)
-    cfg:RegisterElement("TriggerFOV", UI.Elements.triggerFovSlider)
-    cfg:RegisterElement("TriggerDelay", UI.Elements.triggerDelaySlider)
-    cfg:RegisterElement("TriggerTeam", UI.Elements.triggerTeamToggle)
+    cfg:RegisterElement("AimbotEnabled", UI.Elements.aimbotEnabled)
+    cfg:RegisterElement("AimbotType", UI.Elements.aimbotType)
+    cfg:RegisterElement("AimbotBone", UI.Elements.aimbotBone)
+    cfg:RegisterElement("AimbotIgnoreTeam", UI.Elements.aimbotIgnoreTeam)
+    cfg:RegisterElement("AimbotIgnoreSleepers", UI.Elements.aimbotIgnoreSleepers)
+    cfg:RegisterElement("AimbotIgnoreNPC", UI.Elements.aimbotIgnoreNPC)
+    cfg:RegisterElement("AimbotIgnoreAnimals", UI.Elements.aimbotIgnoreAnimals)
+    cfg:RegisterElement("AimbotIgnoreWounded", UI.Elements.aimbotIgnoreWounded)
+    cfg:RegisterElement("AimbotIgnoreWoundedPercent", UI.Elements.aimbotIgnoreWoundedPercent)
+    cfg:RegisterElement("AimbotVisibleCheck", UI.Elements.aimbotVisibleCheck)
+    cfg:RegisterElement("AimbotFOV", UI.Elements.aimbotFOV)
+    cfg:RegisterElement("AimbotSmooth", UI.Elements.aimbotSmooth)
+    cfg:RegisterElement("AimbotPrediction", UI.Elements.aimbotPrediction)
+    cfg:RegisterElement("AimbotHitChance", UI.Elements.aimbotHitChance)
+    cfg:RegisterElement("AimbotDistanceLimit", UI.Elements.aimbotDistanceLimit)
+    cfg:RegisterElement("AimbotDrawFOV", UI.Elements.aimbotDrawFOV)
+    cfg:RegisterElement("AimbotDrawFOVColor", UI.Elements.aimbotDrawFOVColor)
+    cfg:RegisterElement("AimbotDrawTarget", UI.Elements.aimbotDrawTarget)
+    cfg:RegisterElement("AimbotDrawTargetColor", UI.Elements.aimbotDrawTargetColor)
+    cfg:RegisterElement("AimbotAutoSwitch", UI.Elements.aimbotAutoSwitch)
+    cfg:RegisterElement("AimbotDebug", UI.Elements.aimbotDebug)
+    cfg:RegisterElement("AimbotKey", UI.Elements.aimbotKey)
 
     cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
     cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider)
@@ -2835,7 +3078,6 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
     cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
     cfg:RegisterElement("Sleeper", UI.Elements.sleeperToggle)
-    cfg:RegisterElement("ESPSleeper", UI.Elements.espSleeperToggle)
     cfg:RegisterElement("ColorSleeper", UI.Elements.sleeperColorPicker)
     cfg:RegisterElement("TeamCheckVisual", UI.Elements.teamCheckVisualToggle)
     cfg:RegisterElement("TeamColor", UI.Elements.teamColorPicker)
