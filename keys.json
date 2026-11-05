@@ -1,5 +1,5 @@
 {
-  "CLOUD-DLC-1337":  { "name": "Fox",   "hwid": "3182097895", "expires": 1736467200 },
-  "CLOUD-HUMAN-1488": { "name": "Jack",  "hwid": "123", "expires": 1736467200 },
-  "CLOUD-TEST-0003": { "name": "Test",  "hwid": "123", "expires": 1737072000 }
+  "CLOUD-DLC-1337":  { "name": "Fox",   "hwid": "3182097895", "expires": 1794528000 },
+  "CLOUD-HUMAN-1488": { "name": "Jack",  "hwid": "123", "expires": 1794528000 },
+  "CLOUD-TEST-0003": { "name": "Test",  "hwid": "123", "expires": 1795824000 }
 }
