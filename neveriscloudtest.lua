@@ -1,7 +1,7 @@
 --[[
-    CLOUDCLIENT — Aimbot + ESP + FreeCam + Crosshair + Config
+    CLOUDCLIENT — Aimbot + Visuals + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.2.5.9
+    BUILD: v0.2.8.1
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -207,12 +207,17 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.2.5.9", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.2.8.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.5.9 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.2.8.1 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
+Flags.ESP_Sleeper = false
+Flags.ESP_SleeperColorEnabled = false
+Flags.SleeperColor = Color3.fromRGB(100, 200, 255)
+Flags.TeamCheck = false
+Flags.TeamColor = Color3.fromRGB(0, 255, 0)
 Flags.Box = false; Flags.Distance = false; Flags.Name = false; Flags.Health = false; Flags.Line = false
 Flags.Skeleton = false; Flags.WeaponESP = false
 Flags.MaxDistance = 600
@@ -220,6 +225,22 @@ Flags.ESPColor = Color3.fromRGB(255, 0, 255)
 Flags.TextColor = Color3.fromRGB(255, 255, 255)
 Flags.BoxColor = Color3.fromRGB(255,255,255); Flags.LineColor = Color3.fromRGB(255,255,255)
 Flags.SkeletonColor = Color3.fromRGB(0, 255, 0)
+-- NPC
+Flags.ESP_NPC = false
+Flags.NPCColor = Color3.fromRGB(255, 165, 0)
+Flags.NPCDistance = 200
+Flags.NPC_Name = true
+Flags.NPC_Box = true
+Flags.NPC_Health = true
+Flags.NPC_Distance = true
+-- Animals
+Flags.ESP_Animals = false
+Flags.AnimalColor = Color3.fromRGB(150, 255, 100)
+Flags.AnimalDistance = 500
+Flags.Animal_Name = true
+Flags.Animal_Box = true
+Flags.Animal_Health = true
+Flags.Animal_Distance = true
 Flags.FreeCam = false
 Flags.CameraZoom = false
 Flags.ZoomActive = false
@@ -249,6 +270,9 @@ Flags.DefaultFOV = 70
 -- REMOVE CONSTRUCTIONS
 Flags.RemoveConstructions = false
 Flags.RemoveDistance = 75
+-- SPIDER
+Flags.Spider = false
+Flags.SpiderSpeed = 30
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -283,6 +307,12 @@ local function isAimHeld()
     return false
 end
 
+local function isTeammate(plr)
+    if not plr or not LP then return false end
+    if not LP.Team or not plr.Team then return false end
+    return LP.Team == plr.Team
+end
+
 -- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
 CC.Refs.CurrentTarget = nil
 CC.Refs.CurrentTargetPart = nil
@@ -309,6 +339,18 @@ CC.Refs.origLight = { Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTi
 CC.Refs.origAtmosphere = nil; CC.Refs.origClouds = nil
 CC.Refs.origSky = nil; CC.Refs.customSky = nil
 CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.WeaponLabels = {}
+-- Sleeper
+CC.Refs.SleeperDrawings = {}; CC.Refs.SleeperHighlights = {}
+CC.Refs.SleeperSkeletons = {}; CC.Refs.SleeperWeaponLabels = {}
+CC.Refs.SleeperList = {}
+-- NPC
+CC.Refs.NPCHighlights = {}
+CC.Refs.NPCList = {}
+CC.Refs.NPCDrawings = {}
+-- Animals
+CC.Refs.AnimalHighlights = {}
+CC.Refs.AnimalList = {}
+CC.Refs.AnimalDrawings = {}
 CC.Refs.HudPanel = nil
 CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
@@ -441,7 +483,7 @@ local function fovWorldToViewport(pos)
     return Vector3.new(sx, sy, -rel.Z)
 end
 
--- ===== REMOVE CONSTRUCTIONS (ПЕРЕНОС В ПАПКУ) =====
+-- ===== REMOVE CONSTRUCTIONS =====
 CC.Refs.CleanerConn = nil
 CC.Refs.LastWallScan = 0
 CC.Refs.HiddenWalls = {}
@@ -503,7 +545,79 @@ local function toggleRemoveConstructions(state)
     end
 end
 
--- ===== LIGHTING CONTROLLER (ГЛУШИЛКА СКРИПТОВ) =====
+-- ===== SPIDER =====
+local spiderBV = nil
+local spiderRayParams = RaycastParams.new()
+spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude
+spiderRayParams.FilterDescendantsInstances = {LP.Character}
+
+local function clearSpiderVelocity()
+    if spiderBV then pcall(function() spiderBV:Destroy() end); spiderBV = nil end
+end
+
+local function ensureSpiderBV(hrp)
+    if spiderBV and spiderBV.Parent == hrp then return spiderBV end
+    clearSpiderVelocity()
+    spiderBV = Instance.new("BodyVelocity")
+    spiderBV.Name = "CC_Spider"
+    spiderBV.MaxForce = Vector3.new(0, 15000, 0)
+    spiderBV.P = 2000
+    spiderBV.Velocity = Vector3.zero
+    spiderBV.Parent = hrp
+    return spiderBV
+end
+
+local function updateSpider()
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
+    if not Flags.Spider then clearSpiderVelocity(); return end
+
+    spiderRayParams.FilterDescendantsInstances = {char}
+    local origin = hrp.Position
+    local dirs = {
+        Camera.CFrame.LookVector, -Camera.CFrame.LookVector,
+        Camera.CFrame.RightVector, -Camera.CFrame.RightVector,
+    }
+    local hit = nil
+    for _, dir in ipairs(dirs) do
+        local flat = Vector3.new(dir.X, 0, dir.Z)
+        if flat.Magnitude > 0.01 then
+            local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
+            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
+        end
+    end
+    if not hit then clearSpiderVelocity(); return end
+
+    local up = 0
+    if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then
+        up = Flags.SpiderSpeed
+    elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+        up = -Flags.SpiderSpeed
+    end
+
+    if up == 0 then
+        if spiderBV then spiderBV.Velocity = Vector3.zero end
+        return
+    end
+
+    local bv = ensureSpiderBV(hrp)
+    local curVel = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
+    bv.Velocity = Vector3.new(curVel.X, up, curVel.Z)
+end
+
+RunService.Heartbeat:Connect(updateSpider)
+
+LP.CharacterAdded:Connect(function() task.wait(0.1); clearSpiderVelocity() end)
+LP.CharacterRemoving:Connect(function() clearSpiderVelocity() end)
+
+local function toggleSpider(state)
+    Flags.Spider = state
+    if not state then clearSpiderVelocity() end
+end
+
+-- ===== LIGHTING CONTROLLER =====
 CC.Refs.LightingOverride = false
 CC.Refs.OrigLighting = {}
 CC.Refs.DisabledScripts = {}
@@ -667,7 +781,7 @@ local function setSkyColor(enabled, color)
     end
 end
 
--- ===== WEAPON COLOR (v11 — фикс SurfaceAppearance) =====
+-- ===== WEAPON COLOR =====
 local WEAPON_MATERIALS = {
     "Neon", "ForceField", "Glass", "Ice",
     "Marble", "Granite", "Metal", "DiamondPlate",
@@ -705,12 +819,10 @@ local function applyWeaponColorToModel(model)
         if part:IsA("BasePart") then
             saveOriginalProps(part)
             
-            -- Жёстко чистим текстуру у MeshPart
             if part:IsA("MeshPart") then
                 pcall(function() part.TextureID = "" end)
             end
             
-            -- Убиваем SpecialMesh, SurfaceAppearance, Decal, Texture
             for _, child in ipairs(part:GetChildren()) do
                 if child:IsA("SpecialMesh") then
                     pcall(function() child.TextureId = "" end)
@@ -722,7 +834,6 @@ local function applyWeaponColorToModel(model)
                 end
             end
             
-            -- Красим дважды (иногда первый SetProperty кэшируется)
             pcall(function() part.Color = Flags.WeaponColor end)
             pcall(function() part.Material = Flags.WeaponMaterial end)
             task.defer(function()
@@ -809,12 +920,10 @@ local function collectHeldItems()
         end
     end
 
-    -- 1. Tools в Character
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("Tool") then add(child) end
     end
 
-    -- 2. Model-дети Character, не части тела
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("Model") and not child:IsA("Tool") then
             if not BODY_PARTS[child.Name] and not IGNORED_CLASSES[child.ClassName] then
@@ -827,12 +936,10 @@ local function collectHeldItems()
         end
     end
 
-    -- 3. Голые BasePart в Character
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("BasePart") and not BODY_PARTS[child.Name] then add(child) end
     end
 
-    -- 4. ВСЕ Model в Camera
     for _, child in ipairs(Camera:GetChildren()) do
         if child:IsA("Model") then add(child) end
     end
@@ -891,7 +998,7 @@ local function applyAspectRatio()
     if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end
 end
 
--- ===== CROSSHAIR (v10 — идеальный ровный прицел с круглой точкой) =====
+-- ===== CROSSHAIR =====
 local crossDrawings = {
     lines = {},
     outline = {},
@@ -904,7 +1011,6 @@ local crossDrawings = {
 }
 
 local function updateCrosshair()
-    -- Показываем прицел, если включен сам прицел ИЛИ включена точка
     local showAny = Flags.Crosshair or Flags.CrosshairDot
     if not showAny then
         for _, d in pairs(crossDrawings.lines) do d.Visible = false end
@@ -924,7 +1030,6 @@ local function updateCrosshair()
     local trans = 1 - (Flags.CrosshairTransparency / 100)
     local cType = Flags.CrosshairType
     
-    -- ФИКС БАГА: Толщина всегда нечётная, Длина всегда чётная
     local thick = math.max(1, math.floor(Flags.CrosshairThickness))
     if thick % 2 == 0 then thick = thick + 1 end
     
@@ -933,7 +1038,6 @@ local function updateCrosshair()
     
     local gap = math.max(0, math.floor(Flags.CrosshairDistance))
 
-    -- Прячем старое
     for _, d in pairs(crossDrawings.lines) do d.Visible = false end
     for _, d in pairs(crossDrawings.outline) do d.Visible = false end
     if crossDrawings.circle then crossDrawings.circle.Visible = false end
@@ -948,7 +1052,6 @@ local function updateCrosshair()
         end
         local line = tbl[index]
         line.Visible = true
-        -- 0.5 пикселя для идеальной центровки, чтобы линии не съезжали
         line.From = Vector2.new(x1 + 0.5, y1 + 0.5)
         line.To = Vector2.new(x2 + 0.5, y2 + 0.5)
         line.Color = isOutline and Color3.new(0, 0, 0) or color
@@ -956,7 +1059,6 @@ local function updateCrosshair()
         line.Transparency = isOutline and (trans * 0.7) or trans
     end
 
-    -- РИСУЕМ ЛИНИИ (только если включен основной прицел)
     if Flags.Crosshair then
         if cType == "Cross" then
             drawLine(1, cx, cy - gap - size, cx, cy - gap)
@@ -1004,7 +1106,6 @@ local function updateCrosshair()
         end
     end
 
-    -- РИСУЕМ ТОЧКУ (независимо от того, включен основной прицел или нет)
     if Flags.CrosshairDot then
         if not crossDrawings.circleDot then
             crossDrawings.circleDot = Drawing.new("Circle")
@@ -1123,7 +1224,7 @@ local function getClosestTarget()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
-            if Flags.AimTeamCheck and LP.Team and plr.Team and plr.Team == LP.Team then continue end
+            if Flags.AimTeamCheck and isTeammate(plr) then continue end
             local part = getAimPart(plr.Character)
             if part then
                 local sp = fovWorldToViewport(part.Position)
@@ -1389,7 +1490,7 @@ local function applyRapidFire()
     end)
 end
 
--- ===== ESP DRAWINGS =====
+-- ===== ESP DRAWINGS (players) =====
 local function createDrawings(plr)
     if plr == LP or CC.Refs.Drawings[plr] then return end
     local d = {}
@@ -1429,11 +1530,13 @@ local function applyHighlight(plr)
         CC.Refs.Highlights[plr] = hl
     end
     if hl.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
-    if Flags.ESPMode == "Chams" then hl.FillColor = Flags.ESPColor; hl.FillTransparency = 0; hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 1
-    else hl.FillColor = Flags.ESPColor; hl.FillTransparency = 1; hl.OutlineColor = Flags.ESPColor; hl.OutlineTransparency = 0 end
+    local useTeam = Flags.TeamCheck and isTeammate(plr)
+    local color = useTeam and Flags.TeamColor or Flags.ESPColor
+    if Flags.ESPMode == "Chams" then hl.FillColor = color; hl.FillTransparency = 0; hl.OutlineColor = color; hl.OutlineTransparency = 1
+    else hl.FillColor = color; hl.FillTransparency = 1; hl.OutlineColor = color; hl.OutlineTransparency = 0 end
 end
 
--- ===== SKELETON =====
+-- ===== SKELETON (players) =====
 local SKELETON_CONNECTIONS = { {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},{"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"} }
 local R6_CONNECTIONS = { {"Head","Torso"},{"Torso","Left Arm"},{"Torso","Right Arm"},{"Torso","Left Leg"},{"Torso","Right Leg"} }
 
@@ -1452,17 +1555,19 @@ local function updateSkeleton(plr, char)
     ensureSkeleton(plr, isR15)
     local sk = CC.Refs.Skeletons[plr]
     if not sk then return end
+    local useTeam = Flags.TeamCheck and isTeammate(plr)
+    local color = useTeam and Flags.TeamColor or Flags.SkeletonColor
     for i, conn in ipairs(sk.conns) do
         local p1 = char:FindFirstChild(conn[1]); local p2 = char:FindFirstChild(conn[2]); local line = sk.lines[i]
         if p1 and p2 then
             local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
-            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SkeletonColor; line.Visible = true
+            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = color; line.Visible = true
             elseif line.Visible then line.Visible = false end
         elseif line.Visible then line.Visible = false end
     end
 end
 
--- ===== WEAPON ESP =====
+-- ===== WEAPON ESP (players) =====
 local WEAPON_IGNORE = { Handle = true, Grip = true, Attachment = true, Attachment1 = true, ["LeftGrip"] = true, ["RightGrip"] = true, ["Tool"] = true, Head = true, Torso = true, UpperTorso = true, LowerTorso = true, ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true, LeftUpperArm = true, RightUpperArm = true, LeftLowerArm = true, RightLowerArm = true, LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true, HumanoidRootPart = true, Humanoid = true, [""] = true, ["None"] = true, ["Nil"] = true, ["Part"] = true, ["Mesh"] = true }
 
 local function isMeaningfulName(name)
@@ -1531,22 +1636,26 @@ local function updateESP()
         local headPart = char:FindFirstChild("Head") or root
         local headPos = headPart.Position + Vector3.new(0,1.5,0); local feetPos = root.Position - Vector3.new(0,2.5,0)
         local hS = fovWorldToViewport(headPos); local fS = fovWorldToViewport(feetPos)
+        local useTeam = Flags.TeamCheck and isTeammate(plr)
+        local boxColor = useTeam and Flags.TeamColor or Flags.BoxColor
+        local textColor = useTeam and Flags.TeamColor or Flags.TextColor
+        local lineColor = useTeam and Flags.TeamColor or Flags.LineColor
         if Flags.Box and hS.Z > 0 and fS.Z > 0 then
             local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
-            d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y); d.Box.Color = Flags.BoxColor
+            d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y); d.Box.Color = boxColor
             if not d.Box.Visible then d.Box.Visible = true end
         elseif d.Box.Visible then d.Box.Visible = false end
-        if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = Flags.TextColor; if not d.Name.Visible then d.Name.Visible = true end
+        if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = textColor; if not d.Name.Visible then d.Name.Visible = true end
         elseif d.Name.Visible then d.Name.Visible = false end
-        if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = Flags.TextColor; if not d.Health.Visible then d.Health.Visible = true end
+        if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = textColor; if not d.Health.Visible then d.Health.Visible = true end
         elseif d.Health.Visible then d.Health.Visible = false end
-        if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = Flags.TextColor; if not d.Distance.Visible then d.Distance.Visible = true end
+        if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = textColor; if not d.Distance.Visible then d.Distance.Visible = true end
         elseif d.Distance.Visible then d.Distance.Visible = false end
-        if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy); d.Line.Color = Flags.LineColor; if not d.Line.Visible then d.Line.Visible = true end
+        if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy); d.Line.Color = lineColor; if not d.Line.Visible then d.Line.Visible = true end
         elseif d.Line.Visible then d.Line.Visible = false end
         if Flags.WeaponESP then
             local weaponName = getWeaponName(char)
-            if weaponName then d.Weapon.Text = "["..weaponName.."]"; d.Weapon.Position = Vector2.new(sx, fS.Y + 34); d.Weapon.Color = Flags.TextColor; if not d.Weapon.Visible then d.Weapon.Visible = true end
+            if weaponName then d.Weapon.Text = "["..weaponName.."]"; d.Weapon.Position = Vector2.new(sx, fS.Y + 34); d.Weapon.Color = textColor; if not d.Weapon.Visible then d.Weapon.Visible = true end
             elseif d.Weapon.Visible then d.Weapon.Visible = false end
         elseif d.Weapon.Visible then d.Weapon.Visible = false end
         if Flags.Skeleton then updateSkeleton(plr, char)
@@ -1554,6 +1663,640 @@ local function updateESP()
         updateHighlightDistance(plr, dist, true)
     end
 end
+
+-- ===== SLEEPER ESP =====
+CC.Refs.SleeperList = {}
+CC.Refs.SleeperDrawings = {}
+CC.Refs.SleeperHighlights = {}
+CC.Refs.SleeperSkeletons = {}
+
+local function refreshSleeperList()
+    if not Flags.ESP_Sleeper then
+        CC.Refs.SleeperList = {}
+        return
+    end
+    local result = {}
+    local root = workspace:FindFirstChild("SleepingPlayers")
+    if root then
+        for _, obj in ipairs(root:GetChildren()) do
+            if obj:IsA("Model") and obj.Name == "Sleeper" then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    result[#result+1] = obj
+                end
+            end
+        end
+    end
+    CC.Refs.SleeperList = result
+end
+
+local function createSleeperDrawing(model)
+    if CC.Refs.SleeperDrawings[model] then return CC.Refs.SleeperDrawings[model] end
+    local d = {}
+    d.Box      = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name     = Drawing.new("Text"); d.Name.Size=14; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health   = Drawing.new("Text"); d.Health.Size=12; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Line     = Drawing.new("Line"); d.Line.Thickness=1; d.Line.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=12; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    d.Weapon   = Drawing.new("Text"); d.Weapon.Size=12; d.Weapon.Center=true; d.Weapon.Outline=true; d.Weapon.Visible=false
+    CC.Refs.SleeperDrawings[model] = d
+    return d
+end
+
+local function removeSleeperDrawing(model)
+    local d = CC.Refs.SleeperDrawings[model]
+    if d then
+        for _, o in pairs(d) do pcall(function() o:Remove() end) end
+        CC.Refs.SleeperDrawings[model] = nil
+    end
+    local hl = CC.Refs.SleeperHighlights[model]
+    if hl then pcall(function() hl:Destroy() end); CC.Refs.SleeperHighlights[model] = nil end
+    local sk = CC.Refs.SleeperSkeletons[model]
+    if sk then for _, l in pairs(sk.lines) do pcall(function() l:Remove() end) end; CC.Refs.SleeperSkeletons[model] = nil end
+end
+
+local function ensureSleeperSkeleton(model, isR15)
+    local sk = CC.Refs.SleeperSkeletons[model]
+    local conns = isR15 and SKELETON_CONNECTIONS or R6_CONNECTIONS
+    if sk and #sk.lines == #conns then return end
+    if sk then for _,l in pairs(sk.lines) do pcall(function() l:Remove() end) end end
+    local lines = {}
+    for i = 1, #conns do local l = Drawing.new("Line"); l.Thickness=1; l.Visible=false; lines[i] = l end
+    CC.Refs.SleeperSkeletons[model] = {lines = lines, conns = conns}
+end
+
+local function updateSleeperSkeleton(model)
+    local isR15 = model:FindFirstChild("UpperTorso") ~= nil
+    ensureSleeperSkeleton(model, isR15)
+    local sk = CC.Refs.SleeperSkeletons[model]
+    if not sk then return end
+    for i, conn in ipairs(sk.conns) do
+        local p1 = model:FindFirstChild(conn[1]); local p2 = model:FindFirstChild(conn[2]); local line = sk.lines[i]
+        if p1 and p2 then
+            local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
+            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SkeletonColor; line.Visible = true
+            elseif line.Visible then line.Visible = false end
+        elseif line.Visible then line.Visible = false end
+    end
+end
+
+local function hideAllSleepers()
+    for _, d in pairs(CC.Refs.SleeperDrawings) do
+        d.Box.Visible = false
+        d.Name.Visible = false
+        d.Health.Visible = false
+        d.Distance.Visible = false
+        d.Line.Visible = false
+        d.Weapon.Visible = false
+    end
+    for _, hl in pairs(CC.Refs.SleeperHighlights) do
+        if hl and hl.Parent then hl.Enabled = false end
+    end
+    for _, sk in pairs(CC.Refs.SleeperSkeletons) do
+        for _, l in pairs(sk.lines) do if l.Visible then l.Visible = false end end
+    end
+end
+
+local function updateSleeperESP()
+    if not Flags.ESP_Sleeper then
+        hideAllSleepers()
+        return
+    end
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then hideAllSleepers(); return end
+    local localPos = localRoot.Position
+    local vs = Camera.ViewportSize
+    local list = CC.Refs.SleeperList or {}
+    local alive = {}
+    local sleeperColor = Flags.ESP_SleeperColorEnabled and Flags.SleeperColor or Flags.ESPColor
+
+    for _, model in ipairs(list) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.MaxDistance then
+                    alive[model] = true
+
+                    -- Highlight
+                    local hl = CC.Refs.SleeperHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight")
+                        hl.Name = "CloudClientSleeper"
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Parent = model
+                        CC.Refs.SleeperHighlights[model] = hl
+                    end
+                    if hl.FillColor ~= sleeperColor then
+                        hl.FillColor = sleeperColor
+                        hl.OutlineColor = sleeperColor
+                    end
+                    if Flags.ESPMode == "Chams" then
+                        hl.FillTransparency = 0
+                        hl.OutlineTransparency = 1
+                    else
+                        hl.FillTransparency = 1
+                        hl.OutlineTransparency = 0
+                    end
+                    hl.Enabled = true
+
+                    -- Drawings
+                    local head = model:FindFirstChild("Head")
+                    local d = createSleeperDrawing(model)
+                    local sp = fovWorldToViewport(root.Position)
+
+                    if head and sp.Z > 0 then
+                        local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1.5, 0))
+                        local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0))
+                        if hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
+
+                            if Flags.Box then
+                                d.Box.Size = Vector2.new(w, h)
+                                d.Box.Position = Vector2.new(sp.X - w/2, hS.Y)
+                                d.Box.Color = sleeperColor
+                                d.Box.Visible = true
+                            else d.Box.Visible = false end
+
+                            if Flags.Name then
+                                d.Name.Text = model.Name
+                                d.Name.Position = Vector2.new(sp.X, hS.Y-18)
+                                d.Name.Color = sleeperColor
+                                d.Name.Visible = true
+                            else d.Name.Visible = false end
+
+                            if Flags.Health then
+                                if hum then
+                                    d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)
+                                    d.Health.Position = Vector2.new(sp.X, fS.Y+2)
+                                    d.Health.Color = sleeperColor
+                                    d.Health.Visible = true
+                                else d.Health.Visible = false end
+                            else d.Health.Visible = false end
+
+                            if Flags.Distance then
+                                d.Distance.Text = math.floor(dist).."m"
+                                d.Distance.Position = Vector2.new(sp.X, fS.Y+18)
+                                d.Distance.Color = sleeperColor
+                                d.Distance.Visible = true
+                            else d.Distance.Visible = false end
+
+                            if Flags.Line then
+                                d.Line.From = Vector2.new(vs.X/2, vs.Y)
+                                d.Line.To = Vector2.new(sp.X, sp.Y)
+                                d.Line.Color = sleeperColor
+                                d.Line.Visible = true
+                            else d.Line.Visible = false end
+
+                            if Flags.WeaponESP then
+                                local weaponName = getWeaponName(model)
+                                if weaponName then
+                                    d.Weapon.Text = "["..weaponName.."]"
+                                    d.Weapon.Position = Vector2.new(sp.X, fS.Y + 34)
+                                    d.Weapon.Color = sleeperColor
+                                    d.Weapon.Visible = true
+                                else d.Weapon.Visible = false end
+                            else d.Weapon.Visible = false end
+                        else
+                            d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false
+                            d.Distance.Visible = false; d.Line.Visible = false; d.Weapon.Visible = false
+                        end
+                    else
+                        d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false
+                        d.Distance.Visible = false; d.Line.Visible = false; d.Weapon.Visible = false
+                    end
+
+                    if Flags.Skeleton then updateSleeperSkeleton(model)
+                    else
+                        local sk = CC.Refs.SleeperSkeletons[model]
+                        if sk then for _, l in pairs(sk.lines) do if l.Visible then l.Visible = false end end end
+                    end
+                end
+            end
+        end
+    end
+
+    for model, d in pairs(CC.Refs.SleeperDrawings) do
+        if not alive[model] then removeSleeperDrawing(model) end
+    end
+    for model, hl in pairs(CC.Refs.SleeperHighlights) do
+        if not alive[model] and hl then pcall(function() hl:Destroy() end); CC.Refs.SleeperHighlights[model] = nil end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        pcall(refreshSleeperList)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(updateSleeperESP)
+end)
+
+-- ===== NPC ESP =====
+CC.Refs.NPCList = {}
+CC.Refs.NPCDrawings = {}
+CC.Refs.NPCHighlights = {}
+
+local TARGET_NPC_NAME = "scientist"
+
+local function isPlayerChar(obj)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character == obj then return true end
+    end
+    return false
+end
+
+local function isTargetNPCName(name)
+    return string.lower(name) == TARGET_NPC_NAME
+end
+
+local function refreshNPCList()
+    if not Flags.ESP_NPC then
+        CC.Refs.NPCList = {}
+        return
+    end
+    local result = {}
+    local root = workspace:FindFirstChild("GeneratedMonuments")
+    if root then
+        for _, obj in ipairs(root:GetDescendants()) do
+            if obj:IsA("Model") and not isPlayerChar(obj) and isTargetNPCName(obj.Name) then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    result[#result+1] = obj
+                end
+            end
+        end
+    end
+    CC.Refs.NPCList = result
+end
+
+local function createNPCDrawing(model)
+    if CC.Refs.NPCDrawings[model] then return CC.Refs.NPCDrawings[model] end
+    local d = {}
+    d.Box      = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name     = Drawing.new("Text"); d.Name.Size=13; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health   = Drawing.new("Text"); d.Health.Size=11; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=11; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    CC.Refs.NPCDrawings[model] = d
+    return d
+end
+
+local function removeNPCDrawing(model)
+    local d = CC.Refs.NPCDrawings[model]
+    if d then
+        for _, o in pairs(d) do pcall(function() o:Remove() end) end
+        CC.Refs.NPCDrawings[model] = nil
+    end
+    local hl = CC.Refs.NPCHighlights[model]
+    if hl then pcall(function() hl:Destroy() end); CC.Refs.NPCHighlights[model] = nil end
+end
+
+local function hideAllNPC()
+    for _, d in pairs(CC.Refs.NPCDrawings) do
+        d.Box.Visible = false
+        d.Name.Visible = false
+        d.Health.Visible = false
+        d.Distance.Visible = false
+    end
+    for _, hl in pairs(CC.Refs.NPCHighlights) do
+        if hl and hl.Parent then hl.Enabled = false end
+    end
+end
+
+local function updateNPCESP()
+    if not Flags.ESP_NPC or Flags.NPCDistance <= 0 then
+        hideAllNPC()
+        return
+    end
+    
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then hideAllNPC(); return end
+    local localPos = localRoot.Position
+    local npcs = CC.Refs.NPCList or {}
+    local alive = {}
+
+    for _, model in ipairs(npcs) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.NPCDistance then
+                    alive[model] = true
+                    local hum = model:FindFirstChildOfClass("Humanoid")
+                    local isDead = not hum or hum.Health <= 0
+
+                    local hl = CC.Refs.NPCHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight")
+                        hl.Name = "CloudClientNPC"
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Parent = model
+                        CC.Refs.NPCHighlights[model] = hl
+                    end
+
+                    if isDead then
+                        if hl.FillColor ~= Color3.fromRGB(90,90,90) then
+                            hl.FillColor = Color3.fromRGB(90,90,90)
+                            hl.OutlineColor = Color3.fromRGB(60,60,60)
+                        end
+                        hl.FillTransparency = 0.6
+                        hl.OutlineTransparency = 0.3
+                    else
+                        if hl.FillColor ~= Flags.NPCColor then
+                            hl.FillColor = Flags.NPCColor
+                            hl.OutlineColor = Flags.NPCColor
+                        end
+                        hl.FillTransparency = 0.4
+                        hl.OutlineTransparency = 0
+                    end
+                    hl.Enabled = true
+
+                    local head = model:FindFirstChild("Head")
+                    if head then
+                        local d = createNPCDrawing(model)
+                        local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1, 0))
+                        local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0))
+                        local sp = fovWorldToViewport(root.Position)
+
+                        if sp.Z > 0 and hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y)
+                            local w = h * 0.5
+
+                            if Flags.NPC_Box then
+                                d.Box.Size = Vector2.new(w, h)
+                                d.Box.Position = Vector2.new(sp.X - w/2, hS.Y)
+                                d.Box.Color = isDead and Color3.fromRGB(120,120,120) or Flags.NPCColor
+                                d.Box.Visible = true
+                            else
+                                d.Box.Visible = false
+                            end
+
+                            if Flags.NPC_Name then
+                                d.Name.Text = model.Name .. (isDead and " [DEAD]" or "")
+                                d.Name.Position = Vector2.new(sp.X, hS.Y - 16)
+                                d.Name.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor
+                                d.Name.Visible = true
+                            else
+                                d.Name.Visible = false
+                            end
+
+                            if Flags.NPC_Health then
+                                if hum then
+                                    d.Health.Text = isDead and "DEAD" or ("HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth))
+                                    d.Health.Position = Vector2.new(sp.X, fS.Y + 2)
+                                    d.Health.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor
+                                    d.Health.Visible = true
+                                else
+                                    d.Health.Visible = false
+                                end
+                            else
+                                d.Health.Visible = false
+                            end
+
+                            if Flags.NPC_Distance then
+                                d.Distance.Text = math.floor(dist).."m"
+                                d.Distance.Position = Vector2.new(sp.X, fS.Y + 18)
+                                d.Distance.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor
+                                d.Distance.Visible = true
+                            else
+                                d.Distance.Visible = false
+                            end
+                        else
+                            d.Box.Visible = false
+                            d.Name.Visible = false
+                            d.Health.Visible = false
+                            d.Distance.Visible = false
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for model, d in pairs(CC.Refs.NPCDrawings) do
+        if not alive[model] then removeNPCDrawing(model) end
+    end
+    for model, hl in pairs(CC.Refs.NPCHighlights) do
+        if not alive[model] and hl then
+            pcall(function() hl:Destroy() end)
+            CC.Refs.NPCHighlights[model] = nil
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        pcall(refreshNPCList)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(updateNPCESP)
+end)
+
+-- ===== ANIMALS ESP =====
+CC.Refs.AnimalList = {}
+CC.Refs.AnimalDrawings = {}
+CC.Refs.AnimalHighlights = {}
+
+local TARGET_ANIMAL_NAME = "bear"
+
+local function isTargetAnimalName(name)
+    return string.lower(name) == TARGET_ANIMAL_NAME
+end
+
+local function refreshAnimalList()
+    if not Flags.ESP_Animals then
+        CC.Refs.AnimalList = {}
+        return
+    end
+    local result = {}
+    local root = workspace:FindFirstChild("Animals")
+    if root then
+        for _, obj in ipairs(root:GetDescendants()) do
+            if obj:IsA("Model") and not isPlayerChar(obj) and isTargetAnimalName(obj.Name) then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    result[#result+1] = obj
+                end
+            end
+        end
+    end
+    CC.Refs.AnimalList = result
+end
+
+local function createAnimalDrawing(model)
+    if CC.Refs.AnimalDrawings[model] then return CC.Refs.AnimalDrawings[model] end
+    local d = {}
+    d.Box      = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name     = Drawing.new("Text"); d.Name.Size=13; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health   = Drawing.new("Text"); d.Health.Size=11; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=11; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    CC.Refs.AnimalDrawings[model] = d
+    return d
+end
+
+local function removeAnimalDrawing(model)
+    local d = CC.Refs.AnimalDrawings[model]
+    if d then
+        for _, o in pairs(d) do pcall(function() o:Remove() end) end
+        CC.Refs.AnimalDrawings[model] = nil
+    end
+    local hl = CC.Refs.AnimalHighlights[model]
+    if hl then pcall(function() hl:Destroy() end); CC.Refs.AnimalHighlights[model] = nil end
+end
+
+local function hideAllAnimals()
+    for _, d in pairs(CC.Refs.AnimalDrawings) do
+        d.Box.Visible = false
+        d.Name.Visible = false
+        d.Health.Visible = false
+        d.Distance.Visible = false
+    end
+    for _, hl in pairs(CC.Refs.AnimalHighlights) do
+        if hl and hl.Parent then hl.Enabled = false end
+    end
+end
+
+local function updateAnimalESP()
+    if not Flags.ESP_Animals or Flags.AnimalDistance <= 0 then
+        hideAllAnimals()
+        return
+    end
+    
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then hideAllAnimals(); return end
+    local localPos = localRoot.Position
+    local animals = CC.Refs.AnimalList or {}
+    local alive = {}
+
+    for _, model in ipairs(animals) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.AnimalDistance then
+                    alive[model] = true
+                    local hum = model:FindFirstChildOfClass("Humanoid")
+                    local isDead = not hum or hum.Health <= 0
+
+                    local hl = CC.Refs.AnimalHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight")
+                        hl.Name = "CloudClientAnimal"
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Parent = model
+                        CC.Refs.AnimalHighlights[model] = hl
+                    end
+
+                    if isDead then
+                        if hl.FillColor ~= Color3.fromRGB(90,90,90) then
+                            hl.FillColor = Color3.fromRGB(90,90,90)
+                            hl.OutlineColor = Color3.fromRGB(60,60,60)
+                        end
+                        hl.FillTransparency = 0.6
+                        hl.OutlineTransparency = 0.3
+                    else
+                        if hl.FillColor ~= Flags.AnimalColor then
+                            hl.FillColor = Flags.AnimalColor
+                            hl.OutlineColor = Flags.AnimalColor
+                        end
+                        hl.FillTransparency = 0.4
+                        hl.OutlineTransparency = 0
+                    end
+                    hl.Enabled = true
+
+                    local head = model:FindFirstChild("Head")
+                    if head then
+                        local d = createAnimalDrawing(model)
+                        local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1, 0))
+                        local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0))
+                        local sp = fovWorldToViewport(root.Position)
+
+                        if sp.Z > 0 and hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y)
+                            local w = h * 0.5
+
+                            if Flags.Animal_Box then
+                                d.Box.Size = Vector2.new(w, h)
+                                d.Box.Position = Vector2.new(sp.X - w/2, hS.Y)
+                                d.Box.Color = isDead and Color3.fromRGB(120,120,120) or Flags.AnimalColor
+                                d.Box.Visible = true
+                            else
+                                d.Box.Visible = false
+                            end
+
+                            if Flags.Animal_Name then
+                                d.Name.Text = model.Name .. (isDead and " [DEAD]" or "")
+                                d.Name.Position = Vector2.new(sp.X, hS.Y - 16)
+                                d.Name.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor
+                                d.Name.Visible = true
+                            else
+                                d.Name.Visible = false
+                            end
+
+                            if Flags.Animal_Health then
+                                if hum then
+                                    d.Health.Text = isDead and "DEAD" or ("HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth))
+                                    d.Health.Position = Vector2.new(sp.X, fS.Y + 2)
+                                    d.Health.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor
+                                    d.Health.Visible = true
+                                else
+                                    d.Health.Visible = false
+                                end
+                            else
+                                d.Health.Visible = false
+                            end
+
+                            if Flags.Animal_Distance then
+                                d.Distance.Text = math.floor(dist).."m"
+                                d.Distance.Position = Vector2.new(sp.X, fS.Y + 18)
+                                d.Distance.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor
+                                d.Distance.Visible = true
+                            else
+                                d.Distance.Visible = false
+                            end
+                        else
+                            d.Box.Visible = false
+                            d.Name.Visible = false
+                            d.Health.Visible = false
+                            d.Distance.Visible = false
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for model, d in pairs(CC.Refs.AnimalDrawings) do
+        if not alive[model] then removeAnimalDrawing(model) end
+    end
+    for model, hl in pairs(CC.Refs.AnimalHighlights) do
+        if not alive[model] and hl then
+            pcall(function() hl:Destroy() end)
+            CC.Refs.AnimalHighlights[model] = nil
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        pcall(refreshAnimalList)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(updateAnimalESP)
+end)
 
 -- ===== ХУКИ ИГРОКОВ =====
 local function hookPlayer(plr)
@@ -1613,9 +2356,12 @@ end)
 
 -- ===== MAIN LOOP =====
 RunService.RenderStepped:Connect(function()
-    if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
-    local ok, err = pcall(updateESP)
-    if not ok then warn("[cloudclient] ESP error, hiding:", err); pcall(hideAll) end
+    if Flags.ESP and Flags.MaxDistance > 0 then
+        local ok, err = pcall(updateESP)
+        if not ok then warn("[cloudclient] ESP error:", err); pcall(hideAll) end
+    else
+        hideAll()
+    end
 end)
 
 -- ===== UI: AIMBOT =====
@@ -1652,33 +2398,111 @@ UI.Elements.noRecoilToggle = UI.Tabs.Aimbot:AddToggle({ Title="No Recoil", Subti
 UI.Elements.rapidFireToggle = UI.Tabs.Aimbot:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
 UI.Elements.rapidFireDelaySlider = UI.Tabs.Aimbot:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) Flags.RapidFireDelay=v; if Flags.RapidFire then applyRapidFire() end end})
 
--- ===== UI: ESP =====
-UI.Tabs.ESP = UI.Window:AddTab("ESP", "eye")
+-- ===== UI: VISUALS =====
+UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "eye")
 
-UI.Tabs.ESP:AddSeparator(); UI.Tabs.ESP:AddLabel("ESP COLOR", "palette"); UI.Tabs.ESP:AddSeparator()
+UI.Tabs.Visuals:AddLabel("ESP PLAYER", "user")
+UI.Tabs.Visuals:AddSeparator()
 
-UI.Elements.espColorPicker = UI.Tabs.ESP:AddColorPicker({Title="ESP Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c) Flags.ESPColor=c; for _,hl in pairs(CC.Refs.Highlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end end})
-UI.Elements.textColorPicker = UI.Tabs.ESP:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
-UI.Elements.boxColorPicker = UI.Tabs.ESP:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
-UI.Elements.lineColorPicker = UI.Tabs.ESP:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
-UI.Elements.skelColorPicker = UI.Tabs.ESP:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+UI.Elements.espToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Player", Icon="eye", Default=false, Callback=function(s) Flags.ESP=s; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.espModeDropdown = UI.Tabs.Visuals:AddDropdown({Title="Esp Player Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.espDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance Player", Icon="ruler", Min=250, Max=2500, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.espColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Esp Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+    Flags.ESPColor=c
+    for _,hl in pairs(CC.Refs.Highlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
+end})
 
-UI.Tabs.ESP:AddSeparator(); UI.Tabs.ESP:AddLabel("ESP SYSTEM", "eye"); UI.Tabs.ESP:AddSeparator()
+UI.Elements.sleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Sleeper", Icon="bed", Default=false, Callback=function(s) Flags.ESP_Sleeper=s end})
+UI.Elements.espSleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Sleeper", Icon="moon", Default=false, Callback=function(s) Flags.ESP_SleeperColorEnabled=s end})
+UI.Elements.sleeperColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Color Sleeper", Icon="palette", Default=Flags.SleeperColor, Callback=function(c)
+    Flags.SleeperColor=c
+    if not Flags.ESP_SleeperColorEnabled then
+        for _,hl in pairs(CC.Refs.SleeperHighlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
+    end
+end})
 
-UI.Elements.espToggle = UI.Tabs.ESP:AddToggle({Title="ESP", Icon="eye", Default=false, Callback=function(s) Flags.ESP=s; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
-UI.Elements.espModeDropdown = UI.Tabs.ESP:AddDropdown({Title="ESP Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Tabs.Visuals:AddSeparator()
 
-UI.Elements.boxToggle = UI.Tabs.ESP:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
-UI.Elements.nameToggle = UI.Tabs.ESP:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
-UI.Elements.healthToggle = UI.Tabs.ESP:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
-UI.Elements.distToggle = UI.Tabs.ESP:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
-UI.Elements.lineToggle = UI.Tabs.ESP:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
-UI.Elements.skeletonToggle = UI.Tabs.ESP:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
-UI.Elements.weaponToggle = UI.Tabs.ESP:AddToggle({Title="Weapon ESP", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+UI.Elements.boxToggle = UI.Tabs.Visuals:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+UI.Elements.boxColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
 
-UI.Elements.espDistSlider = UI.Tabs.ESP:AddSlider({Title="ESP Distance", Icon="ruler", Min=250, Max=2000, Default=600, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.nameToggle = UI.Tabs.Visuals:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+UI.Elements.healthToggle = UI.Tabs.Visuals:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+UI.Elements.distToggle = UI.Tabs.Visuals:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+UI.Elements.weaponToggle = UI.Tabs.Visuals:AddToggle({Title="Weapon", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+UI.Elements.textColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
 
--- ===== UI: WORLD (СКАЙ + СВЕТ + WEAPON COLOR) =====
+UI.Elements.lineToggle = UI.Tabs.Visuals:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+UI.Elements.lineColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+
+UI.Elements.skeletonToggle = UI.Tabs.Visuals:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+UI.Elements.skelColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+
+UI.Tabs.Visuals:AddSeparator()
+UI.Tabs.Visuals:AddLabel("TEAM CHECK", "users")
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.teamCheckVisualToggle = UI.Tabs.Visuals:AddToggle({Title="Team Check", Subtitle="Работает если включен Esp Player", Icon="users", Default=false, Callback=function(s)
+    Flags.TeamCheck=s
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+end})
+UI.Elements.teamColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Team Color", Icon="palette", Default=Flags.TeamColor, Callback=function(c)
+    Flags.TeamColor=c
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+end})
+
+UI.Tabs.Visuals:AddSeparator()
+UI.Tabs.Visuals:AddLabel("OTHER VISUALS", "sparkles")
+UI.Tabs.Visuals:AddSeparator()
+
+-- NPC
+UI.Elements.espNpcToggle = UI.Tabs.Visuals:AddToggle({Title="Esp NPC", Icon="users", Default=false, Callback=function(s) Flags.ESP_NPC=s end})
+UI.Elements.npcColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="NPC Color", Icon="palette", Default=Flags.NPCColor, Callback=function(c) Flags.NPCColor=c end})
+UI.Elements.npcDistSlider = UI.Tabs.Visuals:AddSlider({Title="NPC Distance", Icon="ruler", Min=100, Max=500, Default=200, Callback=function(v) Flags.NPCDistance=v end})
+
+UI.Elements.npcElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
+    Title = "NPC Elements",
+    Subtitle = "Что рисовать на NPC",
+    Icon = "layers",
+    Options = {"Name", "Box", "Health", "Distance"},
+    Default = {"Name", "Box", "Health", "Distance"},
+    Callback = function(selected)
+        Flags.NPC_Name = selected["Name"] == true
+        Flags.NPC_Box = selected["Box"] == true
+        Flags.NPC_Health = selected["Health"] == true
+        Flags.NPC_Distance = selected["Distance"] == true
+    end
+})
+
+UI.Tabs.Visuals:AddSeparator()
+
+-- Animals
+UI.Elements.espAnimalsToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Animals", Icon="paw-print", Default=false, Callback=function(s) Flags.ESP_Animals=s end})
+UI.Elements.animalColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Animal Color", Icon="palette", Default=Flags.AnimalColor, Callback=function(c) Flags.AnimalColor=c end})
+UI.Elements.animalDistSlider = UI.Tabs.Visuals:AddSlider({Title="Animal Distance", Icon="ruler", Min=250, Max=1000, Default=500, Callback=function(v) Flags.AnimalDistance=v end})
+
+UI.Elements.animalElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
+    Title = "Animal Elements",
+    Subtitle = "Что рисовать на животных",
+    Icon = "layers",
+    Options = {"Name", "Box", "Health", "Distance"},
+    Default = {"Name", "Box", "Health", "Distance"},
+    Callback = function(selected)
+        Flags.Animal_Name = selected["Name"] == true
+        Flags.Animal_Box = selected["Box"] == true
+        Flags.Animal_Health = selected["Health"] == true
+        Flags.Animal_Distance = selected["Distance"] == true
+    end
+})
+
+-- ===== UI: LOOT =====
+UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
+
+UI.Tabs.Loot:AddSeparator()
+UI.Tabs.Loot:AddLabel("COMING SOON", "clock")
+UI.Tabs.Loot:AddSeparator()
+
+-- ===== UI: WORLD =====
 UI.Tabs.World = UI.Window:AddTab("World", "sun")
 
 UI.Tabs.World:AddLabel("SKY", "cloud")
@@ -1770,7 +2594,6 @@ UI.Elements.worldTimeSlider = UI.Tabs.World:AddSlider({
     end
 })
 
--- Weapon Color — перенесено из Visuals в самый низ World
 UI.Tabs.World:AddSeparator()
 UI.Tabs.World:AddLabel("WEAPON SKIN", "paintbrush")
 UI.Tabs.World:AddSeparator()
@@ -1819,13 +2642,6 @@ UI.Elements.materialDropdown = UI.Tabs.World:AddDropdown({
     end
 })
 
--- ===== UI: LOOT =====
-UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
-
-UI.Tabs.Loot:AddSeparator()
-UI.Tabs.Loot:AddLabel("COMING SOON", "clock")
-UI.Tabs.Loot:AddSeparator()
-
 -- ===== UI: MISC =====
 UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
 
@@ -1837,13 +2653,11 @@ UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind",
 
 UI.Tabs.Misc:AddSeparator()
 
--- zoom
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
 
 UI.Tabs.Misc:AddSeparator()
 
--- fov
 UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="focus", Default=false, Callback=function(s)
     Flags.FOVEnabled = s
     if s then
@@ -1897,7 +2711,35 @@ UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({
     end
 })
 
--- ===== UI: MISC — ASPECT RATIO & CROSSHAIR (ПЕРЕНЕСЕНО) =====
+UI.Tabs.Misc:AddSeparator()
+
+-- SPIDER
+UI.Elements.spiderToggle = UI.Tabs.Misc:AddToggle({
+    Title = "Spider",
+    Subtitle = "Лазание по стенам (W/Space вверх, S/Ctrl вниз)",
+    Icon = "move-vertical",
+    Default = false,
+    Callback = function(s) toggleSpider(s) end
+})
+
+UI.Elements.spiderSpeedSlider = UI.Tabs.Misc:AddSlider({
+    Title = "Spider Speed",
+    Icon = "activity",
+    Min = 15, Max = 40, Default = 30,
+    Callback = function(v) Flags.SpiderSpeed = v end
+})
+
+UI.Elements.keybindSpider = UI.Tabs.Misc:AddKeybind({
+    Title = "Spider Keybind",
+    Subtitle = "Вкл/Выкл Spider",
+    Icon = "keyboard",
+    Default = Enum.KeyCode.Unknown,
+    Callback = function()
+        UI.Elements.spiderToggle:Set(not Flags.Spider)
+    end
+})
+
+-- ===== UI: MISC — ASPECT RATIO & CROSSHAIR =====
 UI.Tabs.Misc:AddSeparator()
 UI.Tabs.Misc:AddLabel("ASPECT RATIO", "monitor")
 UI.Tabs.Misc:AddSeparator()
@@ -1990,6 +2832,13 @@ UI.buildConfig = function(name)
 
     cfg:RegisterElement("ESP", UI.Elements.espToggle)
     cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown)
+    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
+    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
+    cfg:RegisterElement("Sleeper", UI.Elements.sleeperToggle)
+    cfg:RegisterElement("ESPSleeper", UI.Elements.espSleeperToggle)
+    cfg:RegisterElement("ColorSleeper", UI.Elements.sleeperColorPicker)
+    cfg:RegisterElement("TeamCheckVisual", UI.Elements.teamCheckVisualToggle)
+    cfg:RegisterElement("TeamColor", UI.Elements.teamColorPicker)
     cfg:RegisterElement("Box", UI.Elements.boxToggle)
     cfg:RegisterElement("Name", UI.Elements.nameToggle)
     cfg:RegisterElement("Health", UI.Elements.healthToggle)
@@ -1997,12 +2846,20 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("Line", UI.Elements.lineToggle)
     cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle)
     cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
-    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
-    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
     cfg:RegisterElement("TextColor", UI.Elements.textColorPicker)
     cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker)
     cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
     cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
+
+    cfg:RegisterElement("ESPNPC", UI.Elements.espNpcToggle)
+    cfg:RegisterElement("NPCColor", UI.Elements.npcColorPicker)
+    cfg:RegisterElement("NPCDistance", UI.Elements.npcDistSlider)
+    cfg:RegisterElement("NPCElements", UI.Elements.npcElementsDropdown)
+
+    cfg:RegisterElement("ESPAnimals", UI.Elements.espAnimalsToggle)
+    cfg:RegisterElement("AnimalColor", UI.Elements.animalColorPicker)
+    cfg:RegisterElement("AnimalDistance", UI.Elements.animalDistSlider)
+    cfg:RegisterElement("AnimalElements", UI.Elements.animalElementsDropdown)
 
     cfg:RegisterElement("CrosshairOn", UI.Elements.crosshairToggle)
     cfg:RegisterElement("CrosshairType", UI.Elements.crosshairType)
@@ -2053,6 +2910,10 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("BindRemoveWall", UI.Elements.keybindRemoveConstructions)
     cfg:RegisterElement("BindFOV", UI.Elements.keybindFOV)
 
+    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
+    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
+    cfg:RegisterElement("BindSpider", UI.Elements.keybindSpider)
+
     return cfg
 end
 
@@ -2089,8 +2950,48 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
         applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
+        if Flags.Spider then toggleSpider(true) else toggleSpider(false) end
 
-        -- Sky / Lighting
+        if not Flags.ESP_NPC then
+            for model, d in pairs(CC.Refs.NPCDrawings or {}) do
+                for _, o in pairs(d) do pcall(function() o:Remove() end) end
+            end
+            CC.Refs.NPCDrawings = {}
+            for model, hl in pairs(CC.Refs.NPCHighlights or {}) do
+                pcall(function() hl:Destroy() end)
+            end
+            CC.Refs.NPCHighlights = {}
+            CC.Refs.NPCList = {}
+        end
+
+        if not Flags.ESP_Animals then
+            for model, d in pairs(CC.Refs.AnimalDrawings or {}) do
+                for _, o in pairs(d) do pcall(function() o:Remove() end) end
+            end
+            CC.Refs.AnimalDrawings = {}
+            for model, hl in pairs(CC.Refs.AnimalHighlights or {}) do
+                pcall(function() hl:Destroy() end)
+            end
+            CC.Refs.AnimalHighlights = {}
+            CC.Refs.AnimalList = {}
+        end
+
+        if not Flags.ESP_Sleeper then
+            for model, d in pairs(CC.Refs.SleeperDrawings or {}) do
+                for _, o in pairs(d) do pcall(function() o:Remove() end) end
+            end
+            CC.Refs.SleeperDrawings = {}
+            for model, hl in pairs(CC.Refs.SleeperHighlights or {}) do
+                pcall(function() hl:Destroy() end)
+            end
+            CC.Refs.SleeperHighlights = {}
+            for model, sk in pairs(CC.Refs.SleeperSkeletons or {}) do
+                for _, l in pairs(sk.lines) do pcall(function() l:Remove() end) end
+            end
+            CC.Refs.SleeperSkeletons = {}
+            CC.Refs.SleeperList = {}
+        end
+
         setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
         if Flags.Fullbright or Flags.WorldTimeEnabled then
             captureLighting()
@@ -2100,7 +3001,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
             restoreLighting()
         end
 
-        -- Weapon color
         if Flags.WeaponColorEnabled then
             if not CC.Refs.weaponColorConn then startWeaponColor() end
             for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end
