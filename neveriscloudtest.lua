@@ -1,7 +1,7 @@
 --[[
     CLOUDCLIENT — Aimbot + Visuals + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.3.1.0
+    BUILD: v0.3.7.1 (GitHub Keys)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -16,26 +16,39 @@ local CC = _G.CC
 local Flags = CC.Flags
 local UI = CC.UI
 
--- ===== KEY SYSTEM =====
-local KEY_LIST = {
-    ["CLOUD-FOX-0001"]  = { name = "Fox",   expires = 0 },
-    ["CLOUD-JACK-0002"] = { name = "Jack",  expires = 0 },
-    ["CLOUD-FRND-0003"] = { name = "Друг1", expires = 0 },
-}
-
+-- ===== KEY SYSTEM (GitHub + HWID) =====
+local KEY_URL = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/keys.json"
 local KEY_FILE = "cloudclient_key.txt"
+local MY_USERID = tostring(game:GetService("Players").LocalPlayer.UserId)
 
-_G.CloudKeyState = {
-    key = nil, name = nil, expires = 0, valid = false, reason = "не активирован",
-}
+_G.CloudKeyState = { key = nil, name = nil, valid = false, reason = "не активирован" }
 
-local function validateKey(k)
-    if not k or k == "" then return false, "пустой ключ" end
-    local entry = KEY_LIST[k]
-    if not entry then return false, "неверный ключ" end
+local function fetchKeys()
+    local success, data = pcall(function()
+        return game:HttpGet(KEY_URL)
+    end)
+    if not success or not data then return nil end
+    local decodeSuccess, decoded = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(data)
+    end)
+    if not decodeSuccess or not decoded then return nil end
+    return decoded
+end
+
+local function validateKey(k, keys)
+    if not k or k == "" then return false, "Пустой ключ" end
+    local entry = keys[k]
+    if not entry then return false, "Ключ не найден (удален или неверный)" end
+    
     if entry.expires ~= 0 and os.time and os.time() > entry.expires then
-        return false, "ключ истёк"
+        return false, "Срок ключа истёк"
     end
+    
+    if entry.hwid and entry.hwid ~= "" then
+        if entry.hwid == "BANNED" then return false, "Ключ забанен" end
+        if entry.hwid ~= MY_USERID then return false, "Ключ привязан к другому аккаунту" end
+    end
+    
     return true, entry
 end
 
@@ -53,16 +66,11 @@ local function saveKey(k)
     pcall(writefile, KEY_FILE, k)
 end
 
-local function setKeyState(k, ok, entry, reason)
-    _G.CloudKeyState.key     = k
-    _G.CloudKeyState.valid   = ok
-    _G.CloudKeyState.reason  = reason or (ok and "OK" or "неверный ключ")
-    if ok and entry then
-        _G.CloudKeyState.name    = entry.name or "—"
-        _G.CloudKeyState.expires = entry.expires or 0
-    else
-        _G.CloudKeyState.name    = nil
-        _G.CloudKeyState.expires = 0
+local function deleteSavedKey()
+    if isfile and delfile then
+        pcall(function()
+            if isfile(KEY_FILE) then delfile(KEY_FILE) end
+        end)
     end
 end
 
@@ -75,7 +83,7 @@ local function promptForKey()
     sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(400, 200)
+    frame.Size = UDim2.fromOffset(400, 220)
     frame.Position = UDim2.fromScale(0.5, 0.5)
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
@@ -113,16 +121,32 @@ local function promptForKey()
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -24, 0, 28); status.Position = UDim2.fromOffset(12, 148)
+    status.Size = UDim2.new(1, -24, 0, 40); status.Position = UDim2.fromOffset(12, 148)
     status.BackgroundTransparency = 1; status.Text = ""
     status.TextColor3 = Color3.fromRGB(255, 100, 100)
     status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12
+    status.TextWrapped = true
     status.TextXAlignment = Enum.TextXAlignment.Left; status.Parent = frame
 
     local result = nil
     local function tryActivate()
         local k = box.Text
-        local ok, entryOrReason = validateKey(k)
+        if not k or k == "" then
+            status.Text = "Введи ключ!"
+            return
+        end
+        
+        status.Text = "Скачивание ключей..."
+        status.TextColor3 = Color3.fromRGB(255, 255, 100)
+        local keys = fetchKeys()
+        
+        if not keys then
+            status.Text = "Ошибка: не удалось скачать ключи"
+            status.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+        
+        local ok, entryOrReason = validateKey(k, keys)
         if ok then
             status.Text = "OK — " .. tostring(entryOrReason.name)
             status.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -142,28 +166,39 @@ local function promptForKey()
 end
 
 local function requireKey()
-    local saved = loadSavedKey()
-    if saved then
-        local ok, entryOrReason = validateKey(saved)
-        if ok then
-            setKeyState(saved, true, entryOrReason, "OK")
-            return true
-        end
-        pcall(function() if delfile then delfile(KEY_FILE) end end)
-    end
-    local entered = promptForKey()
-    if not entered then
-        setKeyState(nil, false, nil, "отменено")
+    local keys = fetchKeys()
+    if not keys then
+        warn("[cloudclient] Не удалось скачать ключи с GitHub. Проверь интернет.")
+        game:GetService("Players").LocalPlayer:Kick("cloudclient: не удалось проверить лицензию (нет интернета)")
         return false
     end
-    local ok, entry = validateKey(entered)
-    if ok then
-        saveKey(entered)
-        setKeyState(entered, true, entry, "OK")
-        return true
+
+    local saved = loadSavedKey()
+    if saved then
+        local ok, entryOrReason = validateKey(saved, keys)
+        if ok then
+            _G.CloudKeyState = { key = saved, name = entryOrReason.name, valid = true, reason = "OK" }
+            return true
+        else
+            print("[cloudclient] Сохраненный ключ недействителен: " .. tostring(entryOrReason))
+            deleteSavedKey()
+        end
     end
-    setKeyState(nil, false, nil, "неверный ключ")
-    return false
+
+    while true do
+        local entered = promptForKey()
+        if not entered then 
+            _G.CloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено" }
+            return false 
+        end
+        
+        local ok, entry = validateKey(entered, keys)
+        if ok then
+            saveKey(entered)
+            _G.CloudKeyState = { key = entered, name = entry.name, valid = true, reason = "OK" }
+            return true
+        end
+    end
 end
 
 if not requireKey() then
@@ -176,16 +211,7 @@ end
 local function keyRemainingText()
     local st = _G.CloudKeyState
     if not st or not st.valid then return "нет ключа" end
-    if st.expires == 0 then return "бессрочно" end
-    if not os.time then return "—" end
-    local left = st.expires - os.time()
-    if left <= 0 then return "истёк" end
-    local d = math.floor(left / 86400)
-    local h = math.floor((left % 86400) / 3600)
-    local m = math.floor((left % 3600) / 60)
-    if d > 0 then return string.format("%dd %dh", d, h) end
-    if h > 0 then return string.format("%dh %dm", h, m) end
-    return string.format("%dm", m)
+    return "GitHub"
 end
 -- ===== END KEY SYSTEM =====
 
@@ -207,9 +233,9 @@ UI.Window = CC.Lib:CreateWindow({
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
 UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.3.1.0", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.3.7.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.3.1.0 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.3.7.1 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -255,12 +281,13 @@ Flags.AimbotIgnoreTeam = true
 Flags.AimbotIgnoreSleepers = true
 Flags.AimbotIgnoreNPC = true
 Flags.AimbotIgnoreAnimals = true
-Flags.AimbotIgnoreWounded = false
+Flags.AimbotIgnoreWounded = true
 Flags.AimbotIgnoreWoundedPercent = 30
 Flags.AimbotVisibleCheck = true
 Flags.AimbotFOV = 120
 Flags.AimbotSmooth = 5
-Flags.AimbotPrediction = 0
+Flags.AimbotPrediction = 1.0
+Flags.AimbotBulletSpeed = 450
 Flags.AimbotHitChance = 100
 Flags.AimbotDistanceLimit = 400
 Flags.AimbotDrawFOV = false
@@ -268,7 +295,6 @@ Flags.AimbotDrawTarget = false
 Flags.AimbotDrawTargetColor = Color3.fromRGB(255, 0, 0)
 Flags.AimbotDrawFOVColor = Color3.fromRGB(255, 255, 255)
 Flags.AimbotAutoSwitch = true
-Flags.AimbotDebug = false
 
 Flags.FreeCam = false
 Flags.CameraZoom = false
@@ -277,7 +303,6 @@ Flags.FPSPing = false; Flags.Fullbright = false
 Flags.WorldTimeEnabled = false; Flags.WorldTimeValue = 12
 Flags.HitboxEnabled = false; Flags.HitboxSize = 2.0; Flags.HitboxTransparency = 50
 Flags.NoRecoil = false
-Flags.RapidFire = false; Flags.RapidFireDelay = 50
 Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
 Flags.WeaponColorEnabled = false
 Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
@@ -298,6 +323,8 @@ Flags.RemoveDistance = 75
 -- SPIDER
 Flags.Spider = false
 Flags.SpiderSpeed = 30
+-- HUD
+Flags.BindHUD = false
 
 -- ===== УТИЛИТЫ =====
 local function isAlive(char)
@@ -338,14 +365,14 @@ local function refreshTeammatesCache()
     local now = os.clock()
     if now - _teammatesCacheTime < 0.5 then return end
     _teammatesCacheTime = now
-    
+
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then _teammatesCache = {}; return end
     local teamUI = pg:FindFirstChild("TeamUI")
     if not teamUI then _teammatesCache = {}; return end
     local teamFrame = teamUI:FindFirstChild("Team")
     if not teamFrame then _teammatesCache = {}; return end
-    
+
     local newCache = {}
     for _, child in ipairs(teamFrame:GetChildren()) do
         if child:IsA("TextLabel") and child.Text ~= "" then
@@ -394,32 +421,33 @@ local function getBonePosition(char, boneName)
     return part
 end
 
--- ===== ПРЕДСКАЗАНИЕ (улучшенное) =====
--- Берёт только горизонтальную скорость, игнорирует прыжки
+-- ===== ПРЕДСКАЗАНИЕ =====
 local function getPredictedPosition(part)
     if not part then return Vector3.zero end
     local pos = part.Position
-    if Flags.AimbotPrediction <= 0 then return pos end
-    
+    local predFactor = Flags.AimbotPrediction or 0
+    if predFactor <= 0 then return pos end
+
     local camPos = Camera.CFrame.Position
-    local dist = (pos - camPos).Magnitude
-    
+    local toTarget = pos - camPos
+    local dist = toTarget.Magnitude
+    if dist < 1 then return pos end
+
     local vel = getVelocity(part)
-    -- Только X и Z, чтобы не улетало вверх/вниз при прыжке
-    local horizVel = Vector3.new(vel.X, 0, vel.Z)
-    
-    -- Prediction factor: прорционально дистанции
-    -- 1 stud/s при prediction = 1 даст ~ (dist/100) studs смещения
-    local timeToHit = dist / 100  -- грубая аппроксимация (100 studs/s скорость пули)
-    local predicted = pos + horizVel * Flags.AimbotPrediction * timeToHit
-    
-    return predicted
+    local forward = toTarget.Unit
+    local velPerp = vel - forward * vel:Dot(forward)
+    local horizVel = Vector3.new(velPerp.X, 0, velPerp.Z)
+    if horizVel.Magnitude < 0.5 then return pos end
+
+    local bulletSpeed = math.max(50, Flags.AimbotBulletSpeed or 450)
+    local t = dist / bulletSpeed
+
+    return pos + horizVel * t * predFactor
 end
 
 -- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
 CC.Refs.CurrentTarget = nil
 CC.Refs.CurrentTargetPart = nil
-CC.Refs.rapidFireConn = nil
 CC.Refs.weaponColorConn = nil
 CC.Refs.lastWeaponModels = {}
 CC.Refs.aspectConn = nil
@@ -454,8 +482,10 @@ CC.Refs.NPCDrawings = {}
 CC.Refs.AnimalHighlights = {}
 CC.Refs.AnimalList = {}
 CC.Refs.AnimalDrawings = {}
+-- HUD
 CC.Refs.HudPanel = nil
-CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.statusRow = nil
+CC.Refs.BindHudPanel = nil
+CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.onlineRow = nil
 CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
 
 -- ===== FOV: HOOK-КОНТРОЛЛЕР =====
@@ -596,10 +626,10 @@ hiddenFolder.Name = "CC_HiddenWalls"
 
 local function toggleRemoveConstructions(state)
     Flags.RemoveConstructions = state
-    
+
     if state then
         hiddenFolder.Parent = game:GetService("ReplicatedStorage")
-        
+
         if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
         CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
             if os.clock() - (CC.Refs.LastWallScan or 0) < 0.4 then return end
@@ -622,7 +652,7 @@ local function toggleRemoveConstructions(state)
                     local name = string.lower(model.Name)
                     if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
                         destroyed[model] = true
-                        
+
                         table.insert(CC.Refs.HiddenWalls, {
                             model = model,
                             originalParent = model.Parent
@@ -637,7 +667,7 @@ local function toggleRemoveConstructions(state)
             CC.Refs.CleanerConn:Disconnect()
             CC.Refs.CleanerConn = nil
         end
-        
+
         for _, data in ipairs(CC.Refs.HiddenWalls) do
             if data.model and data.model.Parent == hiddenFolder then
                 data.model.Parent = data.originalParent
@@ -688,7 +718,7 @@ local function updateSpider()
         local flat = Vector3.new(dir.X, 0, dir.Z)
         if flat.Magnitude > 0.01 then
             local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
-            if res and res.Instance and res.Instance.Collide then hit = res; break end
+            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
         end
     end
     if not hit then clearSpiderVelocity(); return end
@@ -728,7 +758,7 @@ CC.Refs.DisabledScripts = {}
 local function captureLighting()
     if CC.Refs.LightingOverride then return end
     CC.Refs.LightingOverride = true
-    
+
     CC.Refs.OrigLighting = {
         Ambient = Lighting.Ambient,
         Brightness = Lighting.Brightness,
@@ -745,9 +775,9 @@ local function captureLighting()
         ShadowSoftness = Lighting.ShadowSoftness,
         ExposureCompensation = Lighting.ExposureCompensation
     }
-    
+
     local containers = {Lighting, LP:FindFirstChild("PlayerScripts"), game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")}
-    
+
     for _, container in ipairs(containers) do
         if container then
             for _, obj in ipairs(container:GetDescendants()) do
@@ -768,13 +798,13 @@ end
 local function restoreLighting()
     if not CC.Refs.LightingOverride then return end
     CC.Refs.LightingOverride = false
-    
+
     for key, value in pairs(CC.Refs.OrigLighting) do
         if type(key) == "string" then
             pcall(function() Lighting[key] = value end)
         end
     end
-    
+
     for _, obj in ipairs(CC.Refs.DisabledScripts) do
         if obj and obj.Parent then
             pcall(function() obj.Disabled = false end)
@@ -785,7 +815,7 @@ end
 
 local function applyFullbright()
     if not Flags.Fullbright then return end
-    
+
     pcall(function()
         Lighting.Brightness = 2
         Lighting.ClockTime = 12
@@ -805,7 +835,7 @@ end
 
 local function applyWorldTime()
     if not Flags.WorldTimeEnabled then return end
-    
+
     pcall(function()
         Lighting.ClockTime = Flags.WorldTimeValue
         Lighting.Brightness = 1
@@ -921,11 +951,11 @@ local function applyWeaponColorToModel(model)
     for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
             saveOriginalProps(part)
-            
+
             if part:IsA("MeshPart") then
                 pcall(function() part.TextureID = "" end)
             end
-            
+
             for _, child in ipairs(part:GetChildren()) do
                 if child:IsA("SpecialMesh") then
                     pcall(function() child.TextureId = "" end)
@@ -936,7 +966,7 @@ local function applyWeaponColorToModel(model)
                     pcall(function() child.Transparency = 1 end)
                 end
             end
-            
+
             pcall(function() part.Color = Flags.WeaponColor end)
             pcall(function() part.Material = Flags.WeaponMaterial end)
             task.defer(function()
@@ -1128,17 +1158,17 @@ local function updateCrosshair()
     local vs = Camera.ViewportSize
     local cx = math.floor(vs.X / 2)
     local cy = math.floor(vs.Y / 2)
-    
+
     local color = Flags.CrosshairColor
     local trans = 1 - (Flags.CrosshairTransparency / 100)
     local cType = Flags.CrosshairType
-    
+
     local thick = math.max(1, math.floor(Flags.CrosshairThickness))
     if thick % 2 == 0 then thick = thick + 1 end
-    
+
     local size = math.max(2, math.floor(Flags.CrosshairSize))
     if size % 2 == 1 then size = size + 1 end
-    
+
     local gap = math.max(0, math.floor(Flags.CrosshairDistance))
 
     for _, d in pairs(crossDrawings.lines) do d.Visible = false end
@@ -1190,7 +1220,7 @@ local function updateCrosshair()
                 crossDrawings.circleOutline.Filled = false
                 crossDrawings.circleOutline.NumSides = 32
             end
-            
+
             if Flags.CrosshairOutline then
                 crossDrawings.circleOutline.Visible = true
                 crossDrawings.circleOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
@@ -1218,9 +1248,9 @@ local function updateCrosshair()
             crossDrawings.circleDotOutline.Filled = true
             crossDrawings.circleDotOutline.NumSides = 16
         end
-        
+
         local dotSize = math.max(1, math.floor(Flags.CrosshairDotSize))
-        
+
         if Flags.CrosshairOutline then
             crossDrawings.circleDotOutline.Visible = true
             crossDrawings.circleDotOutline.Position = Vector2.new(cx + 0.5, cy + 0.5)
@@ -1277,45 +1307,26 @@ local function updateHitboxes()
     end
 end
 
--- ===== SILENT AIM HOOKS =====
+-- ===== SILENT AIM (CFrame Spoofing) =====
 if hasHookMeta then
     pcall(function()
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", function(self, key)
-            if self == Mouse and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
-                if math.random(1, 100) > Flags.AimbotHitChance then return oldIndex(self, key) end
+            if key == "CFrame" and self == Camera and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
+                local camPos = oldIndex(self, "CFrame").Position
                 local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
-                if Flags.AimbotDebug then
-                    print(string.format("[Silent] Hit for %s, key: %s, target: %s", tostring(CC.Refs.CurrentTargetPart), tostring(key), tostring(targetPos)))
-                end
-                if key == "Hit" then return CFrame.new(targetPos)
-                elseif key == "Target" then return CC.Refs.CurrentTargetPart
-                elseif key == "UnitRay" then
+                return CFrame.lookAt(camPos, targetPos)
+            end
+            if self == Mouse and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
+                local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
+                if key == "Hit" then return CFrame.new(targetPos) end
+                if key == "UnitRay" then
                     local origin = Camera.CFrame.Position
-                    local dir = (targetPos - origin).Unit
-                    return Ray.new(origin, dir * 1000)
-                elseif key == "Origin" then return Camera.CFrame.Position
-                elseif key == "Direction" then return (targetPos - Camera.CFrame.Position).Unit
+                    return Ray.new(origin, (targetPos - origin).Unit * 1000)
                 end
+                if key == "Target" then return CC.Refs.CurrentTargetPart end
             end
             return oldIndex(self, key)
-        end)
-    end)
-
-    pcall(function()
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if (method == "ScreenPointToRay" or method == "ViewportPointToRay") and self == Camera and Flags.AimbotEnabled and Flags.AimbotType == "Silent" and CC.Refs.CurrentTargetPart then
-                local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
-                local origin = Camera.CFrame.Position
-                local dir = (targetPos - origin).Unit
-                if Flags.AimbotDebug then
-                    print(string.format("[Silent] Namecall %s, target: %s", method, tostring(targetPos)))
-                end
-                return Ray.new(origin, dir * 1000)
-            end
-            return oldNamecall(self, ...)
         end)
     end)
 end
@@ -1343,7 +1354,7 @@ end
 
 local function isNPCModel(model)
     local name = string.lower(model.Name)
-    return name == "scientist" or name == "alien"
+    return name == "scientist"
 end
 
 local function isAnimalModel(model)
@@ -1361,24 +1372,19 @@ local function getClosestTarget()
     local vs = Camera.ViewportSize
     local center = Vector2.new(vs.X/2, vs.Y/2)
 
-    -- Ищем игроков
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and isAlive(plr.Character) then
             if Flags.AimbotIgnoreTeam and isTeammate(plr) then continue end
-            
             local char = plr.Character
             local hum = char:FindFirstChildOfClass("Humanoid")
-            
             if Flags.AimbotIgnoreWounded and hum then
                 local hpPercent = (hum.Health / hum.MaxHealth) * 100
                 if hpPercent < Flags.AimbotIgnoreWoundedPercent then continue end
             end
-            
             local part = getBonePosition(char, Flags.AimbotBone)
             if part then
                 local dist = (part.Position - localPos).Magnitude
                 if dist > Flags.AimbotDistanceLimit then continue end
-                
                 local sp = fovWorldToViewport(part.Position)
                 if sp.Z > 0 then
                     local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
@@ -1395,7 +1401,6 @@ local function getClosestTarget()
         end
     end
 
-    -- NPC (если включено)
     if not Flags.AimbotIgnoreNPC then
         for _, model in ipairs(CC.Refs.NPCList or {}) do
             if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isNPCModel(model) then
@@ -1420,7 +1425,6 @@ local function getClosestTarget()
         end
     end
 
-    -- Animals (если включено)
     if not Flags.AimbotIgnoreAnimals then
         for _, model in ipairs(CC.Refs.AnimalList or {}) do
             if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isAnimalModel(model) then
@@ -1456,22 +1460,17 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
         return
     end
 
-    -- Обновляем цель
     local target, part = getClosestTarget()
-    
-    -- Auto Switch: если текущая цель умерла/потеряна, сразу берём новую
+
     if Flags.AimbotAutoSwitch then
         if not part then
-            -- Нет целей — сбрасываем
             CC.Refs.CurrentTarget = nil
             CC.Refs.CurrentTargetPart = nil
         else
-            -- Есть цель — обновляем
             CC.Refs.CurrentTarget = target
             CC.Refs.CurrentTargetPart = part
         end
     else
-        -- Auto Switch выключен: держим текущую цель, пока она не умрёт
         if not CC.Refs.CurrentTargetPart or not CC.Refs.CurrentTargetPart.Parent then
             CC.Refs.CurrentTarget = target
             CC.Refs.CurrentTargetPart = part
@@ -1488,7 +1487,6 @@ RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value,
         return
     end
 
-    -- Mouse Aimbot
     if Flags.AimbotType == "Mouse" then
         local camPos = Camera.CFrame.Position
         local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart)
@@ -1515,7 +1513,6 @@ drawTarget.Visible = false
 drawTarget.NumSides = 32
 
 RunService.RenderStepped:Connect(function()
-    -- Draw FOV
     if Flags.AimbotEnabled and Flags.AimbotDrawFOV then
         drawFOV.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         drawFOV.Radius = Flags.AimbotFOV
@@ -1525,7 +1522,6 @@ RunService.RenderStepped:Connect(function()
         drawFOV.Visible = false
     end
 
-    -- Draw Target
     if Flags.AimbotEnabled and Flags.AimbotDrawTarget and CC.Refs.CurrentTargetPart then
         local sp = fovWorldToViewport(CC.Refs.CurrentTargetPart.Position)
         if sp.Z > 0 then
@@ -1585,113 +1581,60 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== NO RECOIL =====
-local RECOIL_HOLD_TIME = 0.45
+-- ===== NO RECOIL (Стабильный, без багов) =====
+local noRecoilRenderConn = nil
+local noRecoilMotorCache = {}
 
-if hasHookMeta then
-    pcall(function()
-        local camIndex
-        camIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if self == Camera and key == "CFrame" and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
-                return camIndex(self, key, CC.Refs.lockedCamCF)
-            end
-            return camIndex(self, key, value)
-        end)
-    end)
+local function startNoRecoil()
+    if noRecoilRenderConn then noRecoilRenderConn:Disconnect() end
+    noRecoilMotorCache = {}
 
-    pcall(function()
-        local camIndexGet
-        camIndexGet = hookmetamethod(game, "__index", function(self, key)
-            if self == Camera and Flags.NoRecoil and CC.Refs.recoilActive and CC.Refs.lockedCamCF then
-                if key == "CFrame" then return CC.Refs.lockedCamCF end
+    noRecoilRenderConn = RunService.RenderStepped:Connect(function()
+        if not Flags.NoRecoil then return end
+        
+        local char = LP.Character
+        if not char then return end
+        
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+
+        if hum.CameraOffset.Magnitude > 0.001 then
+            hum.CameraOffset = Vector3.zero
+        end
+
+        local isShooting = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+        
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("Motor6D") then
+                if part.Name == "Neck" or part.Name == "RightShoulder" or part.Name == "LeftShoulder" then
+                    if isShooting then
+                        if not noRecoilMotorCache[part] then
+                            noRecoilMotorCache[part] = part.Transform
+                        end
+                        if part.Transform ~= noRecoilMotorCache[part] then
+                            part.Transform = noRecoilMotorCache[part]
+                        end
+                    else
+                        noRecoilMotorCache[part] = nil
+                    end
+                end
             end
-            return camIndexGet(self, key)
-        end)
+        end
     end)
 end
 
 local function stopNoRecoil()
-    if CC.Refs.noRecoilConn then
-        pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
-        CC.Refs.noRecoilConn = nil
+    if noRecoilRenderConn then
+        noRecoilRenderConn:Disconnect()
+        noRecoilRenderConn = nil
     end
-    if CC.Refs.noRecoilShotConn then pcall(function() CC.Refs.noRecoilShotConn:Disconnect() end); CC.Refs.noRecoilShotConn = nil end
-    CC.Refs.recoilActive = false; CC.Refs.lockedCamCF = nil
+    noRecoilMotorCache = {}
+    
     local char = LP.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then hum.CameraOffset = Vector3.zero end
-        for _, d in ipairs(char:GetDescendants()) do
-            if d:IsA("Motor6D") and CC.Refs.savedMotorTransforms[d] then d.Transform = CC.Refs.savedMotorTransforms[d] end
-        end
     end
-end
-
-local function startNoRecoil()
-    pcall(function() RunService:UnbindFromRenderStep("CloudNoRecoil") end)
-    if CC.Refs.noRecoilConn then return end
-    CC.Refs.noRecoilShotConn = UIS.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        CC.Refs.recoilLastInput = os.clock()
-        CC.Refs.recoilActive = false
-        CC.Refs.lockedCamCF = nil
-    end)
-    CC.Refs.noRecoilConn = RunService:BindToRenderStep("CloudNoRecoil", Enum.RenderPriority.Camera.Value + 1, function()
-        if not Flags.NoRecoil then stopNoRecoil(); return end
-        local char = LP.Character
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        local hum  = char and char:FindFirstChildOfClass("Humanoid")
-        local lmb  = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-        if lmb then CC.Refs.recoilLastInput = os.clock() end
-        local now      = os.clock()
-        local shooting = lmb and (now - CC.Refs.recoilLastInput <= RECOIL_HOLD_TIME)
-        if hum and hum.CameraOffset.Magnitude > 0.0001 then hum.CameraOffset = Vector3.zero end
-        if char then
-            for _, d in ipairs(char:GetDescendants()) do
-                if d:IsA("Motor6D") then
-                    if not CC.Refs.savedMotorTransforms[d] then CC.Refs.savedMotorTransforms[d] = d.Transform end
-                    if d.Transform ~= CC.Refs.savedMotorTransforms[d] then d.Transform = CC.Refs.savedMotorTransforms[d] end
-                end
-            end
-        end
-        if not shooting then
-            if CC.Refs.recoilActive then CC.Refs.recoilActive = false; CC.Refs.lockedCamCF = nil end
-            return
-        end
-        if not hrp then return end
-        if not CC.Refs.recoilActive or not CC.Refs.lockedCamCF then
-            CC.Refs.lockedCamCF  = Camera.CFrame
-            CC.Refs.recoilActive = true
-        else
-            local rel = hrp.CFrame:ToObjectSpace(CC.Refs.lockedCamCF)
-            CC.Refs.lockedCamCF = hrp.CFrame * rel
-        end
-        Camera.CFrame = CC.Refs.lockedCamCF
-    end)
-end
-
--- ===== RAPID FIRE =====
-local function applyRapidFire()
-    if CC.Refs.rapidFireConn then CC.Refs.rapidFireConn:Disconnect(); CC.Refs.rapidFireConn = nil end
-    if not Flags.RapidFire then return end
-    local lastShot = 0
-    CC.Refs.rapidFireConn = RunService.Heartbeat:Connect(function()
-        if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
-        if UI.Window.Gui and UI.Window.Gui.Enabled then return end
-        local now = os.clock()
-        if now - lastShot < (Flags.RapidFireDelay / 1000) then return end
-        lastShot = now
-        if mouse1click then pcall(mouse1click)
-        else
-            local vim = game:GetService("VirtualInputManager")
-            pcall(function()
-                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 1)
-                task.wait(0.01)
-                vim:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 1)
-            end)
-        end
-    end)
 end
 
 -- ===== ESP DRAWINGS (players) =====
@@ -2122,8 +2065,6 @@ CC.Refs.NPCList = {}
 CC.Refs.NPCDrawings = {}
 CC.Refs.NPCHighlights = {}
 
-local TARGET_NPC_NAME = "scientist"
-
 local function isPlayerChar(obj)
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character == obj then return true end
@@ -2131,27 +2072,37 @@ local function isPlayerChar(obj)
     return false
 end
 
-local function isTargetNPCName(name)
-    return string.lower(name) == TARGET_NPC_NAME
-end
-
 local function refreshNPCList()
     if not Flags.ESP_NPC then
         CC.Refs.NPCList = {}
         return
     end
+    
     local result = {}
-    local root = workspace:FindFirstChild("GeneratedMonuments")
-    if root then
-        for _, obj in ipairs(root:GetDescendants()) do
-            if obj:IsA("Model") and not isPlayerChar(obj) and isTargetNPCName(obj.Name) then
-                local hum = obj:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    result[#result+1] = obj
+    local seen = {}
+    
+    local rootFolders = {
+        workspace:FindFirstChild("GeneratedMonuments"),
+        workspace:FindFirstChild("Junkpiles")
+    }
+
+    for _, root in ipairs(rootFolders) do
+        if root then
+            for _, obj in ipairs(root:GetDescendants()) do
+                if obj:IsA("Model") and not isPlayerChar(obj) then
+                    local name = string.lower(obj.Name)
+                    if name == "scientist" then
+                        local hum = obj:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 and not seen[obj] then
+                            seen[obj] = true
+                            table.insert(result, obj)
+                        end
+                    end
                 end
             end
         end
     end
+    
     CC.Refs.NPCList = result
 end
 
@@ -2193,7 +2144,7 @@ local function updateNPCESP()
         hideAllNPC()
         return
     end
-    
+
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then hideAllNPC(); return end
     local localPos = localRoot.Position
@@ -2390,7 +2341,7 @@ local function updateAnimalESP()
         hideAllAnimals()
         return
     end
-    
+
     local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then hideAllAnimals(); return end
     local localPos = localRoot.Position
@@ -2530,11 +2481,40 @@ for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
 Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(removeDrawings)
 
--- ===== FPS/PING HUD =====
+-- ===== FPS/PING/ONLINE HUD =====
 local StatsService = game:GetService("Stats")
+local fpsCounter = 0
+local lastFpsCheck = os.clock()
+local currentFps = 0
+
+RunService.RenderStepped:Connect(function()
+    if Flags.FPSPing then
+        fpsCounter = fpsCounter + 1
+        local now = os.clock()
+        if now - lastFpsCheck >= 1 then
+            currentFps = fpsCounter
+            fpsCounter = 0
+            lastFpsCheck = now
+        end
+    else
+        fpsCounter = 0
+        currentFps = 0
+    end
+end)
 
 local function createHud()
-    CC.Refs.HudPanel = CC.Lib:CreateNewWindow({ Title = "Stats", Name = "CloudClientStats", Size = {220}, Minimizable = true })
+    CC.Refs.HudPanel = CC.Lib:CreateNewWindow({ 
+        Title = "Stats", 
+        Name = "CloudClientStats", 
+        Size = {220}, 
+        Minimizable = true,
+        Position = UDim2.new(1, -240, 0, 20),
+        OnClose = function()
+            if UI.Elements.statsHudToggle then
+                UI.Elements.statsHudToggle:Set(false)
+            end
+        end
+    })
     CC.Refs.HudPanel:AddHeader("Performance")
     CC.Refs.fpsRow  = CC.Refs.HudPanel:AddRow("FPS")
     CC.Refs.pingRow = CC.Refs.HudPanel:AddRow("Ping")
@@ -2544,35 +2524,148 @@ local function createHud()
     CC.Refs.posRow  = CC.Refs.HudPanel:AddRow("Position", { Style = "Vertical", AccentKey = "white", ValueColorKey = "text" })
     CC.Refs.HudPanel:AddSeparator()
     CC.Refs.HudPanel:AddHeader("Status")
-    CC.Refs.statusRow = CC.Refs.HudPanel:AddRow("State")
-    CC.Refs.statusRow:Set("Idle")
+    CC.Refs.onlineRow = CC.Refs.HudPanel:AddRow("Online")
+    CC.Refs.onlineRow:Set("0")
 end
 
 local function destroyHud()
     if CC.Refs.HudPanel then pcall(function() CC.Refs.HudPanel:Destroy() end); CC.Refs.HudPanel = nil end
-    CC.Refs.fpsRow, CC.Refs.pingRow, CC.Refs.hpRow, CC.Refs.posRow, CC.Refs.statusRow = nil, nil, nil, nil, nil
+    CC.Refs.fpsRow, CC.Refs.pingRow, CC.Refs.hpRow, CC.Refs.posRow, CC.Refs.onlineRow = nil, nil, nil, nil, nil
 end
 
 task.spawn(function()
     while true do
         if Flags.FPSPing then
             if not CC.Refs.HudPanel then createHud() end
-            CC.Refs.hudFrames = CC.Refs.hudFrames + 1
-            local now = os.clock()
-            if now - CC.Refs.hudLast >= 1 then
-                if CC.Refs.fpsRow then CC.Refs.fpsRow:Set(CC.Refs.hudFrames) end
-                CC.Refs.hudFrames, CC.Refs.hudLast = 0, now
-                local ok, ping = pcall(function() return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() end)
-                if CC.Refs.pingRow then CC.Refs.pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
+            
+            if CC.Refs.fpsRow then CC.Refs.fpsRow:Set(tostring(currentFps)) end
+            
+            local ok, ping = pcall(function() return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+            if CC.Refs.pingRow then CC.Refs.pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
+            
+            local char = LP.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum  = char and char:FindFirstChildOfClass("Humanoid")
+            
+            if root and CC.Refs.posRow then 
+                local p = root.Position
+                CC.Refs.posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z)) 
             end
-            local char = LP.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum  = char and char:FindFirstChildOfClass("Humanoid")
-            if root and CC.Refs.posRow then local p = root.Position; CC.Refs.posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z)) end
             if hum and CC.Refs.hpRow then CC.Refs.hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))) end
-            if CC.Refs.statusRow then CC.Refs.statusRow:Set(Flags.ESP and "ESP on" or "ESP off") end
-        elseif CC.Refs.HudPanel then destroyHud() end
-        task.wait(0.1)
+            if CC.Refs.onlineRow then CC.Refs.onlineRow:Set(tostring(#Players:GetPlayers())) end
+            
+        elseif CC.Refs.HudPanel then 
+            destroyHud() 
+        end
+        task.wait(0.2)
     end
 end)
+
+-- ===== BIND HUD =====
+local function getBindString(keyEnum)
+    if not keyEnum then return "NONE" end
+    if typeof(keyEnum) == "EnumItem" then
+        if keyEnum == Enum.KeyCode.Unknown or keyEnum == Enum.UserInputType.None then
+            return "NONE"
+        end
+        local name = keyEnum.Name
+        name = name:gsub("MouseButton", "M"):gsub("Left", "L"):gsub("Right", "R")
+        return name
+    end
+    return tostring(keyEnum)
+end
+
+local function createBindHud()
+    CC.Refs.BindHudPanel = CC.Lib:CreateNewWindow({ 
+        Title = "Binds", 
+        Name = "CloudClientBinds", 
+        Size = {240}, 
+        Minimizable = true,
+        Position = UDim2.new(1, -500, 0, 20),
+        OnClose = function()
+            if UI.Elements.bindHudToggle then
+                UI.Elements.bindHudToggle:Set(false)
+            end
+        end
+    })
+    
+    local body = CC.Refs.BindHudPanel.Body or CC.Refs.BindHudPanel.Gui:FindFirstChild("Body", true) or CC.Refs.BindHudPanel.Gui
+
+    local container = Instance.new("Frame")
+    container.Name = "CustomBindList"
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, -24, 0, 0)
+    container.Position = UDim2.new(0, 12, 0, 45)
+    container.AutomaticSize = Enum.AutomaticSize.Y
+    container.ZIndex = 10
+    container.Parent = body
+    
+    local layout = Instance.new("UIListLayout", container)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 4)
+
+    local function updateBinds()
+        if not CC.Refs.BindHudPanel or not container.Parent then return end
+        
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("TextLabel") then
+                child:Destroy()
+            end
+        end
+
+        local function safeGet(elem)
+            if elem and elem.Get then return elem:Get() end
+            return nil
+        end
+
+        local function drawRow(name, state, keyEnum)
+            local bindStr = getBindString(keyEnum)
+            
+            local row = Instance.new("TextLabel")
+            row.Size = UDim2.new(1, 0, 0, 20)
+            row.BackgroundTransparency = 1
+            row.Font = Enum.Font.BuilderSansMedium
+            row.TextSize = 12
+            row.TextXAlignment = Enum.TextXAlignment.Left
+            row.TextColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(150, 150, 150)
+            row.Text = string.format("%s [%s]", name, bindStr)
+            row.Parent = container
+            
+            local statusLbl = Instance.new("TextLabel")
+            statusLbl.Size = UDim2.new(0.4, 0, 1, 0)
+            statusLbl.Position = UDim2.new(0.6, 0, 0, 0)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Font = Enum.Font.BuilderSansBold
+            statusLbl.TextSize = 12
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Right
+            statusLbl.TextColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+            statusLbl.Text = state and "ON" or "OFF"
+            statusLbl.Parent = row
+        end
+
+        drawRow("ESP", Flags.ESP, safeGet(UI.Elements.keybindESP))
+        drawRow("Aimbot", Flags.AimbotEnabled, Flags.AimbotKey)
+        drawRow("FreeCam", Flags.FreeCam, safeGet(UI.Elements.keybindFreecam))
+        drawRow("No Recoil", Flags.NoRecoil, safeGet(UI.Elements.keybindNoRecoil))
+        drawRow("FOV", Flags.FOVEnabled, safeGet(UI.Elements.keybindFOV))
+        drawRow("Spider", Flags.Spider, safeGet(UI.Elements.keybindSpider))
+        drawRow("Fullbright", Flags.Fullbright, safeGet(UI.Elements.keybindFullbright))
+        drawRow("Cam Zoom", Flags.CameraZoom, safeGet(UI.Elements.keybindCameraZoom))
+        drawRow("Walls", Flags.RemoveConstructions, safeGet(UI.Elements.keybindRemoveConstructions))
+    end
+
+    task.spawn(function()
+        task.wait(1)
+        while CC.Refs.BindHudPanel do
+            pcall(updateBinds)
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function destroyBindHud()
+    if CC.Refs.BindHudPanel then pcall(function() CC.Refs.BindHudPanel:Destroy() end); CC.Refs.BindHudPanel = nil end
+end
 
 -- ===== MAIN LOOP =====
 RunService.RenderStepped:Connect(function()
@@ -2587,40 +2680,50 @@ end)
 -- ===== UI: AIMBOT =====
 UI.Tabs.Aimbot = UI.Window:AddTab("Aimbot", "crosshair")
 
+UI.Tabs.Aimbot:AddLabel("AIMBOT SYSTEM", "crosshair")
+UI.Tabs.Aimbot:AddSeparator()
+
 UI.Elements.aimbotEnabled = UI.Tabs.Aimbot:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotEnabled=s end})
 UI.Elements.aimbotType = UI.Tabs.Aimbot:AddDropdown({Title="Aimbot Type", Icon="layers", Options={"Mouse", "Silent"}, Default="Mouse", Callback=function(v) Flags.AimbotType=v end})
 UI.Elements.aimbotBone = UI.Tabs.Aimbot:AddDropdown({Title="Bone", Icon="user", Options={"Nearest", "Head", "Chest", "Pelvis"}, Default="Head", Callback=function(v) Flags.AimbotBone=v end})
-UI.Elements.aimbotIgnoreTeam = UI.Tabs.Aimbot:AddToggle({Title="Ignore Team", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreTeam=s end})
-UI.Elements.aimbotIgnoreSleepers = UI.Tabs.Aimbot:AddToggle({Title="Ignore Sleepers", Icon="bed", Default=true, Callback=function(s) Flags.AimbotIgnoreSleepers=s end})
-UI.Elements.aimbotIgnoreNPC = UI.Tabs.Aimbot:AddToggle({Title="Ignore NPC", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreNPC=s end})
-UI.Elements.aimbotIgnoreAnimals = UI.Tabs.Aimbot:AddToggle({Title="Ignore Animals", Icon="paw-print", Default=true, Callback=function(s) Flags.AimbotIgnoreAnimals=s end})
-UI.Elements.aimbotIgnoreWounded = UI.Tabs.Aimbot:AddToggle({Title="Ignore Wounded", Icon="heart", Default=false, Callback=function(s) Flags.AimbotIgnoreWounded=s end})
-UI.Elements.aimbotIgnoreWoundedPercent = UI.Tabs.Aimbot:AddSlider({Title="Ignore Wounded %", Icon="percent", Min=1, Max=99, Default=30, Callback=function(v) Flags.AimbotIgnoreWoundedPercent=v end})
+UI.Elements.aimbotKey = UI.Tabs.Aimbot:AddDropdown({Title="Aim Key", Icon="mouse-pointer", Options={"MouseButton2","MouseButton1","LeftShift","Q","E","C"}, Default="MouseButton2", Callback=function(s) Flags.AimbotKey = Enum.UserInputType[s] or Enum.KeyCode[s] or Enum.UserInputType.MouseButton2 end})
 UI.Elements.aimbotVisibleCheck = UI.Tabs.Aimbot:AddToggle({Title="Visible Check", Icon="eye", Default=true, Callback=function(s) Flags.AimbotVisibleCheck=s end})
+UI.Elements.aimbotAutoSwitch = UI.Tabs.Aimbot:AddToggle({Title="Auto Switch", Icon="repeat", Default=true, Callback=function(s) Flags.AimbotAutoSwitch=s end})
+
+UI.Tabs.Aimbot:AddSeparator()
+
 UI.Elements.aimbotFOV = UI.Tabs.Aimbot:AddSlider({Title="Target FOV", Icon="circle", Min=1, Max=400, Default=120, Callback=function(v) Flags.AimbotFOV=v end})
 UI.Elements.aimbotSmooth = UI.Tabs.Aimbot:AddSlider({Title="Mouse Aimbot Time", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimbotSmooth=v end})
-UI.Elements.aimbotPrediction = UI.Tabs.Aimbot:AddSlider({Title="Aim Prediction", Icon="trending-up", Min=0, Max=1, Default=0, Callback=function(v) Flags.AimbotPrediction=v end})
+UI.Elements.aimbotPrediction = UI.Tabs.Aimbot:AddSlider({Title="Aim Prediction", Subtitle="0=выкл · 1=норма · >1 если промах перед целью", Icon="trending-up", Min=0, Max=2, Step=0.1, Default=1.0, Callback=function(v) Flags.AimbotPrediction=v end})
+UI.Elements.aimbotBulletSpeed = UI.Tabs.Aimbot:AddSlider({Title="Bullet Speed", Subtitle="Лук ~90 · Ревик ~450 · Автомат ~375", Icon="wind", Min=50, Max=800, Step=25, Default=450, Callback=function(v) Flags.AimbotBulletSpeed=v end})
 UI.Elements.aimbotHitChance = UI.Tabs.Aimbot:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.AimbotHitChance=v end})
-UI.Elements.aimbotDistanceLimit = UI.Tabs.Aimbot:AddSlider({Title="Distance Limit", Icon="ruler", Min=1, Max=400, Default=400, Callback=function(v) Flags.AimbotDistanceLimit=v end})
+UI.Elements.aimbotDistanceLimit = UI.Tabs.Aimbot:AddSlider({Title="Distance Limit", Icon="ruler", Min=1, Max=600, Default=400, Callback=function(v) Flags.AimbotDistanceLimit=v end})
+
+UI.Tabs.Aimbot:AddSeparator()
+
 UI.Elements.aimbotDrawFOV = UI.Tabs.Aimbot:AddToggle({Title="Draw FOV", Icon="circle", Default=false, Callback=function(s) Flags.AimbotDrawFOV=s end})
 UI.Elements.aimbotDrawFOVColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw FOV Color", Icon="palette", Default=Flags.AimbotDrawFOVColor, Callback=function(c) Flags.AimbotDrawFOVColor=c end})
 UI.Elements.aimbotDrawTarget = UI.Tabs.Aimbot:AddToggle({Title="Draw Target", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotDrawTarget=s end})
 UI.Elements.aimbotDrawTargetColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw Target Color", Icon="palette", Default=Flags.AimbotDrawTargetColor, Callback=function(c) Flags.AimbotDrawTargetColor=c end})
-UI.Elements.aimbotAutoSwitch = UI.Tabs.Aimbot:AddToggle({Title="Auto Switch", Icon="repeat", Default=true, Callback=function(s) Flags.AimbotAutoSwitch=s end})
-UI.Elements.aimbotDebug = UI.Tabs.Aimbot:AddToggle({Title="Debug (print)", Icon="terminal", Default=false, Callback=function(s) Flags.AimbotDebug=s end})
-UI.Elements.aimbotKey = UI.Tabs.Aimbot:AddDropdown({Title="Aim Key", Icon="mouse-pointer", Options={"MouseButton2","MouseButton1","LeftShift","Q","E","C"}, Default="MouseButton2", Callback=function(s) Flags.AimbotKey = Enum.UserInputType[s] or Enum.KeyCode[s] or Enum.UserInputType.MouseButton2 end})
 
-UI.Tabs.Aimbot:AddSeparator(); UI.Tabs.Aimbot:AddLabel("HITBOX EXPANDER", "box"); UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddLabel("IGNORE", "users")
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.aimbotIgnoreTeam = UI.Tabs.Aimbot:AddToggle({Title="Ignore Team", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreTeam=s end})
+UI.Elements.aimbotIgnoreSleepers = UI.Tabs.Aimbot:AddToggle({Title="Ignore Sleepers", Icon="bed", Default=true, Callback=function(s) Flags.AimbotIgnoreSleepers=s end})
+UI.Elements.aimbotIgnoreNPC = UI.Tabs.Aimbot:AddToggle({Title="Ignore NPC", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreNPC=s end})
+UI.Elements.aimbotIgnoreAnimals = UI.Tabs.Aimbot:AddToggle({Title="Ignore Animals", Icon="paw-print", Default=true, Callback=function(s) Flags.AimbotIgnoreAnimals=s end})
+UI.Elements.aimbotIgnoreWounded = UI.Tabs.Aimbot:AddToggle({Title="Ignore Wounded", Icon="heart", Default=true, Callback=function(s) Flags.AimbotIgnoreWounded=s end})
+UI.Elements.aimbotIgnoreWoundedPercent = UI.Tabs.Aimbot:AddSlider({Title="Ignore Wounded %", Icon="percent", Min=1, Max=99, Default=30, Callback=function(v) Flags.AimbotIgnoreWoundedPercent=v end})
+
+UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddLabel("HITBOX EXPANDER", "box")
+UI.Tabs.Aimbot:AddSeparator()
 
 UI.Elements.hitboxToggle = UI.Tabs.Aimbot:AddToggle({Title="Hitbox Expander", Icon="box", Default=false, Callback=function(s) Flags.HitboxEnabled=s; if not s then restoreAllHitboxes() end end})
-UI.Elements.hitboxSizeSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Default=2, Callback=function(v) Flags.HitboxSize=v end})
+UI.Elements.hitboxSizeSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Step=0.1, Default=2, Callback=function(v) Flags.HitboxSize=v end})
 UI.Elements.hitboxTranspSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
-
-UI.Tabs.Aimbot:AddSeparator(); UI.Tabs.Aimbot:AddLabel("COMBAT", "target"); UI.Tabs.Aimbot:AddSeparator()
-
-UI.Elements.noRecoilToggle = UI.Tabs.Aimbot:AddToggle({ Title="No Recoil", Subtitle="Компенсация отдачи без ломки ходьбы", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
-UI.Elements.rapidFireToggle = UI.Tabs.Aimbot:AddToggle({Title="Rapid Fire", Subtitle="Авто-выстрел при зажатии ЛКМ", Icon="zap", Default=false, Callback=function(s) Flags.RapidFire=s; applyRapidFire() end})
-UI.Elements.rapidFireDelaySlider = UI.Tabs.Aimbot:AddSlider({Title="Rapid Fire Delay (ms)", Icon="clock", Min=10, Max=300, Default=50, Callback=function(v) Flags.RapidFireDelay=v; if Flags.RapidFire then applyRapidFire() end end})
 
 -- ===== UI: VISUALS =====
 UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "eye")
@@ -2642,7 +2745,13 @@ UI.Elements.espColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Esp Color", 
     end
 end})
 UI.Elements.espModeDropdown = UI.Tabs.Visuals:AddDropdown({Title="Esp Player Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.keybindESP = UI.Tabs.Visuals:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
+
+UI.Tabs.Visuals:AddSeparator()
+
 UI.Elements.espDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance Player", Icon="ruler", Min=250, Max=2500, Default=Flags.MaxDistance, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+
+UI.Tabs.Visuals:AddSeparator()
 
 UI.Elements.sleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Sleeper", Icon="bed", Default=false, Callback=function(s) Flags.ESP_Sleeper=s end})
 UI.Elements.sleeperColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Color Sleeper", Icon="palette", Default=Flags.SleeperColor, Callback=function(c)
@@ -2890,6 +2999,25 @@ UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind",
 
 UI.Tabs.Misc:AddSeparator()
 
+-- NO RECOIL
+UI.Elements.noRecoilToggle = UI.Tabs.Misc:AddToggle({ 
+    Title="No Recoil", 
+    Subtitle="Стрельба на ходу без тряски", 
+    Icon="target", 
+    Default=false, 
+    Callback=function(s) 
+        Flags.NoRecoil = s
+        if s then 
+            startNoRecoil() 
+        else 
+            stopNoRecoil() 
+        end 
+    end 
+})
+UI.Elements.keybindNoRecoil = UI.Tabs.Misc:AddKeybind({Title = "No Recoil Keybind", Icon = "keyboard", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
+
+UI.Tabs.Misc:AddSeparator()
+
 UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
 UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
 
@@ -3017,14 +3145,25 @@ UI.Tabs.Settings:AddDropdown({Title="Accent Color", Icon="droplet", Options={"Wh
 end})
 
 UI.Tabs.Settings:AddSeparator()
-UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing=s end})
+UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) 
+    Flags.FPSPing = s
+    if s then 
+        if not CC.Refs.HudPanel then createHud() end
+    else
+        destroyHud()
+    end
+end})
+UI.Elements.bindHudToggle = UI.Tabs.Settings:AddToggle({Title="Bind HUD", Icon="list", Default=false, Callback=function(s) 
+    Flags.BindHUD = s
+    if s then 
+        if not CC.Refs.BindHudPanel then createBindHud() end
+    else
+        destroyBindHud()
+    end
+end})
 
 UI.Tabs.Settings:AddSeparator(); UI.Tabs.Settings:AddLabel("KEYBINDS", "keyboard"); UI.Tabs.Settings:AddSeparator()
 
-UI.Elements.keybindESP = UI.Tabs.Settings:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
-UI.Elements.keybindTrigger = UI.Tabs.Settings:AddKeybind({Title = "Trigger Bot Keybind", Icon = "crosshair", Callback = function() UI.Elements.triggerBotToggle:Set(not Flags.TriggerBot) end})
-UI.Elements.keybindHitbox = UI.Tabs.Settings:AddKeybind({Title = "Hitbox Keybind", Icon = "box", Callback = function() UI.Elements.hitboxToggle:Set(not Flags.HitboxEnabled) end})
-UI.Elements.keybindNoRecoil = UI.Tabs.Settings:AddKeybind({Title = "No Recoil Keybind", Icon = "target", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
 UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -3059,6 +3198,7 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("AimbotFOV", UI.Elements.aimbotFOV)
     cfg:RegisterElement("AimbotSmooth", UI.Elements.aimbotSmooth)
     cfg:RegisterElement("AimbotPrediction", UI.Elements.aimbotPrediction)
+    cfg:RegisterElement("AimbotBulletSpeed", UI.Elements.aimbotBulletSpeed)
     cfg:RegisterElement("AimbotHitChance", UI.Elements.aimbotHitChance)
     cfg:RegisterElement("AimbotDistanceLimit", UI.Elements.aimbotDistanceLimit)
     cfg:RegisterElement("AimbotDrawFOV", UI.Elements.aimbotDrawFOV)
@@ -3066,7 +3206,6 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("AimbotDrawTarget", UI.Elements.aimbotDrawTarget)
     cfg:RegisterElement("AimbotDrawTargetColor", UI.Elements.aimbotDrawTargetColor)
     cfg:RegisterElement("AimbotAutoSwitch", UI.Elements.aimbotAutoSwitch)
-    cfg:RegisterElement("AimbotDebug", UI.Elements.aimbotDebug)
     cfg:RegisterElement("AimbotKey", UI.Elements.aimbotKey)
 
     cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
@@ -3134,16 +3273,13 @@ UI.buildConfig = function(name)
     cfg:RegisterElement("FOVEnabled", UI.Elements.fovToggle)
     cfg:RegisterElement("FOVValue", UI.Elements.fovSlider)
     cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
-    cfg:RegisterElement("RapidFire", UI.Elements.rapidFireToggle)
-    cfg:RegisterElement("RapidFireDelay", UI.Elements.rapidFireDelaySlider)
 
     cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
+    cfg:RegisterElement("BindHUD", UI.Elements.bindHudToggle)
 
+    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
     cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
     cfg:RegisterElement("BindCameraZoom", UI.Elements.keybindCameraZoom)
-    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
-    cfg:RegisterElement("BindTrigger",    UI.Elements.keybindTrigger)
-    cfg:RegisterElement("BindHitbox",     UI.Elements.keybindHitbox)
     cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
     cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
 
@@ -3190,7 +3326,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
         else if CC.Refs.freecamConn then stopFreeCam() end end
         if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
-        applyRapidFire()
         if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
         if Flags.Spider then toggleSpider(true) else toggleSpider(false) end
 
@@ -3256,6 +3391,9 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
         if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
         elseif Flags.FPSPing and not CC.Refs.HudPanel then createHud() end
+        
+        if not Flags.BindHUD and CC.Refs.BindHudPanel then destroyBindHud()
+        elseif Flags.BindHUD and not CC.Refs.BindHudPanel then createBindHud() end
 
         UI.Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
     end)
