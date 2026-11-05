@@ -1,5 +1,5 @@
 {
-  "CLOUD-FOX-0001": { "name": "Fox", "hwid": "BANNED", "expires": 0 },
-  "CLOUD-JACK-0002": { "name": "Jack", "hwid": "", "expires": 1735689600 },
-  "CLOUD-TEST-0003": { "name": "Test", "hwid": "123456789", "expires": 0 }
+  "CLOUD-DLC-1337":  { "name": "Fox",   "hwid": "", "expires": 1736467200 },
+  "CLOUD-HUMAN-1488": { "name": "Jack",  "hwid": "", "expires": 1736467200 },
+  "CLOUD-TEST-0003": { "name": "Test",  "hwid": "", "expires": 1737072000 }
 }
