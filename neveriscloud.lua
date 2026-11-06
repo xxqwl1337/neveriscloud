@@ -1,7 +1,7 @@
 --[[
     VELCLOUD.XD — Aimbot + Visuals + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.7 (Smart Aimbot System)
+    BUILD: v0.7.1 (Anti-Kick Update)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -19,7 +19,7 @@ local UI = CC.UI
 -- ===== KEY SYSTEM =====
 local KEY_FILE = "velcloud_key.txt"
 local MY_USERID = tostring(game:GetService("Players").LocalPlayer.UserId)
-local MY_VERSION = "0.7"
+local MY_VERSION = "0.7.1"
 
 _G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "не активирован", expires = 0 }
 
@@ -94,7 +94,7 @@ local function promptForKey()
     sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999
     sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(400, 220); frame.Position = UDim2.fromScale(0.5, 0.5)
+    frame.Size = UDim2.fromOffset(400, 260); frame.Position = UDim2.fromScale(0.5, 0.5)
     frame.AnchorPoint = Vector2.new(0.5, 0.5); frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     frame.BorderSizePixel = 0; frame.Parent = sg
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
@@ -112,17 +112,27 @@ local function promptForKey()
     box.Font = Enum.Font.Code; box.TextSize = 14; box.ClearTextOnFocus = false; box.Text = ""
     box.Parent = frame
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+    
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -24, 0, 36); btn.Position = UDim2.fromOffset(12, 100)
+    btn.Size = UDim2.new(0.6, -12, 0, 36); btn.Position = UDim2.fromOffset(12, 100)
     btn.BackgroundColor3 = Color3.fromRGB(80, 200, 120); btn.TextColor3 = Color3.new(0,0,0)
     btn.Font = Enum.Font.BuilderSansBold; btn.TextSize = 14; btn.Text = "Активировать"; btn.Parent = frame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local cancelBtn = Instance.new("TextButton")
+    cancelBtn.Size = UDim2.new(0.4, -12, 0, 36); cancelBtn.Position = UDim2.fromOffset(12 + (0.6 * 400), 100)
+    cancelBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60); cancelBtn.TextColor3 = Color3.new(1,1,1)
+    cancelBtn.Font = Enum.Font.BuilderSansBold; cancelBtn.TextSize = 14; cancelBtn.Text = "Отмена"; cancelBtn.Parent = frame
+    Instance.new("UICorner", cancelBtn).CornerRadius = UDim.new(0, 6)
+
     local status = Instance.new("TextLabel")
     status.Size = UDim2.new(1, -24, 0, 40); status.Position = UDim2.fromOffset(12, 148)
     status.BackgroundTransparency = 1; status.Text = ""; status.TextColor3 = Color3.fromRGB(255, 100, 100)
     status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12; status.TextWrapped = true
     status.TextXAlignment = Enum.TextXAlignment.Left; status.Parent = frame
+    
     local result = nil; local failCount = 0; local isLocked = false
+    
     local function tryActivate()
         if isLocked then return end
         local k = box.Text
@@ -146,8 +156,11 @@ local function promptForKey()
             end
         end
     end
+    
     btn.MouseButton1Click:Connect(tryActivate)
     box.FocusLost:Connect(function(enter) if enter then tryActivate() end end)
+    cancelBtn.MouseButton1Click:Connect(function() sg:Destroy(); result = "CANCEL" end)
+
     while sg.Parent and not result do task.wait(0.1) end
     return result
 end
@@ -164,17 +177,22 @@ local function requireKey()
     local isQuickOk, localExpires, savedKey = quickLocalCheck()
     if isQuickOk then
         local keys = fetchKeys()
-        if not keys then _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = localExpires }; return true end
+        if not keys then 
+            warn("[velcloud.xd] Нет интернета. Запуск в оффлайн-режиме.")
+            _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = localExpires }; return true 
+        end
         local ok, entryOrReason = validateKey(savedKey, keys)
         if ok then _G.VelcloudKeyState = { key = nil, name = entryOrReason.name, valid = true, reason = "OK", expires = entryOrReason.expires }; saveSessionKey(savedKey, MY_USERID, entryOrReason.expires); return true
         else print("[velcloud.xd] Сохраненный ключ отклонён сервером: " .. tostring(entryOrReason)); deleteSavedKey() end
     end
+    
     local keys = fetchKeys()
     if not keys then 
-        warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Включаем оффлайн режим.")
+        warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Принудительный оффлайн-режим.")
         _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = 0 }
-        return true -- ПУСКАЕМ БЕЗ ИНТЕРНЕТА
+        return true 
     end
+    
     local savedHash, savedUid, savedExpires, savedKey2 = loadSessionKey()
     if savedHash and savedUid and savedKey2 then
         if savedUid ~= MY_USERID then print("[velcloud.xd] Файл ключа принадлежит другому аккаунту. Удаляем."); deleteSavedKey()
@@ -184,16 +202,20 @@ local function requireKey()
             else deleteSavedKey() end
         end
     end
-    while true do
-        local entered = promptForKey()
-        if not entered then _G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено", expires = 0 }; return false end
-        keys = fetchKeys() or keys
-        local ok, entry = validateKey(entered, keys)
-        if ok then saveSessionKey(entered, MY_USERID, entry.expires); _G.VelcloudKeyState = { key = nil, name = entry.name, valid = true, reason = "OK", expires = entry.expires }; return true
-        else print("[velcloud.xd] Ключ отклонён: " .. tostring(entry)); deleteSavedKey() end
+    
+    local entered = promptForKey()
+    if not entered or entered == "CANCEL" then 
+        _G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено", expires = 0 }; 
+        return false 
     end
+    
+    keys = fetchKeys() or keys
+    local ok, entry = validateKey(entered, keys)
+    if ok then saveSessionKey(entered, MY_USERID, entry.expires); _G.VelcloudKeyState = { key = nil, name = entry.name, valid = true, reason = "OK", expires = entry.expires }; return true
+    else print("[velcloud.xd] Ключ отклонён: " .. tostring(entry)); deleteSavedKey(); return false end
 end
 
+-- ТУТ УБРАН KICK, ПРОСТО RETURN
 if not requireKey() then return end
 
 local function keyRemainingText()
@@ -222,9 +244,9 @@ UI.Window = CC.Lib:CreateWindow({
     LogoID = 110034487018208, Size = {820, 480},
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2")
-UI.Window:CreateTag("v0.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("v0.7.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
-UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.7 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.7.1 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
