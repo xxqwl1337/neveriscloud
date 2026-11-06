@@ -684,7 +684,7 @@ local function makeToggle(parent, initialState, guard)
 end
 
 
-local function makeSlider(parent, minV, maxV, defaultV)
+local function makeSlider(parent, minV, maxV, defaultV, stepV)
 	local val = defaultV or minV
 	local TRACK_H = 5
 	local KNOB_S  = 16
@@ -717,10 +717,14 @@ local function makeSlider(parent, minV, maxV, defaultV)
 	rnd(knobF,99)
 
 	local function setValue(v, silent, fromDrag)
-		local nv = math.clamp(v, minV, maxV)
-		-- dragging fires on every mouse move, skip when the value did not change
-		if fromDrag and nv == val then return end
-		val = nv
+    	local nv = math.clamp(v, minV, maxV)
+    	if stepV and stepV > 0 then
+        	nv = math.floor((nv - minV) / stepV + 0.5) * stepV + minV
+        	nv = math.clamp(nv, minV, maxV)
+    	end
+    	-- dragging fires on every mouse move, skip when the value did not change
+    	if fromDrag and nv == val then return end
+    	val = nv
 		local pct = (val-minV)/(maxV-minV)
 		fill.Size = UDim2.new(pct,0,1,0)
 		knobF.Position = UDim2.new(pct, 0, 0.5, 0)
@@ -3062,7 +3066,7 @@ function VantixUI:CreateWindow(config)
 		function Tab:AddSlider(opts)
 			opts = opts or {}
 			local r = makeSliderRow(opts.Title or "Slider", opts.Icon, opts.Risky, opts.Tooltip, opts.Beta)
-			local sl = makeSlider(r, opts.Min or 0, opts.Max or 100, opts.Default or 0)
+			local sl = makeSlider(r, opts.Min or 0, opts.Max or 100, opts.Default or 0, opts.Step)
 			sl.frame.Position = UDim2.new(0,ROW_PAD,0,30)
 			sl.frame.Size     = UDim2.new(1,-ROW_PAD*2,sl.frame.Size.Y.Scale,sl.frame.Size.Y.Offset)
 			sl.frame.ZIndex   = 8
