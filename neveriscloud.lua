@@ -170,7 +170,11 @@ local function requireKey()
         else print("[velcloud.xd] Сохраненный ключ отклонён сервером: " .. tostring(entryOrReason)); deleteSavedKey() end
     end
     local keys = fetchKeys()
-    if not keys then warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Проверь интернет."); game:GetService("Players").LocalPlayer:Kick("velcloud.xd: не удалось проверить лицензию (нет интернета)"); return false end
+    if not keys then 
+        warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Включаем оффлайн режим.")
+        _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = 0 }
+        return true -- ПУСКАЕМ БЕЗ ИНТЕРНЕТА
+    end
     local savedHash, savedUid, savedExpires, savedKey2 = loadSessionKey()
     if savedHash and savedUid and savedKey2 then
         if savedUid ~= MY_USERID then print("[velcloud.xd] Файл ключа принадлежит другому аккаунту. Удаляем."); deleteSavedKey()
