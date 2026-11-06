@@ -218,9 +218,8 @@ UI.Window = CC.Lib:CreateWindow({
     LogoID = 110034487018208, Size = {820, 480},
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2")
-UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
 UI.Window:CreateTag("v0.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
-UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
+UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
 UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.7 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
