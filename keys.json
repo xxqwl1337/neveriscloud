@@ -1,5 +1,5 @@
 {
-  "CLOUD-DLC-1337":  { "name": "Abibek",   "hwid": "", "expires": 1794528000, "min_version": "0.7" },
-  "CLOUD-HUMAN-1488": { "name": "Jack",  "hwid": "123", "expires": 1794528000, "min_version": "0.7" },
-  "CLOUD-TEST-0003": { "name": "Test",  "hwid": "123", "expires": 1794528000, "min_version": "0.7" }
+  "CLOUD-DLC-1337":  { "name": "Abibek",   "hwid": "3182097895", "expires": 1794528000, "min_version": "0.7" },
+  "CLOUD-AXSIZE-1337": { "name": "axsize",  "hwid": "10671191189", "expires": 1794528000, "min_version": "0.7" },
+  "CLOUD-HUMAN-1488": { "name": "human",  "hwid": "8211733333", "expires": 1794528000, "min_version": "0.7" }
 }
