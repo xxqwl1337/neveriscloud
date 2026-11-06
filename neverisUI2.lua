@@ -52,7 +52,7 @@ local BETA   = Color3.fromRGB(235, 190, 60)
 local ROW_PAD = 14
 
 local THEMES = {
-	Vantix = {
+	Black = {
 		black    = Color3.fromRGB(0,   0,   0  ),
 		bg       = Color3.fromRGB(18,  18,  18 ),
 		surface  = Color3.fromRGB(24,  24,  24 ),
@@ -148,7 +148,7 @@ local THEMES = {
 		logoBot  = Color3.fromRGB(50,  70,  20 ),
 	},
 
-	VantixBlue = {
+	VelcloudBlue = {
 		black    = Color3.fromRGB(0,   10,  20 ),
 		bg       = Color3.fromRGB(10,  30,  50 ),
 		surface  = Color3.fromRGB(14,  40,  65 ),
@@ -212,7 +212,7 @@ local THEMES = {
 		logoBot  = Color3.fromRGB(120, 50,  60 ),
 	},
 
-	Light = {
+	Velcloud = {
 		black    = Color3.fromRGB(220, 220, 220),
 		bg       = Color3.fromRGB(245, 245, 248),
 		surface  = Color3.fromRGB(235, 235, 240),
@@ -357,7 +357,7 @@ local THEMES = {
 	},
 }
 
-local activeThemeName = "Vantix"
+local activeThemeName = "Velcloud"
 local K = {}
 for k, v in pairs(THEMES.Vantix) do
 	K[k] = v
