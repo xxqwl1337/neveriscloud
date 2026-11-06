@@ -51,8 +51,6 @@ local RISKY  = Color3.fromRGB(235, 80, 80)
 local BETA   = Color3.fromRGB(235, 190, 60)
 local ROW_PAD = 14
 
-local _allToggleUpdates = {}
-
 local THEMES = {
 	Black = {
 		black    = Color3.fromRGB(0,   0,   0  ),
@@ -411,15 +409,6 @@ local function setTheme(themeName)
 		K[k] = v
 	end
 	refreshThemeUpdaters()
-	for _, item in ipairs(ALL_TOGGLE_FRAMES) do
-        if item.track and item.track.Parent and item.knob and item.knob.Parent then
-            local s = item.getState()
-            local tc = s and K.white or K.raised
-            local kc = s and K.black or K.white
-            item.track.BackgroundColor3 = tc
-            item.knob.BackgroundColor3 = kc
-        end
-    end
 end
 
 local function shade(color, factor)
@@ -669,8 +658,6 @@ local function makeToggle(parent, initialState, guard)
 			knob.BackgroundColor3=kc
 		end
 	end
-
-	table.insert(ALL_TOGGLE_FRAMES, { track = track, knob = knob, getState = function() return state end })
 
 	registerThemeUpdater(function()
 		update(state, false)
