@@ -1,4901 +1,1962 @@
 --[[
-███████╗██╗   ██╗██╗██╗         █████╗ ██╗  ██╗███████╗
-██╔════╝██║   ██║██║██║        ██╔══██╗╚██╗██╔╝██╔════╝
-█████╗  ██║   ██║██║██║        ███████║ ╚███╔╝ █████╗
-██╔══╝  ╚██╗ ██╔╝██║██║        ██╔══██║ ██╔██╗ ██╔══╝
-███████╗ ╚████╔╝ ██║███████╗   ██║  ██║██╔╝ ██╗███████╗
-╚══════╝  ╚═══╝  ╚═╝╚══════╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
---]]
+    VELCLOUD.XD — Aimbot + Visuals + FreeCam + Crosshair + Config
+    Архитектура: Табличная (_G.CC)
+    BUILD: v0.7 (Smart Aimbot System)
+]]
 
+-- ===== ГЛАВНАЯ ТАБЛИЦА =====
 _G.CC = {
-		Flags = {},
-		UI = { Tabs = {}, Elements = {} },
-		Refs = {},
-		Lib = nil,
-	};
-local E = _G.CC;
-local H = E.Flags;
-local z = E.UI;
-local i = "velcloud_key.txt";
-local c = tostring((game:GetService("Players")).LocalPlayer.UserId);
-local a = "0.7";
-_G.VelcloudKeyState = {
-		key = nil,
-		name = nil,
-		valid = false,
-		reason = "?? ???????????",
-		expires = 0,
-	};
-local function q(E)
-	local H = 0;
-	for z = 1, #E, 1 do
-		H = ((H * 31 + string.byte(E, z))) % 2147483647;
-	end;
-	return tostring(H);
-end;
-local function d()
-	local E = math.random(100000, 999999);
-	local H = "https://api.github.com/repos/xxqwl1337/neveriscloud/contents/keys.json?ref=main&t=" .. (os.time() .. ("&r=" .. E));
-	local z, i = pcall(function()
-			return game:HttpGet(H);
-		end);
-	if not z or not i then
-		return nil;
-	end;
-	local c, a = pcall(function()
-			return (game:GetService("HttpService")):JSONDecode(i);
-		end);
-	if not c or not a or not a.content then
-		return nil;
-	end;
-	local q, d = pcall(function()
-			return (game:GetService("HttpService")):Base64Decode((a.content:gsub("%s+", "")));
-		end);
-	if not q or not d then
-		return nil;
-	end;
-	local Z, C = pcall(function()
-			return (game:GetService("HttpService")):JSONDecode(d);
-		end);
-	if not Z or not C then
-		return nil;
-	end;
-	return C;
-end;
-local function Z(E, H)
-	if not E or E == "" then
-		return false, "?????? ????", false;
-	end;
-	local z = H[E];
-	if not z then
-		return false, "???? ?? ?????? (?????? ??? ????????)", false;
-	end;
-	if z.expires ~= 0 and (os.time and os.time() > z.expires) then
-		return false, "???? ????? ?????", true;
-	end;
-	if z.min_version then
-		local E = tonumber((a:gsub("v", "")));
-		local H = tonumber(((tostring(z.min_version)):gsub("v", "")));
-		if E and (H and E < H) then
-			return false, "???????? ?????? ?? v" .. tostring(z.min_version), true;
-		end;
-	end;
-	if z.hwid and z.hwid ~= "" then
-		if z.hwid == "BANNED" then
-			return false, "???? ???????", true;
-		end;
-		if z.hwid ~= c then
-			return false, "???? ???????? ? ??????? ????????", true;
-		end;
-	end;
-	return true, z, false;
-end;
-local function C(E)
-	if not E or E == 0 then
-		return "?????????";
-	end;
-	local H, z = pcall(function()
-			return os.date("%d.%m.%y (%H:%M)", E);
-		end);
-	return H and z or "??????????";
-end;
-local function B(E, H, z)
-	if not writefile then
-		return;
-	end;
-	local c = q(E .. H);
-	pcall(writefile, i, c .. ("|" .. (H .. ("|" .. (tostring(z or 0) .. ("|" .. E))))));
-end;
-local function r()
-	if not ((isfile and readfile)) then
-		return nil, nil, nil, nil;
-	end;
-	local E, H = pcall(function()
-			if isfile(i) then
-				return readfile(i);
-			end;
-		end);
-	if E and H then
-		local E = string.split(H:gsub("%s+", ""), "|");
-		if #E >= 4 then
-			return E[1], E[2], tonumber(E[3] or 0), E[4];
-		end;
-	end;
-	return nil, nil, nil, nil;
-end;
-local function T()
-	if isfile and delfile then
-		pcall(function()
-			if isfile(i) then
-				delfile(i);
-			end;
-		end);
-	end;
-end;
-local function w()
-	local E = Instance.new("ScreenGui");
-	E.Name = "VelcloudPrompt_" .. math.random(1000000);
-	E.ResetOnSpawn = false;
-	E.IgnoreGuiInset = true;
-	E.DisplayOrder = 999;
-	E.Parent = (gethui and gethui()) or game:GetService("CoreGui");
-	local H = Instance.new("Frame");
-	H.Size = UDim2.fromOffset(400, 220);
-	H.Position = UDim2.fromScale(.5, .5);
-	H.AnchorPoint = Vector2.new(.5, .5);
-	H.BackgroundColor3 = Color3.fromRGB(18, 18, 18);
-	H.BorderSizePixel = 0;
-	H.Parent = E;
-	(Instance.new("UICorner", H)).CornerRadius = UDim.new(0, 10);
-	local z = Instance.new("UIStroke", H);
-	z.Color = Color3.fromRGB(60, 60, 60);
-	z.Thickness = 1;
-	local i = Instance.new("TextLabel");
-	i.Size = UDim2.new(1, -24, 0, 28);
-	i.Position = UDim2.fromOffset(12, 12);
-	i.BackgroundTransparency = 1;
-	i.Text = "velcloud.xd \226\128\148 ????? ????";
-	i.TextColor3 = Color3.new(1, 1, 1);
-	i.Font = Enum.Font.BuilderSansBold;
-	i.TextSize = 16;
-	i.TextXAlignment = Enum.TextXAlignment.Left;
-	i.Parent = H;
-	local c = Instance.new("TextBox");
-	c.Size = UDim2.new(1, -24, 0, 36);
-	c.Position = UDim2.fromOffset(12, 52);
-	c.BackgroundColor3 = Color3.fromRGB(30, 30, 30);
-	c.TextColor3 = Color3.new(1, 1, 1);
-	c.PlaceholderText = "CLOUD-XXXX-XXXX";
-	c.PlaceholderColor3 = Color3.fromRGB(120, 120, 120);
-	c.Font = Enum.Font.Code;
-	c.TextSize = 14;
-	c.ClearTextOnFocus = false;
-	c.Text = "";
-	c.Parent = H;
-	(Instance.new("UICorner", c)).CornerRadius = UDim.new(0, 6);
-	local a = Instance.new("TextButton");
-	a.Size = UDim2.new(1, -24, 0, 36);
-	a.Position = UDim2.fromOffset(12, 100);
-	a.BackgroundColor3 = Color3.fromRGB(80, 200, 120);
-	a.TextColor3 = Color3.new(0, 0, 0);
-	a.Font = Enum.Font.BuilderSansBold;
-	a.TextSize = 14;
-	a.Text = "????????????";
-	a.Parent = H;
-	(Instance.new("UICorner", a)).CornerRadius = UDim.new(0, 6);
-	local q = Instance.new("TextLabel");
-	q.Size = UDim2.new(1, -24, 0, 40);
-	q.Position = UDim2.fromOffset(12, 148);
-	q.BackgroundTransparency = 1;
-	q.Text = "";
-	q.TextColor3 = Color3.fromRGB(255, 100, 100);
-	q.Font = Enum.Font.BuilderSansMedium;
-	q.TextSize = 12;
-	q.TextWrapped = true;
-	q.TextXAlignment = Enum.TextXAlignment.Left;
-	q.Parent = H;
-	local C = nil;
-	local B = 0;
-	local r = false;
-	local function T()
-		if r then
-			return;
-		end;
-		local H = c.Text;
-		if not H or H == "" then
-			q.Text = "????? ????!";
-			q.TextColor3 = Color3.fromRGB(255, 100, 100);
-			return;
-		end;
-		q.Text = "????????...";
-		q.TextColor3 = Color3.fromRGB(255, 255, 100);
-		local z = d();
-		if not z then
-			q.Text = "??????: ?? ??????? ??????? ?????";
-			q.TextColor3 = Color3.fromRGB(255, 100, 100);
-			return;
-		end;
-		local i, a, T = Z(H, z);
-		if i then
-			q.Text = "???????? ????: " .. (tostring(a.name) .. "!");
-			q.TextColor3 = Color3.fromRGB(100, 255, 100);
-			C = H;
-			task.wait(1);
-			E:Destroy();
-		else
-			q.Text = "?????: " .. tostring(a);
-			q.TextColor3 = Color3.fromRGB(255, 100, 100);
-			c.Text = "";
-			if T then
-				warn("[velcloud.xd] ???? ???????? (hard): " .. tostring(a));
-			else
-				B = B + 1;
-				if B >= 3 then
-					r = true;
-					q.Text = "??????? ????? ???????. ????? 30 ???...";
-					task.wait(30);
-					r = false;
-					B = 0;
-					q.Text = "????? ??????????? ?????";
-				end;
-			end;
-		end;
-	end;
-	a.MouseButton1Click:Connect(T);
-	c.FocusLost:Connect(function(E)
-		if E then
-			T();
-		end;
-	end);
-	while E.Parent and not C do
-		task.wait(.1);
-	end;
-	return C;
-end;
-local function V()
-	local E, H, z, i = r();
-	if not E or not H or not i then
-		return false;
-	end;
-	if H ~= c then
-		return false;
-	end;
-	if z and (z ~= 0 and os.time() > z) then
-		return false;
-	end;
-	return true, z, i;
-end;
-local function G()
-	local E, H, z = V();
-	if E then
-		local E = d();
-		if not E then
-			_G.VelcloudKeyState = {
-					key = nil,
-					name = "Offline",
-					valid = true,
-					reason = "OK",
-					expires = H,
-				};
-			return true;
-		end;
-		local i, a = Z(z, E);
-		if i then
-			_G.VelcloudKeyState = {
-					key = nil,
-					name = a.name,
-					valid = true,
-					reason = "OK",
-					expires = a.expires,
-				};
-			B(z, c, a.expires);
-			return true;
-		else
-			print("[velcloud.xd] ??????????? ???? ???????? ????????: " .. tostring(a));
-			T();
-		end;
-	end;
-	local i = d();
-	if not i then
-		warn("[velcloud.xd] ?? ??????? ??????? ????? ? GitHub. ??????? ????????.");
-		(game:GetService("Players")).LocalPlayer:Kick("velcloud.xd: ?? ??????? ????????? ???????? (??? ?????????)");
-		return false;
-	end;
-	local a, q, C, G = r();
-	if a and (q and G) then
-		if q ~= c then
-			print("[velcloud.xd] ???? ????? ??????????? ??????? ????????. ???????.");
-			T();
-		else
-			local E, H = Z(G, i);
-			if E then
-				_G.VelcloudKeyState = {
-						key = nil,
-						name = H.name,
-						valid = true,
-						reason = "OK",
-						expires = H.expires,
-					};
-				B(G, c, H.expires);
-				return true;
-			else
-				T();
-			end;
-		end;
-	end;
-	while true do
-		local E = w();
-		if not E then
-			_G.VelcloudKeyState = {
-					key = nil,
-					name = nil,
-					valid = false,
-					reason = "????????",
-					expires = 0,
-				};
-			return false;
-		end;
-		i = d() or i;
-		local H, z = Z(E, i);
-		if H then
-			B(E, c, z.expires);
-			_G.VelcloudKeyState = {
-					key = nil,
-					name = z.name,
-					valid = true,
-					reason = "OK",
-					expires = z.expires,
-				};
-			return true;
-		else
-			print("[velcloud.xd] ???? ????????: " .. tostring(z));
-			T();
-		end;
-	end;
-end;
-if not G() then
-	pcall(function()
-		(game:GetService("Players")).LocalPlayer:Kick("velcloud.xd: ?????? ?? ???????????");
-	end);
-	return;
-end;
-local function Q()
-	local E = _G.VelcloudKeyState;
-	if not E or not E.valid then
-		return "??? ?????";
-	end;
-	if not E.expires or E.expires == 0 then
-		return "?????????";
-	end;
-	if E.expires - os.time() <= 0 then
-		return "?????";
-	end;
-	return C(E.expires);
-end;
-E.Lib = (loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/main/neverisUI2.lua")))();
-local J = game:GetService("Players");
-local W = game:GetService("RunService");
-local X = game:GetService("UserInputService");
-local u = game:GetService("Stats");
-local O = game:GetService("Lighting");
-local A = J.LocalPlayer;
-local g = workspace.CurrentCamera;
-local l = A:GetMouse();
-z.Window = E.Lib:CreateWindow({
-		Title = "velcloud.xd",
-		Theme = "Velcloud",
-		AccentColor = Color3.fromRGB(50, 100, 220),
-		LogoID = 1.1003448701821e+14,
-		Size = { 820, 480 },
-	});
-z.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2");
-z.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical");
-z.Window:CreateTag("v0.7", Color3.fromRGB(150, 150, 150), nil, "git-branch");
-z.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown");
-z.Window:Notify({
-	Title = "Welcome",
-	Text = "velcloud.xd v0.7 loaded",
-	Icon = "check",
-	Duration = 4,
-});
-H.ESP = false;
-H.ESPMode = "Chams";
-H.ESP_Sleeper = false;
-H.TeamCheck = true;
-H.ESPColor = Color3.fromRGB(255, 0, 0);
-H.SleeperColor = Color3.fromRGB(0, 200, 255);
-H.BoxColor = Color3.fromRGB(255, 255, 255);
-H.TextColor = Color3.fromRGB(255, 255, 255);
-H.LineColor = Color3.fromRGB(255, 0, 0);
-H.SkeletonColor = Color3.fromRGB(69, 0, 0);
-H.TeamColor = Color3.fromRGB(0, 255, 0);
-H.NPCColor = Color3.fromRGB(255, 165, 0);
-H.AnimalColor = Color3.fromRGB(255, 20, 147);
-H.Box = false;
-H.Distance = false;
-H.Name = false;
-H.Health = false;
-H.Line = false;
-H.Skeleton = false;
-H.WeaponESP = false;
-H.MaxDistance = 600;
-H.ESP_NPC = false;
-H.NPCDistance = 200;
-H.NPC_Name = true;
-H.NPC_Box = true;
-H.NPC_Health = true;
-H.NPC_Distance = true;
-H.ESP_Animals = false;
-H.AnimalDistance = 500;
-H.Animal_Name = true;
-H.Animal_Box = true;
-H.Animal_Health = true;
-H.Animal_Distance = true;
-H.AimbotEnabled = false;
-H.AimbotType = "Mouse";
-H.AimbotKey = Enum.UserInputType.MouseButton2;
-H.AimbotBone = "Head";
-H.AimbotIgnoreTeam = true;
-H.AimbotIgnoreSleepers = true;
-H.AimbotIgnoreNPC = true;
-H.AimbotIgnoreAnimals = true;
-H.AimbotVisibleCheck = true;
-H.AimbotFOV = 120;
-H.AimbotSmooth = 5;
-H.AimbotPrediction = 1;
-H.AimbotBulletSpeed = 450;
-H.AimbotHitChance = 100;
-H.AimbotDistanceLimit = 400;
-H.AimbotDrawFOV = false;
-H.AimbotDrawTarget = false;
-H.AimbotDrawTargetColor = Color3.fromRGB(255, 0, 0);
-H.AimbotDrawFOVColor = Color3.fromRGB(255, 255, 255);
-H.AimbotAutoSwitch = true;
-H.DynamicPrediction = true;
-H.Ballistic = true;
-H.HumanoidCheck = true;
-H.NoSpread = false;
-H.FreeCam = false;
-H.CameraZoom = false;
-H.ZoomActive = false;
-H.FPSPing = false;
-H.Fullbright = false;
-H.WorldTimeEnabled = false;
-H.WorldTimeValue = 12;
-H.HitboxEnabled = false;
-H.HitboxSize = 2;
-H.HitboxTransparency = 50;
-H.NoRecoil = false;
-H.SkyColorEnabled = false;
-H.SkyColor = Color3.fromRGB(100, 150, 255);
-H.WeaponColorEnabled = false;
-H.WeaponColor = Color3.fromRGB(255, 0, 255);
-H.WeaponMaterial = Enum.Material.Neon;
-H.AspectRatioEnabled = false;
-H.AspectRatioMode = "16:9";
-H.AspectRatioValue = 1;
-H.Crosshair = false;
-H.CrosshairType = "Cross";
-H.CrosshairColor = Color3.fromRGB(0, 255, 0);
-H.CrosshairSize = 10;
-H.CrosshairThickness = 1;
-H.CrosshairTransparency = 0;
-H.CrosshairDistance = 5;
-H.CrosshairDot = false;
-H.CrosshairOutline = false;
-H.CrosshairDotSize = 2;
-H.FOVEnabled = false;
-H.FOVValue = 70;
-H.DefaultFOV = 70;
-H.RemoveConstructions = false;
-H.RemoveDistance = 75;
-H.Spider = false;
-H.SpiderSpeed = 30;
-H.BindHUD = false;
-local function P(E)
-	if not E then
-		return false;
-	end;
-	local H = E:FindFirstChildOfClass("Humanoid");
-	return H and H.Health > 0;
-end;
-local function R(E)
-	if not E then
-		return Vector3.zero;
-	end;
-	return E.AssemblyLinearVelocity or E.Velocity or Vector3.zero;
-end;
-local function t()
-	local E = H.AimbotKey;
-	if typeof(E) == "EnumItem" then
-		if E.EnumType == Enum.UserInputType then
-			return X:IsMouseButtonPressed(E);
-		elseif E.EnumType == Enum.KeyCode then
-			return X:IsKeyDown(E);
-		end;
-	end;
-	return false;
-end;
-local e = {};
-local Y = 0;
-local function m(E)
-	if not E or E == "" then
-		return "";
-	end;
-	local H = E:gsub("^[%s%.\226\128\162%-]+", "");
-	H = H:gsub("[%s%.\226\128\162%-]+$", "");
-	return H;
-end;
-local function F()
-	local E = os.clock();
-	if E - Y < .5 then
-		return;
-	end;
-	Y = E;
-	local H = A:FindFirstChild("PlayerGui");
-	if not H then
-		e = {};
-		return;
-	end;
-	local z = H:FindFirstChild("TeamUI");
-	if not z then
-		e = {};
-		return;
-	end;
-	local i = z:FindFirstChild("Team");
-	if not i then
-		e = {};
-		return;
-	end;
-	local c = {};
-	for E, H in ipairs(i:GetChildren()) do
-		if H:IsA("TextLabel") and H.Text ~= "" then
-			local E = m(H.Text);
-			if E ~= "" then
-				c[E] = true;
-			end;
-		end;
-	end;
-	e = c;
-end;
-local function o(E)
-	if not E or not A then
-		return false;
-	end;
-	if E == A then
-		return false;
-	end;
-	F();
-	return e[E.Name] == true or e[E.DisplayName] == true;
-end;
-local S = {
-		Head = "Head",
-		Chest = "UpperTorso",
-		Pelvis = "LowerTorso",
-		Nearest = nil,
-	};
-local function I(E, H)
-	if not E then
-		return nil;
-	end;
-	if H == "Nearest" then
-		local H = E:FindFirstChild("Head");
-		local z = E:FindFirstChild("HumanoidRootPart") or E:FindFirstChild("Torso");
-		if H and z then
-			local E = g.CFrame.Position;
-			local i = ((H.Position - E)).Magnitude;
-			local c = ((z.Position - E)).Magnitude;
-			if i < c then
-				return H;
-			else
-				return z;
-			end;
-		end;
-		return H or z;
-	end;
-	local z = S[H];
-	if not z then
-		return nil;
-	end;
-	local i = E:FindFirstChild(z);
-	if not i and z == "UpperTorso" then
-		i = E:FindFirstChild("Torso");
-	end;
-	if not i and z == "LowerTorso" then
-		i = E:FindFirstChild("Torso");
-	end;
-	return i;
-end;
-local function b(E, z)
-	if not E then
-		return Vector3.zero;
-	end;
-	local i = E.Position;
-	if H.DynamicPrediction then
-		local E = ((i - g.CFrame.Position)).Magnitude;
-		if E < 30 or E > 500 then
-			return i;
-		end;
-	end;
-	local c = H.AimbotPrediction or 0;
-	if c <= 0 then
-		return i;
-	end;
-	local a = g.CFrame.Position;
-	local q = i - a;
-	local d = q.Magnitude;
-	if d < 1 then
-		return i;
-	end;
-	local Z = R(E);
-	local C = q.Unit;
-	local B = Z - C * Z:Dot(C);
-	local r = Vector3.new(B.X, 0, B.Z);
-	local T = math.max(50, H.AimbotBulletSpeed or 450);
-	local w = d / T;
-	if H.HumanoidCheck and z then
-		local H = z:FindFirstChildOfClass("Humanoid");
-		if H and H:GetState() == Enum.HumanoidStateType.Freefall then
-			if E.Name == "Head" then
-				local E = z:FindFirstChild("UpperTorso") or z:FindFirstChild("Torso");
-				if E then
-					i = E.Position + Vector3.new(0, .5, 0);
-				end;
-			end;
-		end;
-	end;
-	local V = i + (r * w) * c;
-	if H.Ballistic then
-		local E = 196.2;
-		local H = ((.5 * E) * w) * w;
-		V = V + Vector3.new(0, H, 0);
-	end;
-	return V;
-end;
-E.Refs.CurrentTarget = nil;
-E.Refs.CurrentTargetPart = nil;
-E.Refs.weaponColorConn = nil;
-E.Refs.lastWeaponModels = {};
-E.Refs.aspectConn = nil;
-E.Refs.OriginalHitboxSizes = {};
-E.Refs.OriginalWeaponProps = {};
-E.Refs.freecamConn = nil;
-E.Refs.freecamMouseConn = nil;
-E.Refs.savedCamType = nil;
-E.Refs.savedMouseBehavior = nil;
-E.Refs.savedWS = 16;
-E.Refs.savedJP = 50;
-E.Refs.freecamPos = Vector3.new(0, 0, 0);
-E.Refs.freecamYaw = 0;
-E.Refs.freecamPitch = 0;
-E.Refs.noRecoilConn = nil;
-E.Refs.noRecoilShotConn = nil;
-E.Refs.lockedCamCF = nil;
-E.Refs.recoilActive = false;
-E.Refs.recoilLastInput = 0;
-E.Refs.savedMotorTransforms = {};
-E.Refs.origLight = {
-		Brightness = O.Brightness,
-		ClockTime = O.ClockTime,
-		FogEnd = O.FogEnd,
-		FogStart = O.FogStart,
-		GlobalShadows = O.GlobalShadows,
-		Ambient = O.Ambient,
-		OutdoorAmbient = O.OutdoorAmbient,
-	};
-E.Refs.origAtmosphere = nil;
-E.Refs.origClouds = nil;
-E.Refs.origSky = nil;
-E.Refs.customSky = nil;
-E.Refs.Drawings = {};
-E.Refs.Highlights = {};
-E.Refs.Skeletons = {};
-E.Refs.WeaponLabels = {};
-E.Refs.SleeperDrawings = {};
-E.Refs.SleeperHighlights = {};
-E.Refs.SleeperSkeletons = {};
-E.Refs.SleeperWeaponLabels = {};
-E.Refs.SleeperList = {};
-E.Refs.NPCHighlights = {};
-E.Refs.NPCList = {};
-E.Refs.NPCDrawings = {};
-E.Refs.AnimalHighlights = {};
-E.Refs.AnimalList = {};
-E.Refs.AnimalDrawings = {};
-E.Refs.HudPanel = nil;
-E.Refs.BindHudPanel = nil;
-E.Refs.fpsRow = nil;
-E.Refs.pingRow = nil;
-E.Refs.hpRow = nil;
-E.Refs.posRow = nil;
-E.Refs.onlineRow = nil;
-E.Refs.hudFrames = 0;
-E.Refs.hudLast = os.clock();
-E.Refs.DefaultFOV = 70;
-E.Refs.fovAnimValue = g.FieldOfView;
-E.Refs.gameWantsFOV = g.FieldOfView;
-E.Refs.fovAnimActive = false;
-E.Refs.lastRealFOV = g.FieldOfView;
-E.Refs._fovWriting = false;
-E.Refs._fovReading = false;
-local function n()
-	if H.CameraZoom and H.ZoomActive then
-		return 35;
-	end;
-	if H.FOVEnabled then
-		return H.FOVValue;
-	end;
-	return nil;
-end;
-local function j(H)
-	E.Refs._fovWriting = true;
-	pcall(function()
-		g.FieldOfView = H;
-	end);
-	E.Refs._fovWriting = false;
-end;
-local v = (typeof(hookmetamethod) == "function");
-if v then
-	pcall(function()
-		local H, z = pcall(function()
-				local H;
-				H = hookmetamethod(game, "__newindex", function(z, i, c)
-						if i == "FieldOfView" and (typeof(z) == "Instance" and z:IsA("Camera")) then
-							E.Refs.gameWantsFOV = c;
-							E.Refs.lastRealFOV = c;
-							if E.Refs._fovWriting then
-								return H(z, i, c);
-							end;
-							if n() then
-								return H(z, i, E.Refs.fovAnimValue);
-							end;
-						end;
-						return H(z, i, c);
-					end);
-			end);
-		if not H then
-			warn("[velcloud.xd] FOV __newindex hook failed:", z);
-		end;
-	end);
-	pcall(function()
-		local H, z = pcall(function()
-				local H;
-				H = hookmetamethod(game, "__index", function(z, i)
-						if i == "FieldOfView" and (typeof(z) == "Instance" and z:IsA("Camera")) then
-							if E.Refs._fovWriting or E.Refs._fovReading then
-								return H(z, i);
-							end;
-							if n() then
-								return E.Refs.gameWantsFOV;
-							end;
-						end;
-						return H(z, i);
-					end);
-			end);
-		if not H then
-			warn("[velcloud.xd] FOV __index hook failed:", z);
-		end;
-	end);
-end;
-local function y()
-	if E.Refs.zoomConn then
-		return;
-	end;
-	if not E.Refs.DefaultFOV or E.Refs.DefaultFOV <= 0 then
-		E.Refs.DefaultFOV = g.FieldOfView;
-		H.DefaultFOV = E.Refs.DefaultFOV;
-	end;
-	E.Refs.fovAnimValue = g.FieldOfView;
-	E.Refs.gameWantsFOV = g.FieldOfView;
-	E.Refs.zoomConn = W.RenderStepped:Connect(function(H)
-			local z = n();
-			if not z then
-				if math.abs(E.Refs.fovAnimValue - E.Refs.DefaultFOV) > .1 then
-					E.Refs.fovAnimActive = true;
-					local z = math.min(H * 12, 1);
-					E.Refs.fovAnimValue = E.Refs.fovAnimValue + ((E.Refs.DefaultFOV - E.Refs.fovAnimValue)) * z;
-					if math.abs(E.Refs.fovAnimValue - E.Refs.DefaultFOV) <= .1 then
-						E.Refs.fovAnimValue = E.Refs.DefaultFOV;
-						E.Refs.fovAnimActive = false;
-					end;
-					j(E.Refs.fovAnimValue);
-				elseif E.Refs.fovAnimActive then
-					E.Refs.fovAnimActive = false;
-				end;
-				return;
-			end;
-			E.Refs.fovAnimActive = true;
-			local i = E.Refs.fovAnimValue;
-			if math.abs(i - z) <= .01 then
-				E.Refs.fovAnimValue = z;
-			else
-				local c = math.min(H * 12, 1);
-				E.Refs.fovAnimValue = i + ((z - i)) * c;
-				if math.abs(E.Refs.fovAnimValue - z) <= .1 then
-					E.Refs.fovAnimValue = z;
-				end;
-			end;
-			j(E.Refs.fovAnimValue);
-		end);
-end;
-local function N()
-	if E.Refs.zoomConn then
-		E.Refs.zoomConn:Disconnect();
-		E.Refs.zoomConn = nil;
-	end;
-	E.Refs.fovAnimActive = false;
-end;
-local function p()
-	y();
-end;
-p();
-local function U(H)
-	local z = n() and E.Refs.fovAnimValue or g.FieldOfView;
-	local i = g.CFrame:PointToObjectSpace(H);
-	if i.Z >= 0 then
-		return Vector3.new(0, 0, -1);
-	end;
-	local c = math.tan(math.rad(z) * .5);
-	local a = g.ViewportSize;
-	local q = a.X / a.Y;
-	local d = i.X / (((-i.Z * c) * q));
-	local Z = i.Y / ((-i.Z * c));
-	local C = (((d + 1)) * .5) * a.X;
-	local B = (((1 - Z)) * .5) * a.Y;
-	return Vector3.new(C, B, -i.Z);
-end;
-if v then
-	pcall(function()
-		local E = Random.new;
-		Random.new = function(z)
-				local i = E(z);
-				if H.NoSpread then
-					local E = i.NextNumber;
-					i.NextNumber = function(E, H, z)
-							return H or 0;
-						end;
-					local H = i.NextInteger;
-					i.NextInteger = function(E, H, z)
-							return H or 0;
-						end;
-				end;
-				return i;
-			end;
-	end);
-end;
-E.Refs.CleanerConn = nil;
-E.Refs.LastWallScan = 0;
-E.Refs.HiddenWalls = {};
-local x = Instance.new("Folder");
-x.Name = "VEL_HiddenWalls";
-local function M(z)
-	H.RemoveConstructions = z;
-	if z then
-		x.Parent = game:GetService("ReplicatedStorage");
-		if E.Refs.CleanerConn then
-			E.Refs.CleanerConn:Disconnect();
-		end;
-		E.Refs.CleanerConn = W.Heartbeat:Connect(function()
-				if os.clock() - ((E.Refs.LastWallScan or 0)) < .4 then
-					return;
-				end;
-				E.Refs.LastWallScan = os.clock();
-				local z = A.Character;
-				local i = z and z:FindFirstChild("HumanoidRootPart");
-				if not i then
-					return;
-				end;
-				local c = OverlapParams.new();
-				c.FilterType = Enum.RaycastFilterType.Exclude;
-				c.FilterDescendantsInstances = { z };
-				local a = workspace:GetPartBoundsInRadius(i.Position, H.RemoveDistance, c);
-				local q = {};
-				for H, z in ipairs(a) do
-					local i = z.Parent;
-					if i and (i:IsA("Model") and not q[i]) then
-						local H = string.lower(i.Name);
-						if string.find(H, "wall", 1, true) and (not string.find(H, "door") and not string.find(H, "roof")) then
-							q[i] = true;
-							table.insert(E.Refs.HiddenWalls, { model = i, originalParent = i.Parent });
-							i.Parent = x;
-						end;
-					end;
-				end;
-			end);
-	else
-		if E.Refs.CleanerConn then
-			E.Refs.CleanerConn:Disconnect();
-			E.Refs.CleanerConn = nil;
-		end;
-		for E, H in ipairs(E.Refs.HiddenWalls) do
-			if H.model and H.model.Parent == x then
-				H.model.Parent = H.originalParent;
-			end;
-		end;
-		E.Refs.HiddenWalls = {};
-		x.Parent = nil;
-	end;
-end;
-local s = nil;
-local D = RaycastParams.new();
-D.FilterType = Enum.RaycastFilterType.Exclude;
-D.FilterDescendantsInstances = { A.Character };
-local function h()
-	if s then
-		pcall(function()
-			s:Destroy();
-		end);
-		s = nil;
-	end;
-end;
-local function f(E)
-	if s and s.Parent == E then
-		return s;
-	end;
-	h();
-	s = Instance.new("BodyVelocity");
-	s.Name = "VEL_Spider";
-	s.MaxForce = Vector3.new(0, 15000, 0);
-	s.P = 2000;
-	s.Velocity = Vector3.zero;
-	s.Parent = E;
-	return s;
-end;
-local function L()
-	local E = A.Character;
-	local z = E and E:FindFirstChild("HumanoidRootPart");
-	local i = E and E:FindFirstChildOfClass("Humanoid");
-	if not z or not i or i.Health <= 0 then
-		h();
-		return;
-	end;
-	if not H.Spider then
-		h();
-		return;
-	end;
-	D.FilterDescendantsInstances = { E };
-	local c = z.Position;
-	local a = {
-			g.CFrame.LookVector,
-			-g.CFrame.LookVector,
-			g.CFrame.RightVector,
-			-g.CFrame.RightVector,
-		};
-	local q = nil;
-	for E, H in ipairs(a) do
-		local z = Vector3.new(H.X, 0, H.Z);
-		if z.Magnitude > .01 then
-			local E = workspace:Raycast(c, z.Unit * 2.5, D);
-			if E and (E.Instance and E.Instance.CanCollide) then
-				q = E;
-				break;
-			end;
-		end;
-	end;
-	if not q then
-		h();
-		return;
-	end;
-	local d = 0;
-	if X:IsKeyDown(Enum.KeyCode.W) or X:IsKeyDown(Enum.KeyCode.Space) then
-		d = H.SpiderSpeed;
-	elseif X:IsKeyDown(Enum.KeyCode.S) or X:IsKeyDown(Enum.KeyCode.LeftControl) then
-		d = -H.SpiderSpeed;
-	end;
-	if d == 0 then
-		if s then
-			s.Velocity = Vector3.zero;
-		end;
-		return;
-	end;
-	local Z = f(z);
-	local C = z.AssemblyLinearVelocity or z.Velocity or Vector3.zero;
-	Z.Velocity = Vector3.new(C.X, d, C.Z);
-end;
-W.Heartbeat:Connect(L);
-A.CharacterAdded:Connect(function()
-	task.wait(.1);
-	h();
-end);
-A.CharacterRemoving:Connect(function()
-	h();
-end);
-local function k(E)
-	H.Spider = E;
-	if not E then
-		h();
-	end;
-end;
-E.Refs.LightingOverride = false;
-E.Refs.OrigLighting = {};
-E.Refs.DisabledScripts = {};
-local function K()
-	if E.Refs.LightingOverride then
-		return;
-	end;
-	E.Refs.LightingOverride = true;
-	E.Refs.OrigLighting = {
-			Ambient = O.Ambient,
-			Brightness = O.Brightness,
-			ClockTime = O.ClockTime,
-			ColorShift_Bottom = O.ColorShift_Bottom,
-			ColorShift_Top = O.ColorShift_Top,
-			EnvironmentDiffuseScale = O.EnvironmentDiffuseScale,
-			EnvironmentSpecularScale = O.EnvironmentSpecularScale,
-			FogColor = O.FogColor,
-			FogEnd = O.FogEnd,
-			FogStart = O.FogStart,
-			GlobalShadows = O.GlobalShadows,
-			OutdoorAmbient = O.OutdoorAmbient,
-			ShadowSoftness = O.ShadowSoftness,
-			ExposureCompensation = O.ExposureCompensation,
-		};
-	local H = { O, A:FindFirstChild("PlayerScripts"), (game:GetService("StarterPlayer")):FindFirstChild("StarterPlayerScripts") };
-	for H, z in ipairs(H) do
-		if z then
-			for H, z in ipairs(z:GetDescendants()) do
-				if z:IsA("Script") or z:IsA("LocalScript") then
-					local H = z.Source;
-					if H and ((string.find(H, "ClockTime") or string.find(H, "Atmosphere") or string.find(H, "Lighting"))) then
-						if not z.Disabled then
-							z.Disabled = true;
-							table.insert(E.Refs.DisabledScripts, z);
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-end;
-local function Ea()
-	if not E.Refs.LightingOverride then
-		return;
-	end;
-	E.Refs.LightingOverride = false;
-	for E, H in pairs(E.Refs.OrigLighting) do
-		if type(E) == "string" then
-			pcall(function()
-				O[E] = H;
-			end);
-		end;
-	end;
-	for E, H in ipairs(E.Refs.DisabledScripts) do
-		if H and H.Parent then
-			pcall(function()
-				H.Disabled = false;
-			end);
-		end;
-	end;
-	E.Refs.DisabledScripts = {};
-end;
-local function Ha()
-	if not H.Fullbright then
-		return;
-	end;
-	pcall(function()
-		O.Brightness = 2;
-		O.ClockTime = 12;
-		O.GlobalShadows = false;
-		O.FogEnd = 100000;
-		O.FogStart = 0;
-		O.Ambient = Color3.fromRGB(178, 178, 178);
-		O.OutdoorAmbient = Color3.fromRGB(178, 178, 178);
-	end);
-	for E, H in ipairs(O:GetChildren()) do
-		if H:IsA("Atmosphere") or H:IsA("Clouds") then
-			H:Destroy();
-		end;
-	end;
-end;
-local function za()
-	if not H.WorldTimeEnabled then
-		return;
-	end;
-	pcall(function()
-		O.ClockTime = H.WorldTimeValue;
-		O.Brightness = 1;
-		O.GlobalShadows = true;
-		O.Ambient = Color3.fromRGB(100, 100, 100);
-		O.OutdoorAmbient = Color3.fromRGB(100, 100, 100);
-		O.FogEnd = 1000;
-	end);
-end;
+    Flags = {},
+    UI = { Tabs = {}, Elements = {} },
+    Refs = {},
+    Lib = nil
+}
+
+local CC = _G.CC
+local Flags = CC.Flags
+local UI = CC.UI
+
+-- ===== KEY SYSTEM =====
+local KEY_FILE = "velcloud_key.txt"
+local MY_USERID = tostring(game:GetService("Players").LocalPlayer.UserId)
+local MY_VERSION = "0.7"
+
+_G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "не активирован", expires = 0 }
+
+local function simpleHash(str)
+    local hash = 0
+    for i = 1, #str do
+        hash = (hash * 31 + string.byte(str, i)) % 2147483647
+    end
+    return tostring(hash)
+end
+
+local function fetchKeys()
+    local randomBuster = math.random(100000, 999999)
+    local API_URL = "https://api.github.com/repos/xxqwl1337/neveriscloud/contents/keys.json?ref=main&t=" .. os.time() .. "&r=" .. randomBuster
+    local success, data = pcall(function() return game:HttpGet(API_URL) end)
+    if not success or not data then return nil end
+    local decodeSuccess, json = pcall(function() return game:GetService("HttpService"):JSONDecode(data) end)
+    if not decodeSuccess or not json or not json.content then return nil end
+    local ok, decodedContent = pcall(function() return game:GetService("HttpService"):Base64Decode((json.content:gsub("%s+", ""))) end)
+    if not ok or not decodedContent then return nil end
+    local keysSuccess, keys = pcall(function() return game:GetService("HttpService"):JSONDecode(decodedContent) end)
+    if not keysSuccess or not keys then return nil end
+    return keys
+end
+
+local function validateKey(k, keys)
+    if not k or k == "" then return false, "Пустой ключ", false end
+    local entry = keys[k]
+    if not entry then return false, "Ключ не найден (удален или неверный)", false end
+    if entry.expires ~= 0 and os.time and os.time() > entry.expires then return false, "Срок ключа истёк", true end
+    if entry.min_version then
+        local current = tonumber((MY_VERSION:gsub("v", "")))
+        local required = tonumber((tostring(entry.min_version):gsub("v", "")))
+        if current and required and current < required then return false, "Обновите скрипт до v" .. tostring(entry.min_version), true end
+    end
+    if entry.hwid and entry.hwid ~= "" then
+        if entry.hwid == "BANNED" then return false, "Ключ забанен", true end
+        if entry.hwid ~= MY_USERID then return false, "Ключ привязан к другому аккаунту", true end
+    end
+    return true, entry, false
+end
+
+local function formatExpires(expires)
+    if not expires or expires == 0 then return "бессрочно" end
+    local ok, dateStr = pcall(function() return os.date("%d.%m.%y (%H:%M)", expires) end)
+    return ok and dateStr or "неизвестно"
+end
+
+local function saveSessionKey(k, uid, expires)
+    if not writefile then return end
+    local token = simpleHash(k .. uid)
+    pcall(writefile, KEY_FILE, token .. "|" .. uid .. "|" .. tostring(expires or 0) .. "|" .. k)
+end
+
+local function loadSessionKey()
+    if not (isfile and readfile) then return nil, nil, nil, nil end
+    local ok, data = pcall(function() if isfile(KEY_FILE) then return readfile(KEY_FILE) end end)
+    if ok and data then 
+        local parts = string.split(data:gsub("%s+", ""), "|")
+        if #parts >= 4 then return parts[1], parts[2], tonumber(parts[3] or 0), parts[4] end
+    end
+    return nil, nil, nil, nil
+end
+
+local function deleteSavedKey()
+    if isfile and delfile then pcall(function() if isfile(KEY_FILE) then delfile(KEY_FILE) end end) end
+end
+
+local function promptForKey()
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "VelcloudPrompt_" .. math.random(1e6)
+    sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999
+    sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.fromOffset(400, 220); frame.Position = UDim2.fromScale(0.5, 0.5)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5); frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    frame.BorderSizePixel = 0; frame.Parent = sg
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(60, 60, 60); stroke.Thickness = 1
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -24, 0, 28); title.Position = UDim2.fromOffset(12, 12)
+    title.BackgroundTransparency = 1; title.Text = "velcloud.xd — введи ключ"
+    title.TextColor3 = Color3.new(1,1,1); title.Font = Enum.Font.BuilderSansBold; title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left; title.Parent = frame
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, -24, 0, 36); box.Position = UDim2.fromOffset(12, 52)
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30); box.TextColor3 = Color3.new(1,1,1)
+    box.PlaceholderText = "CLOUD-XXXX-XXXX"; box.PlaceholderColor3 = Color3.fromRGB(120,120,120)
+    box.Font = Enum.Font.Code; box.TextSize = 14; box.ClearTextOnFocus = false; box.Text = ""
+    box.Parent = frame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -24, 0, 36); btn.Position = UDim2.fromOffset(12, 100)
+    btn.BackgroundColor3 = Color3.fromRGB(80, 200, 120); btn.TextColor3 = Color3.new(0,0,0)
+    btn.Font = Enum.Font.BuilderSansBold; btn.TextSize = 14; btn.Text = "Активировать"; btn.Parent = frame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -24, 0, 40); status.Position = UDim2.fromOffset(12, 148)
+    status.BackgroundTransparency = 1; status.Text = ""; status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12; status.TextWrapped = true
+    status.TextXAlignment = Enum.TextXAlignment.Left; status.Parent = frame
+    local result = nil; local failCount = 0; local isLocked = false
+    local function tryActivate()
+        if isLocked then return end
+        local k = box.Text
+        if not k or k == "" then status.Text = "Введи ключ!"; status.TextColor3 = Color3.fromRGB(255, 100, 100); return end
+        status.Text = "Проверка..."; status.TextColor3 = Color3.fromRGB(255, 255, 100)
+        local keys = fetchKeys()
+        if not keys then status.Text = "Ошибка: не удалось скачать ключи"; status.TextColor3 = Color3.fromRGB(255, 100, 100); return end
+        local ok, entryOrReason, hardFail = validateKey(k, keys)
+        if ok then
+            status.Text = "Успешный вход: " .. tostring(entryOrReason.name) .. "!"; status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            result = k; task.wait(1); sg:Destroy()
+        else
+            status.Text = "отказ: " .. tostring(entryOrReason); status.TextColor3 = Color3.fromRGB(255, 100, 100); box.Text = ""
+            if hardFail then warn("[velcloud.xd] Ключ отклонён (hard): " .. tostring(entryOrReason))
+            else
+                failCount = failCount + 1
+                if failCount >= 3 then
+                    isLocked = true; status.Text = "Слишком много попыток. Ждите 30 сек..."; task.wait(30)
+                    isLocked = false; failCount = 0; status.Text = "Можно попробовать снова"
+                end
+            end
+        end
+    end
+    btn.MouseButton1Click:Connect(tryActivate)
+    box.FocusLost:Connect(function(enter) if enter then tryActivate() end end)
+    while sg.Parent and not result do task.wait(0.1) end
+    return result
+end
+
+local function quickLocalCheck()
+    local savedHash, savedUid, savedExpires, savedKey = loadSessionKey()
+    if not savedHash or not savedUid or not savedKey then return false end
+    if savedUid ~= MY_USERID then return false end
+    if savedExpires and savedExpires ~= 0 and os.time() > savedExpires then return false end
+    return true, savedExpires, savedKey
+end
+
+local function requireKey()
+    local isQuickOk, localExpires, savedKey = quickLocalCheck()
+    if isQuickOk then
+        local keys = fetchKeys()
+        if not keys then _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = localExpires }; return true end
+        local ok, entryOrReason = validateKey(savedKey, keys)
+        if ok then _G.VelcloudKeyState = { key = nil, name = entryOrReason.name, valid = true, reason = "OK", expires = entryOrReason.expires }; saveSessionKey(savedKey, MY_USERID, entryOrReason.expires); return true
+        else print("[velcloud.xd] Сохраненный ключ отклонён сервером: " .. tostring(entryOrReason)); deleteSavedKey() end
+    end
+    local keys = fetchKeys()
+    if not keys then warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Проверь интернет."); game:GetService("Players").LocalPlayer:Kick("velcloud.xd: не удалось проверить лицензию (нет интернета)"); return false end
+    local savedHash, savedUid, savedExpires, savedKey2 = loadSessionKey()
+    if savedHash and savedUid and savedKey2 then
+        if savedUid ~= MY_USERID then print("[velcloud.xd] Файл ключа принадлежит другому аккаунту. Удаляем."); deleteSavedKey()
+        else
+            local ok, entryOrReason = validateKey(savedKey2, keys)
+            if ok then _G.VelcloudKeyState = { key = nil, name = entryOrReason.name, valid = true, reason = "OK", expires = entryOrReason.expires }; saveSessionKey(savedKey2, MY_USERID, entryOrReason.expires); return true
+            else deleteSavedKey() end
+        end
+    end
+    while true do
+        local entered = promptForKey()
+        if not entered then _G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено", expires = 0 }; return false end
+        keys = fetchKeys() or keys
+        local ok, entry = validateKey(entered, keys)
+        if ok then saveSessionKey(entered, MY_USERID, entry.expires); _G.VelcloudKeyState = { key = nil, name = entry.name, valid = true, reason = "OK", expires = entry.expires }; return true
+        else print("[velcloud.xd] Ключ отклонён: " .. tostring(entry)); deleteSavedKey() end
+    end
+end
+
+if not requireKey() then pcall(function() game:GetService("Players").LocalPlayer:Kick("velcloud.xd: доступ не активирован") end); return end
+
+local function keyRemainingText()
+    local st = _G.VelcloudKeyState
+    if not st or not st.valid then return "нет ключа" end
+    if not st.expires or st.expires == 0 then return "бессрочно" end
+    if st.expires - os.time() <= 0 then return "истёк" end
+    return formatExpires(st.expires)
+end
+-- ===== END KEY SYSTEM =====
+
+-- ===== ИНИЦИАЛИЗАЦИЯ БИБЛИОТЕКИ =====
+CC.Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/main/neverisUI2.lua"))()
+
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local UIS         = game:GetService("UserInputService")
+local Stats       = game:GetService("Stats")
+local Lighting    = game:GetService("Lighting")
+local LP          = Players.LocalPlayer
+local Camera      = workspace.CurrentCamera
+local Mouse       = LP:GetMouse()
+
+UI.Window = CC.Lib:CreateWindow({
+    Title = "velcloud.xd", Theme = "Velcloud", AccentColor = Color3.fromRGB(50, 100, 220),
+    LogoID = 110034487018208, Size = {820, 480},
+})
+UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2")
+UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
+UI.Window:CreateTag("v0.7", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
+UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.7 loaded", Icon = "check", Duration = 4 })
+
+-- ===== СОСТОЯНИЕ =====
+Flags.ESP = false; Flags.ESPMode = "Chams"
+Flags.ESP_Sleeper = false
+Flags.TeamCheck = true
+
+Flags.ESPColor      = Color3.fromRGB(255, 0, 0)
+Flags.SleeperColor  = Color3.fromRGB(0, 200, 255)
+Flags.BoxColor      = Color3.fromRGB(255, 255, 255)
+Flags.TextColor     = Color3.fromRGB(255, 255, 255)
+Flags.LineColor     = Color3.fromRGB(255, 0, 0)
+Flags.SkeletonColor = Color3.fromRGB(69, 0, 0)
+Flags.TeamColor     = Color3.fromRGB(0, 255, 0)
+Flags.NPCColor      = Color3.fromRGB(255, 165, 0)
+Flags.AnimalColor   = Color3.fromRGB(255, 20, 147)
+
+Flags.Box = false; Flags.Distance = false; Flags.Name = false; Flags.Health = false; Flags.Line = false
+Flags.Skeleton = false; Flags.WeaponESP = false
+Flags.MaxDistance = 600
+
+Flags.ESP_NPC = false; Flags.NPCDistance = 200; Flags.NPC_Name = true; Flags.NPC_Box = true; Flags.NPC_Health = true; Flags.NPC_Distance = true
+Flags.ESP_Animals = false; Flags.AnimalDistance = 500; Flags.Animal_Name = true; Flags.Animal_Box = true; Flags.Animal_Health = true; Flags.Animal_Distance = true
+
+-- ===== AIMBOT STATE =====
+Flags.AimbotEnabled = false
+Flags.AimbotType = "Mouse"
+Flags.AimbotKey = Enum.UserInputType.MouseButton2
+Flags.AimbotBone = "Head"
+Flags.AimbotIgnoreTeam = true
+Flags.AimbotIgnoreSleepers = true
+Flags.AimbotIgnoreNPC = true
+Flags.AimbotIgnoreAnimals = true
+Flags.AimbotVisibleCheck = true
+Flags.AimbotFOV = 120
+Flags.AimbotSmooth = 5
+Flags.AimbotPrediction = 1.0
+Flags.AimbotBulletSpeed = 450
+Flags.AimbotHitChance = 100
+Flags.AimbotDistanceLimit = 400
+Flags.AimbotDrawFOV = false
+Flags.AimbotDrawTarget = false
+Flags.AimbotDrawTargetColor = Color3.fromRGB(255, 0, 0)
+Flags.AimbotDrawFOVColor = Color3.fromRGB(255, 255, 255)
+Flags.AimbotAutoSwitch = true
+
+-- NEW FEATURES
+Flags.DynamicPrediction = true
+Flags.Ballistic = true
+Flags.HumanoidCheck = true
+Flags.NoSpread = false
+
+Flags.FreeCam = false
+Flags.CameraZoom = false; Flags.ZoomActive = false
+Flags.FPSPing = false; Flags.Fullbright = false
+Flags.WorldTimeEnabled = false; Flags.WorldTimeValue = 12
+Flags.HitboxEnabled = false; Flags.HitboxSize = 2.0; Flags.HitboxTransparency = 50
+Flags.NoRecoil = false
+Flags.SkyColorEnabled = false; Flags.SkyColor = Color3.fromRGB(100, 150, 255)
+Flags.WeaponColorEnabled = false; Flags.WeaponColor = Color3.fromRGB(255, 0, 255)
+Flags.WeaponMaterial = Enum.Material.Neon
+Flags.AspectRatioEnabled = false; Flags.AspectRatioMode = "16:9"; Flags.AspectRatioValue = 1
+Flags.Crosshair = false; Flags.CrosshairType = "Cross"; Flags.CrosshairColor = Color3.fromRGB(0, 255, 0)
+Flags.CrosshairSize = 10; Flags.CrosshairThickness = 1; Flags.CrosshairTransparency = 0; Flags.CrosshairDistance = 5
+Flags.CrosshairDot = false; Flags.CrosshairOutline = false; Flags.CrosshairDotSize = 2
+Flags.FOVEnabled = false; Flags.FOVValue = 70; Flags.DefaultFOV = 70
+Flags.RemoveConstructions = false; Flags.RemoveDistance = 75
+Flags.Spider = false; Flags.SpiderSpeed = 30
+Flags.BindHUD = false
+
+-- ===== УТИЛИТЫ =====
+local function isAlive(char)
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
+local function getVelocity(part)
+    if not part then return Vector3.zero end
+    return part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
+end
+
+local function isAimHeld()
+    local k = Flags.AimbotKey
+    if typeof(k) == "EnumItem" then
+        if k.EnumType == Enum.UserInputType then return UIS:IsMouseButtonPressed(k)
+        elseif k.EnumType == Enum.KeyCode then return UIS:IsKeyDown(k) end
+    end
+    return false
+end
+
+-- ===== TEAM CACHE & CHECK =====
+local _teammatesCache = {}; local _teammatesCacheTime = 0
+local function cleanName(text)
+    if not text or text == "" then return "" end
+    local cleaned = text:gsub("^[%s%.•%-]+", ""); cleaned = cleaned:gsub("[%s%.•%-]+$", ""); return cleaned
+end
+local function refreshTeammatesCache()
+    local now = os.clock(); if now - _teammatesCacheTime < 0.5 then return end; _teammatesCacheTime = now
+    local pg = LP:FindFirstChild("PlayerGui"); if not pg then _teammatesCache = {}; return end
+    local teamUI = pg:FindFirstChild("TeamUI"); if not teamUI then _teammatesCache = {}; return end
+    local teamFrame = teamUI:FindFirstChild("Team"); if not teamFrame then _teammatesCache = {}; return end
+    local newCache = {}
+    for _, child in ipairs(teamFrame:GetChildren()) do
+        if child:IsA("TextLabel") and child.Text ~= "" then
+            local clean = cleanName(child.Text); if clean ~= "" then newCache[clean] = true end
+        end
+    end
+    _teammatesCache = newCache
+end
+local function isTeammate(plr)
+    if not plr or not LP then return false end; if plr == LP then return false end
+    refreshTeammatesCache(); return _teammatesCache[plr.Name] == true or _teammatesCache[plr.DisplayName] == true
+end
+
+-- ===== BONE POSITION =====
+local BONE_MAP = { Head = "Head", Chest = "UpperTorso", Pelvis = "LowerTorso", Nearest = nil }
+local function getBonePosition(char, boneName)
+    if not char then return nil end
+    if boneName == "Nearest" then
+        local head = char:FindFirstChild("Head"); local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+        if head and hrp then
+            local camPos = Camera.CFrame.Position
+            local headDist = (head.Position - camPos).Magnitude; local hrpDist = (hrp.Position - camPos).Magnitude
+            if headDist < hrpDist then return head else return hrp end
+        end
+        return head or hrp
+    end
+    local partName = BONE_MAP[boneName]; if not partName then return nil end
+    local part = char:FindFirstChild(partName)
+    if not part and partName == "UpperTorso" then part = char:FindFirstChild("Torso") end
+    if not part and partName == "LowerTorso" then part = char:FindFirstChild("Torso") end
+    return part
+end
+
+-- ===== ПРЕДСКАЗАНИЕ (Smart Aimbot) =====
+local function getPredictedPosition(part, char)
+    if not part then return Vector3.zero end
+    local pos = part.Position
+    
+    -- Dynamic Prediction
+    if Flags.DynamicPrediction then
+        local dist = (pos - Camera.CFrame.Position).Magnitude
+        if dist < 30 or dist > 500 then
+            return pos
+        end
+    end
+
+    local predFactor = Flags.AimbotPrediction or 0
+    if predFactor <= 0 then return pos end
+
+    local camPos = Camera.CFrame.Position
+    local toTarget = pos - camPos
+    local dist = toTarget.Magnitude
+    if dist < 1 then return pos end
+
+    local vel = getVelocity(part)
+    local forward = toTarget.Unit
+    local velPerp = vel - forward * vel:Dot(forward)
+    local horizVel = Vector3.new(velPerp.X, 0, velPerp.Z)
+    
+    local bulletSpeed = math.max(50, Flags.AimbotBulletSpeed or 450)
+    local t = dist / bulletSpeed
+
+    -- Humanoid State Check (Прыжок)
+    if Flags.HumanoidCheck and char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum and hum:GetState() == Enum.HumanoidStateType.Freefall then
+            if part.Name == "Head" then
+                local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+                if torso then pos = torso.Position + Vector3.new(0, 0.5, 0) end
+            end
+        end
+    end
+
+    -- Base Prediction
+    local finalPos = pos + horizVel * t * predFactor
+
+    -- Ballistic Prediction (Гравитация)
+    if Flags.Ballistic then
+        local g = 196.2
+        local drop = 0.5 * g * t * t
+        finalPos = finalPos + Vector3.new(0, drop, 0)
+    end
+
+    return finalPos
+end
+
+-- ===== ССЫЛКИ НА ПЕРЕМЕННЫЕ ЛОГИКИ =====
+CC.Refs.CurrentTarget = nil; CC.Refs.CurrentTargetPart = nil
+CC.Refs.weaponColorConn = nil; CC.Refs.lastWeaponModels = {}
+CC.Refs.aspectConn = nil; CC.Refs.OriginalHitboxSizes = {}; CC.Refs.OriginalWeaponProps = {}
+CC.Refs.freecamConn = nil; CC.Refs.freecamMouseConn = nil
+CC.Refs.savedCamType = nil; CC.Refs.savedMouseBehavior = nil
+CC.Refs.savedWS = 16; CC.Refs.savedJP = 50
+CC.Refs.freecamPos = Vector3.new(0,0,0); CC.Refs.freecamYaw = 0; CC.Refs.freecamPitch = 0
+CC.Refs.noRecoilConn = nil; CC.Refs.noRecoilShotConn = nil
+CC.Refs.lockedCamCF = nil; CC.Refs.recoilActive = false; CC.Refs.recoilLastInput = 0
+CC.Refs.savedMotorTransforms = {}
+CC.Refs.origLight = { Brightness=Lighting.Brightness, ClockTime=Lighting.ClockTime, FogEnd=Lighting.FogEnd, FogStart=Lighting.FogStart, GlobalShadows=Lighting.GlobalShadows, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient }
+CC.Refs.origAtmosphere = nil; CC.Refs.origClouds = nil
+CC.Refs.origSky = nil; CC.Refs.customSky = nil
+CC.Refs.Drawings = {}; CC.Refs.Highlights = {}; CC.Refs.Skeletons = {}; CC.Refs.WeaponLabels = {}
+CC.Refs.SleeperDrawings = {}; CC.Refs.SleeperHighlights = {}; CC.Refs.SleeperSkeletons = {}; CC.Refs.SleeperWeaponLabels = {}; CC.Refs.SleeperList = {}
+CC.Refs.NPCHighlights = {}; CC.Refs.NPCList = {}; CC.Refs.NPCDrawings = {}
+CC.Refs.AnimalHighlights = {}; CC.Refs.AnimalList = {}; CC.Refs.AnimalDrawings = {}
+CC.Refs.HudPanel = nil; CC.Refs.BindHudPanel = nil
+CC.Refs.fpsRow = nil; CC.Refs.pingRow = nil; CC.Refs.hpRow = nil; CC.Refs.posRow = nil; CC.Refs.onlineRow = nil
+CC.Refs.hudFrames = 0; CC.Refs.hudLast = os.clock()
+
+-- ===== FOV: HOOK-КОНТРОЛЛЕР =====
+CC.Refs.DefaultFOV    = 70
+CC.Refs.fovAnimValue  = Camera.FieldOfView
+CC.Refs.gameWantsFOV  = Camera.FieldOfView
+CC.Refs.fovAnimActive = false
+CC.Refs.lastRealFOV   = Camera.FieldOfView
+CC.Refs._fovWriting   = false
+CC.Refs._fovReading   = false
+
+local function getDesiredFOV()
+    if Flags.CameraZoom and Flags.ZoomActive then return 35 end
+    if Flags.FOVEnabled then return Flags.FOVValue end
+    return nil
+end
+local function rawSetFOV(value)
+    CC.Refs._fovWriting = true; pcall(function() Camera.FieldOfView = value end); CC.Refs._fovWriting = false
+end
+local hasHookMeta = (typeof(hookmetamethod) == "function")
+
+if hasHookMeta then
+    pcall(function()
+        local ok, err = pcall(function()
+            local oldNewIndex
+            oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+                if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
+                    CC.Refs.gameWantsFOV = value; CC.Refs.lastRealFOV  = value
+                    if CC.Refs._fovWriting then return oldNewIndex(self, key, value) end
+                    if getDesiredFOV() then return oldNewIndex(self, key, CC.Refs.fovAnimValue) end
+                end
+                return oldNewIndex(self, key, value)
+            end)
+        end)
+        if not ok then warn("[velcloud.xd] FOV __newindex hook failed:", err) end
+    end)
+    pcall(function()
+        local ok, err = pcall(function()
+            local oldIndex
+            oldIndex = hookmetamethod(game, "__index", function(self, key)
+                if key == "FieldOfView" and typeof(self) == "Instance" and self:IsA("Camera") then
+                    if CC.Refs._fovWriting or CC.Refs._fovReading then return oldIndex(self, key) end
+                    if getDesiredFOV() then return CC.Refs.gameWantsFOV end
+                end
+                return oldIndex(self, key)
+            end)
+        end)
+        if not ok then warn("[velcloud.xd] FOV __index hook failed:", err) end
+    end)
+end
+
+local function startFOVController()
+    if CC.Refs.zoomConn then return end
+    if not CC.Refs.DefaultFOV or CC.Refs.DefaultFOV <= 0 then CC.Refs.DefaultFOV = Camera.FieldOfView; Flags.DefaultFOV = CC.Refs.DefaultFOV end
+    CC.Refs.fovAnimValue = Camera.FieldOfView; CC.Refs.gameWantsFOV = Camera.FieldOfView
+    CC.Refs.zoomConn = RunService.RenderStepped:Connect(function(dt)
+        local target = getDesiredFOV()
+        if not target then
+            if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) > 0.1 then
+                CC.Refs.fovAnimActive = true
+                local alpha = math.min(dt * 12, 1)
+                CC.Refs.fovAnimValue = CC.Refs.fovAnimValue + (CC.Refs.DefaultFOV - CC.Refs.fovAnimValue) * alpha
+                if math.abs(CC.Refs.fovAnimValue - CC.Refs.DefaultFOV) <= 0.1 then CC.Refs.fovAnimValue = CC.Refs.DefaultFOV; CC.Refs.fovAnimActive = false end
+                rawSetFOV(CC.Refs.fovAnimValue)
+            elseif CC.Refs.fovAnimActive then CC.Refs.fovAnimActive = false end
+            return
+        end
+        CC.Refs.fovAnimActive = true
+        local cur = CC.Refs.fovAnimValue
+        if math.abs(cur - target) <= 0.01 then CC.Refs.fovAnimValue = target
+        else
+            local alpha = math.min(dt * 12, 1)
+            CC.Refs.fovAnimValue = cur + (target - cur) * alpha
+            if math.abs(CC.Refs.fovAnimValue - target) <= 0.1 then CC.Refs.fovAnimValue = target end
+        end
+        rawSetFOV(CC.Refs.fovAnimValue)
+    end)
+end
+local function stopFOVController()
+    if CC.Refs.zoomConn then CC.Refs.zoomConn:Disconnect(); CC.Refs.zoomConn = nil end
+    CC.Refs.fovAnimActive = false
+end
+local function applyCameraZoom() startFOVController() end
+applyCameraZoom()
+
+-- ===== УТИЛИТА: проекция =====
+local function fovWorldToViewport(pos)
+    local realFov = getDesiredFOV() and CC.Refs.fovAnimValue or Camera.FieldOfView
+    local rel = Camera.CFrame:PointToObjectSpace(pos)
+    if rel.Z >= 0 then return Vector3.new(0, 0, -1) end
+    local tanHalf = math.tan(math.rad(realFov) * 0.5)
+    local vs = Camera.ViewportSize
+    local aspect  = vs.X / vs.Y
+    local nx = rel.X / (-rel.Z * tanHalf * aspect)
+    local ny = rel.Y / (-rel.Z * tanHalf)
+    local sx = (nx + 1) * 0.5 * vs.X; local sy = (1 - ny) * 0.5 * vs.Y
+    return Vector3.new(sx, sy, -rel.Z)
+end
+
+-- ===== NO SPREAD =====
+if hasHookMeta then
+    pcall(function()
+        local oldRandom = Random.new
+        Random.new = function(seed)
+            local rand = oldRandom(seed)
+            if Flags.NoSpread then
+                local oldNextNumber = rand.NextNumber
+                rand.NextNumber = function(_, min, max) return min or 0 end
+                local oldNextInteger = rand.NextInteger
+                rand.NextInteger = function(_, min, max) return min or 0 end
+            end
+            return rand
+        end
+    end)
+end
+
+-- ===== REMOVE CONSTRUCTIONS =====
+CC.Refs.CleanerConn = nil; CC.Refs.LastWallScan = 0; CC.Refs.HiddenWalls = {}
+local hiddenFolder = Instance.new("Folder"); hiddenFolder.Name = "VEL_HiddenWalls"
+local function toggleRemoveConstructions(state)
+    Flags.RemoveConstructions = state
+    if state then
+        hiddenFolder.Parent = game:GetService("ReplicatedStorage")
+        if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect() end
+        CC.Refs.CleanerConn = RunService.Heartbeat:Connect(function()
+            if os.clock() - (CC.Refs.LastWallScan or 0) < 0.4 then return end
+            CC.Refs.LastWallScan = os.clock()
+            local char = LP.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); if not root then return end
+            local params = OverlapParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {char}
+            local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, Flags.RemoveDistance, params)
+            local destroyed = {}
+            for _, part in ipairs(partsInRadius) do
+                local model = part.Parent
+                if model and model:IsA("Model") and not destroyed[model] then
+                    local name = string.lower(model.Name)
+                    if string.find(name, "wall", 1, true) and not string.find(name, "door") and not string.find(name, "roof") then
+                        destroyed[model] = true
+                        table.insert(CC.Refs.HiddenWalls, { model = model, originalParent = model.Parent })
+                        model.Parent = hiddenFolder
+                    end
+                end
+            end
+        end)
+    else
+        if CC.Refs.CleanerConn then CC.Refs.CleanerConn:Disconnect(); CC.Refs.CleanerConn = nil end
+        for _, data in ipairs(CC.Refs.HiddenWalls) do if data.model and data.model.Parent == hiddenFolder then data.model.Parent = data.originalParent end end
+        CC.Refs.HiddenWalls = {}; hiddenFolder.Parent = nil
+    end
+end
+
+-- ===== SPIDER =====
+local spiderBV = nil
+local spiderRayParams = RaycastParams.new(); spiderRayParams.FilterType = Enum.RaycastFilterType.Exclude; spiderRayParams.FilterDescendantsInstances = {LP.Character}
+local function clearSpiderVelocity() if spiderBV then pcall(function() spiderBV:Destroy() end); spiderBV = nil end end
+local function ensureSpiderBV(hrp)
+    if spiderBV and spiderBV.Parent == hrp then return spiderBV end
+    clearSpiderVelocity(); spiderBV = Instance.new("BodyVelocity")
+    spiderBV.Name = "VEL_Spider"; spiderBV.MaxForce = Vector3.new(0, 15000, 0); spiderBV.P = 2000; spiderBV.Velocity = Vector3.zero; spiderBV.Parent = hrp
+    return spiderBV
+end
+local function updateSpider()
+    local char = LP.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then clearSpiderVelocity(); return end
+    if not Flags.Spider then clearSpiderVelocity(); return end
+    spiderRayParams.FilterDescendantsInstances = {char}
+    local origin = hrp.Position
+    local dirs = { Camera.CFrame.LookVector, -Camera.CFrame.LookVector, Camera.CFrame.RightVector, -Camera.CFrame.RightVector }
+    local hit = nil
+    for _, dir in ipairs(dirs) do
+        local flat = Vector3.new(dir.X, 0, dir.Z)
+        if flat.Magnitude > 0.01 then
+            local res = workspace:Raycast(origin, flat.Unit * 2.5, spiderRayParams)
+            if res and res.Instance and res.Instance.CanCollide then hit = res; break end
+        end
+    end
+    if not hit then clearSpiderVelocity(); return end
+    local up = 0
+    if UIS:IsKeyDown(Enum.KeyCode.W) or UIS:IsKeyDown(Enum.KeyCode.Space) then up = Flags.SpiderSpeed
+    elseif UIS:IsKeyDown(Enum.KeyCode.S) or UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -Flags.SpiderSpeed end
+    if up == 0 then if spiderBV then spiderBV.Velocity = Vector3.zero end; return end
+    local bv = ensureSpiderBV(hrp); local curVel = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
+    bv.Velocity = Vector3.new(curVel.X, up, curVel.Z)
+end
+RunService.Heartbeat:Connect(updateSpider)
+LP.CharacterAdded:Connect(function() task.wait(0.1); clearSpiderVelocity() end)
+LP.CharacterRemoving:Connect(function() clearSpiderVelocity() end)
+local function toggleSpider(state) Flags.Spider = state; if not state then clearSpiderVelocity() end end
+
+-- ===== LIGHTING =====
+CC.Refs.LightingOverride = false; CC.Refs.OrigLighting = {}; CC.Refs.DisabledScripts = {}
+local function captureLighting()
+    if CC.Refs.LightingOverride then return end; CC.Refs.LightingOverride = true
+    CC.Refs.OrigLighting = { Ambient = Lighting.Ambient, Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, ColorShift_Bottom = Lighting.ColorShift_Bottom, ColorShift_Top = Lighting.ColorShift_Top, EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale, EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale, FogColor = Lighting.FogColor, FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart, GlobalShadows = Lighting.GlobalShadows, OutdoorAmbient = Lighting.OutdoorAmbient, ShadowSoftness = Lighting.ShadowSoftness, ExposureCompensation = Lighting.ExposureCompensation }
+    local containers = {Lighting, LP:FindFirstChild("PlayerScripts"), game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")}
+    for _, container in ipairs(containers) do
+        if container then
+            for _, obj in ipairs(container:GetDescendants()) do
+                if obj:IsA("Script") or obj:IsA("LocalScript") then
+                    local src = obj.Source
+                    if src and (string.find(src, "ClockTime") or string.find(src, "Atmosphere") or string.find(src, "Lighting")) then
+                        if not obj.Disabled then obj.Disabled = true; table.insert(CC.Refs.DisabledScripts, obj) end
+                    end
+                end
+            end
+        end
+    end
+end
+local function restoreLighting()
+    if not CC.Refs.LightingOverride then return end; CC.Refs.LightingOverride = false
+    for key, value in pairs(CC.Refs.OrigLighting) do if type(key) == "string" then pcall(function() Lighting[key] = value end) end end
+    for _, obj in ipairs(CC.Refs.DisabledScripts) do if obj and obj.Parent then pcall(function() obj.Disabled = false end) end end
+    CC.Refs.DisabledScripts = {}
+end
+local function applyFullbright()
+    if not Flags.Fullbright then return end
+    pcall(function() Lighting.Brightness = 2; Lighting.ClockTime = 12; Lighting.GlobalShadows = false; Lighting.FogEnd = 1e5; Lighting.FogStart = 0; Lighting.Ambient = Color3.fromRGB(178,178,178); Lighting.OutdoorAmbient = Color3.fromRGB(178,178,178) end)
+    for _, obj in ipairs(Lighting:GetChildren()) do if obj:IsA("Atmosphere") or obj:IsA("Clouds") then obj:Destroy() end end
+end
+local function applyWorldTime()
+    if not Flags.WorldTimeEnabled then return end
+    pcall(function() Lighting.ClockTime = Flags.WorldTimeValue; Lighting.Brightness = 1; Lighting.GlobalShadows = true; Lighting.Ambient = Color3.fromRGB(100,100,100); Lighting.OutdoorAmbient = Color3.fromRGB(100,100,100); Lighting.FogEnd = 1000 end)
+end
+task.spawn(function() while true do task.wait(0.05); if Flags.Fullbright then applyFullbright() elseif Flags.WorldTimeEnabled then applyWorldTime() end end end)
+if hasHookMeta then
+    local ok, err = pcall(function()
+        local oldNewIndex
+        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            if self == Lighting then
+                if Flags.Fullbright or Flags.WorldTimeEnabled then
+                    if key == "ClockTime" or key == "Brightness" or key == "GlobalShadows" or key == "Ambient" or key == "OutdoorAmbient" or key == "FogEnd" or key == "FogStart" then return end
+                end
+            end
+            return oldNewIndex(self, key, value)
+        end)
+    end)
+    if not ok then warn("[velcloud.xd] Lighting hook failed:", err) end
+end
+
+-- ===== SKY COLOR =====
+local function setSkyColor(enabled, color)
+    local lighting = Lighting
+    if not CC.Refs.origSky then for _, child in ipairs(lighting:GetChildren()) do if child:IsA("Sky") then CC.Refs.origSky = child:Clone(); break end end end
+    if enabled then
+        if not CC.Refs.customSky then CC.Refs.customSky = Instance.new("Sky"); CC.Refs.customSky.Name = "VelcloudCustomSky"; CC.Refs.customSky.Parent = lighting end
+        local c = color or Flags.SkyColor
+        CC.Refs.customSky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"; CC.Refs.customSky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"; CC.Refs.customSky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"; CC.Refs.customSky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"; CC.Refs.customSky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"; CC.Refs.customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
+        CC.Refs.customSky.SunAngularSize = 0; CC.Refs.customSky.MoonAngularSize = 0
+        local cc = lighting:FindFirstChild("VelcloudSkyTint")
+        if not cc then cc = Instance.new("ColorCorrectionEffect"); cc.Name = "VelcloudSkyTint"; cc.Parent = lighting end
+        cc.TintColor = c; cc.Brightness = 0; cc.Contrast = 0; cc.Saturation = 0
+    else
+        if CC.Refs.customSky then CC.Refs.customSky:Destroy(); CC.Refs.customSky = nil end
+        local cc = lighting:FindFirstChild("VelcloudSkyTint"); if cc then cc:Destroy() end
+    end
+end
+
+-- ===== WEAPON COLOR =====
+local WEAPON_MATERIALS = { "Neon", "ForceField", "Glass", "Ice", "Marble", "Granite", "Metal", "DiamondPlate" }
+local function saveOriginalProps(part)
+    if CC.Refs.OriginalWeaponProps[part] then return end
+    local specialMesh = part:FindFirstChildOfClass("SpecialMesh"); local surfaceApp = part:FindFirstChildOfClass("SurfaceAppearance")
+    local decals = {}
+    for _, child in ipairs(part:GetChildren()) do if child:IsA("Decal") or child:IsA("Texture") then decals[child] = child.Transparency end end
+    CC.Refs.OriginalWeaponProps[part] = { Color = part.Color, Material = part.Material, TextureID = part:IsA("MeshPart") and part.TextureID or nil, SpecialMeshTexture = specialMesh and specialMesh.TextureId or nil, SpecialMeshId = specialMesh and specialMesh.MeshId or nil, SurfaceAppearanceClone = surfaceApp and surfaceApp:Clone() or nil, Decals = decals }
+end
+local function applyWeaponColorToModel(model)
+    if not model then return end
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            saveOriginalProps(part)
+            if part:IsA("MeshPart") then pcall(function() part.TextureID = "" end) end
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("SpecialMesh") then pcall(function() child.TextureId = "" end); pcall(function() child.MeshId = "" end)
+                elseif child:IsA("SurfaceAppearance") then pcall(function() child:Destroy() end)
+                elseif child:IsA("Decal") or child:IsA("Texture") then pcall(function() child.Transparency = 1 end) end
+            end
+            pcall(function() part.Color = Flags.WeaponColor end); pcall(function() part.Material = Flags.WeaponMaterial end)
+            task.defer(function() pcall(function() part.Color = Flags.WeaponColor end); pcall(function() part.Material = Flags.WeaponMaterial end) end)
+        end
+    end
+end
+local function restoreWeaponColorFromModel(model)
+    if not model then return end
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local orig = CC.Refs.OriginalWeaponProps[part]
+            if orig then
+                pcall(function() part.Color = orig.Color end); pcall(function() part.Material = orig.Material end)
+                if orig.TextureID and part:IsA("MeshPart") then pcall(function() part.TextureID = orig.TextureID end) end
+                if orig.SpecialMeshTexture then local sm = part:FindFirstChildOfClass("SpecialMesh"); if sm then pcall(function() sm.TextureId = orig.SpecialMeshTexture end) end end
+                if orig.SpecialMeshId then local sm = part:FindFirstChildOfClass("SpecialMesh"); if sm then pcall(function() sm.MeshId = orig.SpecialMeshId end) end end
+                if orig.SurfaceAppearanceClone then local current = part:FindFirstChildOfClass("SurfaceAppearance"); if current then current:Destroy() end; local newSA = orig.SurfaceAppearanceClone:Clone(); newSA.Parent = part end
+                if orig.Decals then for decal, trans in pairs(orig.Decals) do if decal and decal.Parent then pcall(function() decal.Transparency = trans end) end end end
+                CC.Refs.OriginalWeaponProps[part] = nil
+            end
+        end
+    end
+end
+local BODY_PARTS = { Head = true, Torso = true, UpperTorso = true, LowerTorso = true, HumanoidRootPart = true, Humanoid = true, ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true, LeftUpperArm = true, RightUpperArm = true, LeftLowerArm = true, RightLowerArm = true, LeftHand = true, RightHand = true, LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true, LeftFoot = true, RightFoot = true }
+local IGNORED_CLASSES = { Humanoid = true, Animator = true, HumanoidDescription = true, Accessory = true, ["Accoutrement"] = true, Shirt = true, Pants = true, ShirtGraphic = true, CharacterMesh = true, BodyColors = true, Script = true, LocalScript = true, ModuleScript = true, Sound = true, Animation = true, ParticleEmitter = true, Fire = true, Smoke = true, Sparkles = true, BillboardGui = true, SurfaceGui = true, Highlight = true, Folder = true }
+local function collectHeldItems()
+    local models = {}; local seen = {}; local char = LP.Character; if not char then return models end
+    local function add(m) if m and typeof(m) == "Instance" and not seen[m] then seen[m] = true; table.insert(models, m) end end
+    for _, child in ipairs(char:GetChildren()) do if child:IsA("Tool") then add(child) end end
+    for _, child in ipairs(char:GetChildren()) do if child:IsA("Model") and not child:IsA("Tool") then if not BODY_PARTS[child.Name] and not IGNORED_CLASSES[child.ClassName] then local hasPart = false; for _, sub in ipairs(child:GetChildren()) do if sub:IsA("BasePart") then hasPart = true; break end end; if hasPart then add(child) end end end end
+    for _, child in ipairs(char:GetChildren()) do if child:IsA("BasePart") and not BODY_PARTS[child.Name] then add(child) end end
+    for _, child in ipairs(Camera:GetChildren()) do if child:IsA("Model") then add(child) end end
+    return models
+end
+local function startWeaponColor()
+    if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end
+    for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end; CC.Refs.lastWeaponModels = {}
+    CC.Refs.weaponColorConn = RunService.Heartbeat:Connect(function()
+        if not Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end; CC.Refs.lastWeaponModels = {}; return end
+        local currentModels = collectHeldItems()
+        for _, oldM in ipairs(CC.Refs.lastWeaponModels) do local stillThere = false; for _, newM in ipairs(currentModels) do if oldM == newM then stillThere = true; break end end; if not stillThere then restoreWeaponColorFromModel(oldM) end end
+        CC.Refs.lastWeaponModels = currentModels
+        for _, m in ipairs(currentModels) do applyWeaponColorToModel(m) end
+    end)
+end
+
+-- ===== ASPECT RATIO =====
+local ASPECT_VALUES = { ["4:3"] = 0.75, ["16:9"] = 1.0 }
+local function stopAspectRatio() if CC.Refs.aspectConn then CC.Refs.aspectConn:Disconnect(); CC.Refs.aspectConn = nil end end
+local function startAspectRatio()
+    stopAspectRatio(); if not Flags.AspectRatioEnabled then return end
+    local res = ASPECT_VALUES[Flags.AspectRatioMode] or 1.0; Flags.AspectRatioValue = res
+    CC.Refs.aspectConn = RunService.RenderStepped:Connect(function() if not Flags.AspectRatioEnabled then return end; Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, 0, 1, 0, 0, 0, res, 0, 0, 0, 1) end)
+end
+local function applyAspectRatio() if Flags.AspectRatioEnabled then startAspectRatio() else stopAspectRatio() end end
+
+-- ===== CROSSHAIR =====
+local crossDrawings = { lines = {}, outline = {}, dot = Drawing.new("Square"), dotOutline = Drawing.new("Square"), circle = nil, circleOutline = nil, circleDot = nil, circleDotOutline = nil }
+local function updateCrosshair()
+    local showAny = Flags.Crosshair or Flags.CrosshairDot
+    if not showAny then
+        for _, d in pairs(crossDrawings.lines) do d.Visible = false end; for _, d in pairs(crossDrawings.outline) do d.Visible = false end
+        if crossDrawings.circle then crossDrawings.circle.Visible = false end; if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
+        if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end; if crossDrawings.circleDotOutline then crossDrawings.circleDotOutline.Visible = false end
+        return
+    end
+    local vs = Camera.ViewportSize; local cx = math.floor(vs.X / 2); local cy = math.floor(vs.Y / 2)
+    local color = Flags.CrosshairColor; local trans = 1 - (Flags.CrosshairTransparency / 100); local cType = Flags.CrosshairType
+    local thick = math.max(1, math.floor(Flags.CrosshairThickness)); if thick % 2 == 0 then thick = thick + 1 end
+    local size = math.max(2, math.floor(Flags.CrosshairSize)); if size % 2 == 1 then size = size + 1 end
+    local gap = math.max(0, math.floor(Flags.CrosshairDistance))
+    for _, d in pairs(crossDrawings.lines) do d.Visible = false end; for _, d in pairs(crossDrawings.outline) do d.Visible = false end
+    if crossDrawings.circle then crossDrawings.circle.Visible = false end; if crossDrawings.circleOutline then crossDrawings.circleOutline.Visible = false end
+    if crossDrawings.circleDot then crossDrawings.circleDot.Visible = false end; if crossDrawings.circleDotOutline then crossDrawings.circleDotOutline.Visible = false end
+    local function drawLine(index, x1, y1, x2, y2, isOutline)
+        local tbl = isOutline and crossDrawings.outline or crossDrawings.lines
+        if not tbl[index] then tbl[index] = Drawing.new("Line") end
+        local line = tbl[index]
+        line.Visible = true; line.From = Vector2.new(x1 + 0.5, y1 + 0.5); line.To = Vector2.new(x2 + 0.5, y2 + 0.5)
+        line.Color = isOutline and Color3.new(0, 0, 0) or color; line.Thickness = isOutline and (thick + 1) or thick
+        line.Transparency = isOutline and (trans * 0.7) or trans
+    end
+    if Flags.Crosshair then
+        if cType == "Cross" then
+            drawLine(1, cx, cy - gap - size, cx, cy - gap); if Flags.CrosshairOutline then drawLine(1, cx, cy - gap - size, cx, cy - gap, true) end
+            drawLine(2, cx, cy + gap, cx, cy + gap + size); if Flags.CrosshairOutline then drawLine(2, cx, cy + gap, cx, cy + gap + size, true) end
+            drawLine(3, cx - gap - size, cy, cx - gap, cy); if Flags.CrosshairOutline then drawLine(3, cx - gap - size, cy, cx - gap, cy, true) end
+            drawLine(4, cx + gap, cy, cx + gap + size, cy); if Flags.CrosshairOutline then drawLine(4, cx + gap, cy, cx + gap + size, cy, true) end
+        elseif cType == "T-Shape" then
+            drawLine(1, cx, cy + gap, cx, cy + gap + size); if Flags.CrosshairOutline then drawLine(1, cx, cy + gap, cx, cy + gap + size, true) end
+            drawLine(2, cx - gap - size, cy, cx - gap, cy); if Flags.CrosshairOutline then drawLine(2, cx - gap - size, cy, cx - gap, cy, true) end
+            drawLine(3, cx + gap, cy, cx + gap + size, cy); if Flags.CrosshairOutline then drawLine(3, cx + gap, cy, cx + gap + size, cy, true) end
+        elseif cType == "Circle" then
+            if not crossDrawings.circle then crossDrawings.circle = Drawing.new("Circle"); crossDrawings.circle.Filled = false; crossDrawings.circle.NumSides = 32; crossDrawings.circleOutline = Drawing.new("Circle"); crossDrawings.circleOutline.Filled = false; crossDrawings.circleOutline.NumSides = 32 end
+            if Flags.CrosshairOutline then crossDrawings.circleOutline.Visible = true; crossDrawings.circleOutline.Position = Vector2.new(cx + 0.5, cy + 0.5); crossDrawings.circleOutline.Radius = size + gap; crossDrawings.circleOutline.Thickness = thick + 1; crossDrawings.circleOutline.Color = Color3.new(0, 0, 0); crossDrawings.circleOutline.Transparency = trans * 0.5 end
+            crossDrawings.circle.Visible = true; crossDrawings.circle.Position = Vector2.new(cx + 0.5, cy + 0.5); crossDrawings.circle.Radius = size + gap; crossDrawings.circle.Thickness = thick; crossDrawings.circle.Color = color; crossDrawings.circle.Transparency = trans
+        end
+    end
+    if Flags.CrosshairDot then
+        if not crossDrawings.circleDot then crossDrawings.circleDot = Drawing.new("Circle"); crossDrawings.circleDot.Filled = true; crossDrawings.circleDot.NumSides = 16; crossDrawings.circleDotOutline = Drawing.new("Circle"); crossDrawings.circleDotOutline.Filled = true; crossDrawings.circleDotOutline.NumSides = 16 end
+        local dotSize = math.max(1, math.floor(Flags.CrosshairDotSize))
+        if Flags.CrosshairOutline then crossDrawings.circleDotOutline.Visible = true; crossDrawings.circleDotOutline.Position = Vector2.new(cx + 0.5, cy + 0.5); crossDrawings.circleDotOutline.Radius = dotSize + 1; crossDrawings.circleDotOutline.Color = Color3.new(0, 0, 0); crossDrawings.circleDotOutline.Transparency = trans * 0.5 end
+        crossDrawings.circleDot.Visible = true; crossDrawings.circleDot.Position = Vector2.new(cx + 0.5, cy + 0.5); crossDrawings.circleDot.Radius = dotSize; crossDrawings.circleDot.Color = color; crossDrawings.circleDot.Transparency = trans
+    end
+end
+RunService.RenderStepped:Connect(updateCrosshair)
+
+-- ===== ХИТБОКС =====
+local function restoreHitbox(char)
+    if not char then return end
+    for part, size in pairs(CC.Refs.OriginalHitboxSizes) do if part and part.Parent then pcall(function() part.Size = size end); pcall(function() part.CanCollide = true end) end end
+    for part in pairs(CC.Refs.OriginalHitboxSizes) do if part and not part.Parent then CC.Refs.OriginalHitboxSizes[part] = nil end end
+end
+local function restoreAllHitboxes() for _, plr in ipairs(Players:GetPlayers()) do if plr.Character then restoreHitbox(plr.Character) end end end
+local function applyHitbox(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid"); if not hum or hum.Health <= 0 then return end
+    local multiplier = Flags.HitboxSize or 2.0
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            local name = part.Name
+            if name == "Head" or name == "Torso" or name == "UpperTorso" or name == "LowerTorso" or name == "HumanoidRootPart" or name == "Left Arm" or name == "Right Arm" or name == "Left Leg" or name == "Right Leg" or name == "LeftUpperArm" or name == "RightUpperArm" or name == "LeftLowerArm" or name == "RightLowerArm" or name == "LeftUpperLeg" or name == "RightUpperLeg" or name == "LeftLowerLeg" or name == "RightLowerLeg" then
+                if not CC.Refs.OriginalHitboxSizes[part] then CC.Refs.OriginalHitboxSizes[part] = part.Size end
+                pcall(function() part.Size = CC.Refs.OriginalHitboxSizes[part] * multiplier end)
+                if Flags.HitboxTransparency > 0 then pcall(function() part.Transparency = math.clamp(Flags.HitboxTransparency / 100, 0, 1) end) end
+            end
+        end
+    end
+end
+local function updateHitboxes() for _, plr in ipairs(Players:GetPlayers()) do if plr ~= LP and plr.Character then if Flags.HitboxEnabled and isAlive(plr.Character) then applyHitbox(plr.Character) else restoreHitbox(plr.Character) end end end end
+
+-- ===== VISIBLE CHECK =====
+local visRayParams = RaycastParams.new(); visRayParams.FilterType = Enum.RaycastFilterType.Exclude
+local function isVisible(targetPart)
+    if not targetPart then return false end
+    visRayParams.FilterDescendantsInstances = {LP.Character, targetPart.Parent}
+    local origin = Camera.CFrame.Position; local dir = (targetPart.Position - origin)
+    local result = workspace:Raycast(origin, dir, visRayParams)
+    return result == nil
+end
+
+-- ===== ПРОВЕРКА NPC/ANIMAL =====
+local function isPlayerCharacter(obj) for _, p in ipairs(Players:GetPlayers()) do if p.Character == obj then return true end end; return false end
+local function isNPCModel(model) local name = string.lower(model.Name); return name == "scientist" end
+local function isAnimalModel(model) local name = string.lower(model.Name); return name == "bear" or name == "wolf" or name == "boar" or name == "stag" end
+
+-- ===== ПОИСК ЦЕЛИ =====
+local function getClosestTarget()
+    local closest, closestPart; local shortest = math.huge
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not localRoot then return nil, nil end
+    local localPos = localRoot.Position; local vs = Camera.ViewportSize; local center = Vector2.new(vs.X/2, vs.Y/2)
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and isAlive(plr.Character) then
+            if Flags.AimbotIgnoreTeam and isTeammate(plr) then continue end
+            local char = plr.Character
+            local part = getBonePosition(char, Flags.AimbotBone)
+            if part then
+                local dist = (part.Position - localPos).Magnitude
+                if dist > Flags.AimbotDistanceLimit then continue end
+                local sp = fovWorldToViewport(part.Position)
+                if sp.Z > 0 then
+                    local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                    if screenDist < Flags.AimbotFOV then
+                        if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                        if dist < shortest then shortest = dist; closest = plr; closestPart = part end
+                    end
+                end
+            end
+        end
+    end
+
+    if not Flags.AimbotIgnoreNPC then
+        for _, model in ipairs(CC.Refs.NPCList or {}) do
+            if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isNPCModel(model) then
+                local part = getBonePosition(model, Flags.AimbotBone)
+                if part then
+                    local dist = (part.Position - localPos).Magnitude
+                    if dist > Flags.AimbotDistanceLimit then continue end
+                    local sp = fovWorldToViewport(part.Position)
+                    if sp.Z > 0 then
+                        local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                        if screenDist < Flags.AimbotFOV then
+                            if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                            if dist < shortest then shortest = dist; closest = model; closestPart = part end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if not Flags.AimbotIgnoreAnimals then
+        for _, model in ipairs(CC.Refs.AnimalList or {}) do
+            if model.Parent and isAlive(model) and not isPlayerCharacter(model) and isAnimalModel(model) then
+                local part = getBonePosition(model, Flags.AimbotBone)
+                if part then
+                    local dist = (part.Position - localPos).Magnitude
+                    if dist > Flags.AimbotDistanceLimit then continue end
+                    local sp = fovWorldToViewport(part.Position)
+                    if sp.Z > 0 then
+                        local screenDist = (center - Vector2.new(sp.X, sp.Y)).Magnitude
+                        if screenDist < Flags.AimbotFOV then
+                            if Flags.AimbotVisibleCheck and not isVisible(part) then continue end
+                            if dist < shortest then shortest = dist; closest = model; closestPart = part end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest, closestPart
+end
+
+-- ===== AIMBOT LOGIC =====
+RunService:BindToRenderStep("VelcloudAimbot", Enum.RenderPriority.Last.Value, function(dt)
+    if not Flags.AimbotEnabled then CC.Refs.CurrentTargetPart = nil; if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end; return end
+    local target, part = getClosestTarget()
+    if Flags.AimbotAutoSwitch then
+        if not part then CC.Refs.CurrentTarget = nil; CC.Refs.CurrentTargetPart = nil
+        else CC.Refs.CurrentTarget = target; CC.Refs.CurrentTargetPart = part end
+    else
+        if not CC.Refs.CurrentTargetPart or not CC.Refs.CurrentTargetPart.Parent then CC.Refs.CurrentTarget = target; CC.Refs.CurrentTargetPart = part end
+    end
+    if not CC.Refs.CurrentTargetPart then if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end; return end
+    if not isAimHeld() then if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end; return end
+    if Flags.AimbotType == "Mouse" then
+        local camPos = Camera.CFrame.Position; local targetPos = getPredictedPosition(CC.Refs.CurrentTargetPart, CC.Refs.CurrentTargetPart.Parent)
+        local lookCF = CFrame.lookAt(camPos, targetPos); local base = 1 / math.max(1, Flags.AimbotSmooth)
+        local alpha = 1 - (1 - base) ^ (dt * 60); Camera.CFrame = Camera.CFrame:Lerp(lookCF, alpha)
+    end
+end)
+
+-- ===== DRAW FOV & TARGET =====
+local drawFOV = Drawing.new("Circle"); drawFOV.Thickness = 1; drawFOV.Color = Color3.fromRGB(255, 255, 255); drawFOV.Filled = false; drawFOV.Visible = false; drawFOV.NumSides = 64
+local drawTarget = Drawing.new("Circle"); drawTarget.Thickness = 2; drawTarget.Color = Color3.fromRGB(255, 0, 0); drawTarget.Filled = false; drawTarget.Visible = false; drawTarget.NumSides = 32
+RunService.RenderStepped:Connect(function()
+    if Flags.AimbotEnabled and Flags.AimbotDrawFOV then drawFOV.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2); drawFOV.Radius = Flags.AimbotFOV; drawFOV.Color = Flags.AimbotDrawFOVColor; drawFOV.Visible = true
+    else drawFOV.Visible = false end
+    if Flags.AimbotEnabled and Flags.AimbotDrawTarget and CC.Refs.CurrentTargetPart then
+        local sp = fovWorldToViewport(CC.Refs.CurrentTargetPart.Position)
+        if sp.Z > 0 then drawTarget.Position = Vector2.new(sp.X, sp.Y); drawTarget.Radius = 20; drawTarget.Color = Flags.AimbotDrawTargetColor; drawTarget.Visible = true
+        else drawTarget.Visible = false end
+    else drawTarget.Visible = false end
+end)
+
+-- ===== FREECAM =====
+local function stopFreeCam()
+    if CC.Refs.freecamConn then CC.Refs.freecamConn:Disconnect(); CC.Refs.freecamConn = nil end
+    if CC.Refs.freecamMouseConn then CC.Refs.freecamMouseConn:Disconnect(); CC.Refs.freecamMouseConn = nil end
+    if CC.Refs.savedCamType then Camera.CameraType = CC.Refs.savedCamType; CC.Refs.savedCamType = nil end
+    if CC.Refs.savedMouseBehavior then UIS.MouseBehavior = CC.Refs.savedMouseBehavior; CC.Refs.savedMouseBehavior = nil end
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = CC.Refs.savedWS; hum.JumpPower = CC.Refs.savedJP end
+    Flags.FreeCam = false
+end
+local function startFreeCam()
+    if CC.Refs.freecamConn then return end
+    CC.Refs.savedCamType = Camera.CameraType; Camera.CameraType = Enum.CameraType.Scriptable
+    CC.Refs.savedMouseBehavior = UIS.MouseBehavior; UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
+    CC.Refs.freecamPos = Camera.CFrame.Position
+    local look = Camera.CFrame.LookVector
+    CC.Refs.freecamYaw = math.atan2(-look.X, -look.Z); CC.Refs.freecamPitch = math.asin(math.clamp(look.Y, -1, 1))
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then CC.Refs.savedWS = hum.WalkSpeed; CC.Refs.savedJP = hum.JumpPower; hum.WalkSpeed = 0; hum.JumpPower = 0 end
+    CC.Refs.freecamMouseConn = UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            CC.Refs.freecamYaw = CC.Refs.freecamYaw - input.Delta.X * 0.005
+            CC.Refs.freecamPitch = math.clamp(CC.Refs.freecamPitch - input.Delta.Y * 0.005, -math.rad(89), math.rad(89))
+        end
+    end)
+    CC.Refs.freecamConn = RunService.RenderStepped:Connect(function(dt)
+        local speed = UIS:IsKeyDown(Enum.KeyCode.LeftShift) and 150 or 50
+        local cf = CFrame.fromEulerAnglesYXZ(CC.Refs.freecamPitch, CC.Refs.freecamYaw, 0)
+        local move = Vector3.new(0,0,0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then move = move + cf.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then move = move - cf.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then move = move - cf.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then move = move + cf.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0,1,0) end
+        if move.Magnitude > 0 then CC.Refs.freecamPos = CC.Refs.freecamPos + move.Unit * speed * dt end
+        Camera.CFrame = CFrame.new(CC.Refs.freecamPos) * cf
+    end)
+    Flags.FreeCam = true
+end
+LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
+
+-- ===== NO RECOIL =====
+local noRecoilRenderConn = nil; local noRecoilMotorCache = {}
+local function startNoRecoil()
+    if noRecoilRenderConn then noRecoilRenderConn:Disconnect() end; noRecoilMotorCache = {}
+    noRecoilRenderConn = RunService.RenderStepped:Connect(function()
+        if not Flags.NoRecoil then return end
+        local char = LP.Character; if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
+        if hum.CameraOffset.Magnitude > 0.001 then hum.CameraOffset = Vector3.zero end
+        local isShooting = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("Motor6D") then
+                if part.Name == "Neck" or part.Name == "RightShoulder" or part.Name == "LeftShoulder" then
+                    if isShooting then
+                        if not noRecoilMotorCache[part] then noRecoilMotorCache[part] = part.Transform end
+                        if part.Transform ~= noRecoilMotorCache[part] then part.Transform = noRecoilMotorCache[part] end
+                    else noRecoilMotorCache[part] = nil end
+                end
+            end
+        end
+    end)
+end
+local function stopNoRecoil()
+    if noRecoilRenderConn then noRecoilRenderConn:Disconnect(); noRecoilRenderConn = nil end; noRecoilMotorCache = {}
+    local char = LP.Character; if char then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum.CameraOffset = Vector3.zero end end
+end
+
+-- ===== ESP DRAWINGS =====
+local function createDrawings(plr)
+    if plr == LP or CC.Refs.Drawings[plr] then return end
+    local d = {}
+    d.Box      = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name     = Drawing.new("Text"); d.Name.Size=14; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health   = Drawing.new("Text"); d.Health.Size=12; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Line     = Drawing.new("Line"); d.Line.Thickness=1; d.Line.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=12; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    d.Weapon   = Drawing.new("Text"); d.Weapon.Size=12; d.Weapon.Center=true; d.Weapon.Outline=true; d.Weapon.Visible=false
+    CC.Refs.Drawings[plr] = d
+end
+local function clearHighlight(plr) if CC.Refs.Highlights[plr] then pcall(function() CC.Refs.Highlights[plr]:Destroy() end); CC.Refs.Highlights[plr] = nil end end
+local function removeDrawings(plr)
+    if CC.Refs.Drawings[plr] then for _,o in pairs(CC.Refs.Drawings[plr]) do if o then pcall(function() o:Remove() end) end end; CC.Refs.Drawings[plr]=nil end
+    clearHighlight(plr)
+    if CC.Refs.Skeletons[plr] then for _,l in pairs(CC.Refs.Skeletons[plr].lines) do pcall(function() l:Remove() end) end; CC.Refs.Skeletons[plr]=nil end
+    if CC.Refs.WeaponLabels[plr] then pcall(function() CC.Refs.WeaponLabels[plr]:Remove() end); CC.Refs.WeaponLabels[plr]=nil end
+end
+local function applyHighlight(plr)
+    if plr == LP then return end
+    local char = plr.Character; local want = Flags.ESP and Flags.MaxDistance > 0
+    if not want or not char or not isAlive(char) then clearHighlight(plr); return end
+    local hl = CC.Refs.Highlights[plr]
+    if not hl or not hl.Parent then
+        if hl then pcall(function() hl:Destroy() end) end
+        hl = Instance.new("Highlight"); hl.Name = "VelcloudESP"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char; CC.Refs.Highlights[plr] = hl
+    end
+    if hl.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+    local useTeam = Flags.TeamCheck and isTeammate(plr)
+    local color = useTeam and Flags.TeamColor or Flags.ESPColor
+    if Flags.ESPMode == "Chams" then hl.FillColor = color; hl.FillTransparency = 0; hl.OutlineColor = color; hl.OutlineTransparency = 1
+    else hl.FillColor = color; hl.FillTransparency = 1; hl.OutlineColor = color; hl.OutlineTransparency = 0 end
+end
+local SKELETON_CONNECTIONS = { {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},{"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"} }
+local R6_CONNECTIONS = { {"Head","Torso"},{"Torso","Left Arm"},{"Torso","Right Arm"},{"Torso","Left Leg"},{"Torso","Right Leg"} }
+local function ensureSkeleton(plr, isR15)
+    local sk = CC.Refs.Skeletons[plr]; local conns = isR15 and SKELETON_CONNECTIONS or R6_CONNECTIONS
+    if sk and #sk.lines == #conns then return end
+    if sk then for _,l in pairs(sk.lines) do pcall(function() l:Remove() end) end end
+    local lines = {}; for i = 1, #conns do local l = Drawing.new("Line"); l.Thickness=1; l.Visible=false; lines[i] = l end
+    CC.Refs.Skeletons[plr] = {lines = lines, conns = conns}
+end
+local function updateSkeleton(plr, char)
+    local isR15 = char:FindFirstChild("UpperTorso") ~= nil; ensureSkeleton(plr, isR15)
+    local sk = CC.Refs.Skeletons[plr]; if not sk then return end
+    local useTeam = Flags.TeamCheck and isTeammate(plr); local color = useTeam and Flags.TeamColor or Flags.SkeletonColor
+    for i, conn in ipairs(sk.conns) do
+        local p1 = char:FindFirstChild(conn[1]); local p2 = char:FindFirstChild(conn[2]); local line = sk.lines[i]
+        if p1 and p2 then
+            local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
+            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = color; line.Visible = true
+            elseif line.Visible then line.Visible = false end
+        elseif line.Visible then line.Visible = false end
+    end
+end
+local WEAPON_IGNORE = { Handle = true, Grip = true, Attachment = true, Attachment1 = true, ["LeftGrip"] = true, ["RightGrip"] = true, ["Tool"] = true, Head = true, Torso = true, UpperTorso = true, LowerTorso = true, ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true, LeftUpperArm = true, RightUpperArm = true, LeftLowerArm = true, RightLowerArm = true, LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true, HumanoidRootPart = true, Humanoid = true, [""] = true, ["None"] = true, ["Nil"] = true, ["Part"] = true, ["Mesh"] = true }
+local function isMeaningfulName(name) if not name or name == "" then return false end; if WEAPON_IGNORE[name] then return false end; if #name < 2 then return false end; if tonumber(name) then return false end; return true end
+local function getWeaponName(char)
+    if not char then return nil end
+    local tool = char:FindFirstChildOfClass("Tool"); if not tool then return nil end
+    if isMeaningfulName(tool.Name) then return tool.Name end
+    for _, child in ipairs(tool:GetChildren()) do if child:IsA("BasePart") and isMeaningfulName(child.Name) then return child.Name end end
+    return nil
+end
+local function updateHighlightDistance(plr, dist, visible)
+    local hl = CC.Refs.Highlights[plr]; if not hl or not hl.Parent then return end
+    local inRange = Flags.ESP and Flags.MaxDistance > 0 and visible and dist <= Flags.MaxDistance
+    if hl.Enabled ~= inRange then hl.Enabled = inRange end
+end
+local function hideAll()
+    for _,d in pairs(CC.Refs.Drawings) do
+        if d.Box.Visible then d.Box.Visible=false end; if d.Name.Visible then d.Name.Visible=false end
+        if d.Health.Visible then d.Health.Visible=false end; if d.Line.Visible then d.Line.Visible=false end
+        if d.Distance.Visible then d.Distance.Visible=false end; if d.Weapon.Visible then d.Weapon.Visible=false end
+    end
+    for _,sk in pairs(CC.Refs.Skeletons) do for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
+    for _,hl in pairs(CC.Refs.Highlights) do if hl and hl.Parent and hl.Enabled then hl.Enabled = false end end
+end
+local function updateESP()
+    if not Flags.ESP or Flags.MaxDistance <= 0 then hideAll(); return end
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not localRoot then hideAll(); return end
+    local localPos = localRoot.Position; local vs = Camera.ViewportSize
+    for plr, d in pairs(CC.Refs.Drawings) do
+        local char = plr.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum or hum.Health <= 0 then
+            if d.Box.Visible then d.Box.Visible=false end; if d.Name.Visible then d.Name.Visible=false end; if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end; if d.Distance.Visible then d.Distance.Visible=false end; if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
+            updateHighlightDistance(plr, math.huge, false); continue
+        end
+        local dist = (root.Position - localPos).Magnitude
+        if dist > Flags.MaxDistance then
+            if d.Box.Visible then d.Box.Visible=false end; if d.Name.Visible then d.Name.Visible=false end; if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end; if d.Distance.Visible then d.Distance.Visible=false end; if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
+            updateHighlightDistance(plr, dist, false); continue
+        end
+        local sp = fovWorldToViewport(root.Position)
+        if sp.Z <= 0 then
+            if d.Box.Visible then d.Box.Visible=false end; if d.Name.Visible then d.Name.Visible=false end; if d.Health.Visible then d.Health.Visible=false end
+            if d.Line.Visible then d.Line.Visible=false end; if d.Distance.Visible then d.Distance.Visible=false end; if d.Weapon.Visible then d.Weapon.Visible=false end
+            local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end
+            updateHighlightDistance(plr, dist, false); continue
+        end
+        local sx, sy = sp.X, sp.Y
+        local headPart = char:FindFirstChild("Head") or root
+        local headPos = headPart.Position + Vector3.new(0,1.5,0); local feetPos = root.Position - Vector3.new(0,2.5,0)
+        local hS = fovWorldToViewport(headPos); local fS = fovWorldToViewport(feetPos)
+        local useTeam = Flags.TeamCheck and isTeammate(plr)
+        local boxColor = useTeam and Flags.TeamColor or Flags.BoxColor
+        local textColor = useTeam and Flags.TeamColor or Flags.TextColor
+        local lineColor = useTeam and Flags.TeamColor or Flags.LineColor
+        if Flags.Box and hS.Z > 0 and fS.Z > 0 then
+            local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
+            d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sx - w/2, hS.Y); d.Box.Color = boxColor
+            if not d.Box.Visible then d.Box.Visible = true end
+        elseif d.Box.Visible then d.Box.Visible = false end
+        if Flags.Name then d.Name.Text = plr.Name; d.Name.Position = Vector2.new(sx, hS.Y-18); d.Name.Color = textColor; if not d.Name.Visible then d.Name.Visible = true end
+        elseif d.Name.Visible then d.Name.Visible = false end
+        if Flags.Health then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sx, fS.Y+2); d.Health.Color = textColor; if not d.Health.Visible then d.Health.Visible = true end
+        elseif d.Health.Visible then d.Health.Visible = false end
+        if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sx, fS.Y+18); d.Distance.Color = textColor; if not d.Distance.Visible then d.Distance.Visible = true end
+        elseif d.Distance.Visible then d.Distance.Visible = false end
+        if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sx, sy); d.Line.Color = lineColor; if not d.Line.Visible then d.Line.Visible = true end
+        elseif d.Line.Visible then d.Line.Visible = false end
+        if Flags.WeaponESP then
+            local weaponName = getWeaponName(char)
+            if weaponName then d.Weapon.Text = "["..weaponName.."]"; d.Weapon.Position = Vector2.new(sx, fS.Y + 34); d.Weapon.Color = textColor; if not d.Weapon.Visible then d.Weapon.Visible = true end
+            elseif d.Weapon.Visible then d.Weapon.Visible = false end
+        elseif d.Weapon.Visible then d.Weapon.Visible = false end
+        if Flags.Skeleton then updateSkeleton(plr, char)
+        else local sk = CC.Refs.Skeletons[plr]; if sk then for _,l in pairs(sk.lines) do if l.Visible then l.Visible=false end end end end
+        updateHighlightDistance(plr, dist, true)
+        local hl = CC.Refs.Highlights[plr]
+        if hl and hl.Parent then
+            local wantTeam = Flags.TeamCheck and isTeammate(plr); local wantColor = wantTeam and Flags.TeamColor or Flags.ESPColor
+            if hl.FillColor ~= wantColor then
+                hl.FillColor = wantColor
+                if Flags.ESPMode == "Chams" then hl.FillTransparency = 0; hl.OutlineColor = wantColor; hl.OutlineTransparency = 1
+                else hl.FillTransparency = 1; hl.OutlineColor = wantColor; hl.OutlineTransparency = 0 end
+            end
+        end
+    end
+end
+
+-- ===== SLEEPER ESP =====
+CC.Refs.SleeperList = {}; CC.Refs.SleeperDrawings = {}; CC.Refs.SleeperHighlights = {}; CC.Refs.SleeperSkeletons = {}
+local function refreshSleeperList()
+    if not Flags.ESP_Sleeper then CC.Refs.SleeperList = {}; return end
+    local result = {}; local root = workspace:FindFirstChild("SleepingPlayers")
+    if root then for _, obj in ipairs(root:GetChildren()) do if obj:IsA("Model") and obj.Name == "Sleeper" then local hum = obj:FindFirstChildOfClass("Humanoid"); if hum then result[#result+1] = obj end end end end
+    CC.Refs.SleeperList = result
+end
+local function createSleeperDrawing(model)
+    if CC.Refs.SleeperDrawings[model] then return CC.Refs.SleeperDrawings[model] end
+    local d = {}
+    d.Box = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name = Drawing.new("Text"); d.Name.Size=14; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health = Drawing.new("Text"); d.Health.Size=12; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Line = Drawing.new("Line"); d.Line.Thickness=1; d.Line.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=12; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    d.Weapon = Drawing.new("Text"); d.Weapon.Size=12; d.Weapon.Center=true; d.Weapon.Outline=true; d.Weapon.Visible=false
+    CC.Refs.SleeperDrawings[model] = d; return d
+end
+local function removeSleeperDrawing(model)
+    local d = CC.Refs.SleeperDrawings[model]
+    if d then for _, o in pairs(d) do pcall(function() o:Remove() end) end; CC.Refs.SleeperDrawings[model] = nil end
+    local hl = CC.Refs.SleeperHighlights[model]; if hl then pcall(function() hl:Destroy() end); CC.Refs.SleeperHighlights[model] = nil end
+    local sk = CC.Refs.SleeperSkeletons[model]; if sk then for _, l in pairs(sk.lines) do pcall(function() l:Remove() end) end; CC.Refs.SleeperSkeletons[model] = nil end
+end
+local function ensureSleeperSkeleton(model, isR15)
+    local sk = CC.Refs.SleeperSkeletons[model]; local conns = isR15 and SKELETON_CONNECTIONS or R6_CONNECTIONS
+    if sk and #sk.lines == #conns then return end
+    if sk then for _,l in pairs(sk.lines) do pcall(function() l:Remove() end) end end
+    local lines = {}; for i = 1, #conns do local l = Drawing.new("Line"); l.Thickness=1; l.Visible=false; lines[i] = l end
+    CC.Refs.SleeperSkeletons[model] = {lines = lines, conns = conns}
+end
+local function updateSleeperSkeleton(model)
+    local isR15 = model:FindFirstChild("UpperTorso") ~= nil; ensureSleeperSkeleton(model, isR15)
+    local sk = CC.Refs.SleeperSkeletons[model]; if not sk then return end
+    for i, conn in ipairs(sk.conns) do
+        local p1 = model:FindFirstChild(conn[1]); local p2 = model:FindFirstChild(conn[2]); local line = sk.lines[i]
+        if p1 and p2 then
+            local s1 = fovWorldToViewport(p1.Position); local s2 = fovWorldToViewport(p2.Position)
+            if s1.Z > 0 and s2.Z > 0 then line.From = Vector2.new(s1.X, s1.Y); line.To = Vector2.new(s2.X, s2.Y); line.Color = Flags.SleeperColor; line.Visible = true
+            elseif line.Visible then line.Visible = false end
+        elseif line.Visible then line.Visible = false end
+    end
+end
+local function hideAllSleepers()
+    for _, d in pairs(CC.Refs.SleeperDrawings) do d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false; d.Line.Visible = false; d.Weapon.Visible = false end
+    for _, hl in pairs(CC.Refs.SleeperHighlights) do if hl and hl.Parent then hl.Enabled = false end end
+    for _, sk in pairs(CC.Refs.SleeperSkeletons) do for _, l in pairs(sk.lines) do if l.Visible then l.Visible = false end end end
+end
+local function updateSleeperESP()
+    if not Flags.ESP_Sleeper then hideAllSleepers(); return end
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not localRoot then hideAllSleepers(); return end
+    local localPos = localRoot.Position; local vs = Camera.ViewportSize; local list = CC.Refs.SleeperList or {}; local alive = {}; local sleeperColor = Flags.SleeperColor
+    for _, model in ipairs(list) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local hum = model:FindFirstChildOfClass("Humanoid"); local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.MaxDistance then
+                    alive[model] = true
+                    local hl = CC.Refs.SleeperHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight"); hl.Name = "VelcloudSleeper"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = model; CC.Refs.SleeperHighlights[model] = hl
+                    end
+                    if hl.FillColor ~= sleeperColor then hl.FillColor = sleeperColor; hl.OutlineColor = sleeperColor end
+                    if Flags.ESPMode == "Chams" then hl.FillTransparency = 0; hl.OutlineTransparency = 1
+                    else hl.FillTransparency = 1; hl.OutlineTransparency = 0 end
+                    hl.Enabled = true
+                    local head = model:FindFirstChild("Head"); local d = createSleeperDrawing(model); local sp = fovWorldToViewport(root.Position)
+                    if head and sp.Z > 0 then
+                        local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1.5, 0)); local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0))
+                        if hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
+                            if Flags.Box then d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sp.X - w/2, hS.Y); d.Box.Color = sleeperColor; d.Box.Visible = true else d.Box.Visible = false end
+                            if Flags.Name then d.Name.Text = model.Name; d.Name.Position = Vector2.new(sp.X, hS.Y-18); d.Name.Color = sleeperColor; d.Name.Visible = true else d.Name.Visible = false end
+                            if Flags.Health then if hum then d.Health.Text = "HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth); d.Health.Position = Vector2.new(sp.X, fS.Y+2); d.Health.Color = sleeperColor; d.Health.Visible = true else d.Health.Visible = false end else d.Health.Visible = false end
+                            if Flags.Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sp.X, fS.Y+18); d.Distance.Color = sleeperColor; d.Distance.Visible = true else d.Distance.Visible = false end
+                            if Flags.Line then d.Line.From = Vector2.new(vs.X/2, vs.Y); d.Line.To = Vector2.new(sp.X, sp.Y); d.Line.Color = sleeperColor; d.Line.Visible = true else d.Line.Visible = false end
+                            if Flags.WeaponESP then local weaponName = getWeaponName(model); if weaponName then d.Weapon.Text = "["..weaponName.."]"; d.Weapon.Position = Vector2.new(sp.X, fS.Y + 34); d.Weapon.Color = sleeperColor; d.Weapon.Visible = true else d.Weapon.Visible = false end else d.Weapon.Visible = false end
+                        else d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false; d.Line.Visible = false; d.Weapon.Visible = false end
+                    else d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false; d.Line.Visible = false; d.Weapon.Visible = false end
+                    if Flags.Skeleton then updateSleeperSkeleton(model) else local sk = CC.Refs.SleeperSkeletons[model]; if sk then for _, l in pairs(sk.lines) do if l.Visible then l.Visible = false end end end end
+                end
+            end
+        end
+    end
+    for model, d in pairs(CC.Refs.SleeperDrawings) do if not alive[model] then removeSleeperDrawing(model) end end
+    for model, hl in pairs(CC.Refs.SleeperHighlights) do if not alive[model] and hl then pcall(function() hl:Destroy() end); CC.Refs.SleeperHighlights[model] = nil end end
+end
+task.spawn(function() while true do task.wait(0.5); pcall(refreshSleeperList) end end)
+RunService.RenderStepped:Connect(function() pcall(updateSleeperESP) end)
+
+-- ===== NPC ESP =====
+CC.Refs.NPCList = {}; CC.Refs.NPCDrawings = {}; CC.Refs.NPCHighlights = {}
+local function isPlayerChar(obj) for _, p in ipairs(Players:GetPlayers()) do if p.Character == obj then return true end end; return false end
+local function refreshNPCList()
+    if not Flags.ESP_NPC then CC.Refs.NPCList = {}; return end
+    local result = {}; local seen = {}
+    local rootFolders = { workspace:FindFirstChild("GeneratedMonuments"), workspace:FindFirstChild("Junkpiles") }
+    for _, root in ipairs(rootFolders) do
+        if root then
+            for _, obj in ipairs(root:GetDescendants()) do
+                if obj:IsA("Model") and not isPlayerChar(obj) then
+                    local name = string.lower(obj.Name)
+                    if name == "scientist" then
+                        local hum = obj:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 and not seen[obj] then seen[obj] = true; table.insert(result, obj) end
+                    end
+                end
+            end
+        end
+    end
+    CC.Refs.NPCList = result
+end
+local function createNPCDrawing(model)
+    if CC.Refs.NPCDrawings[model] then return CC.Refs.NPCDrawings[model] end
+    local d = {}
+    d.Box = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name = Drawing.new("Text"); d.Name.Size=13; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health = Drawing.new("Text"); d.Health.Size=11; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=11; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    CC.Refs.NPCDrawings[model] = d; return d
+end
+local function removeNPCDrawing(model)
+    local d = CC.Refs.NPCDrawings[model]
+    if d then for _, o in pairs(d) do pcall(function() o:Remove() end) end; CC.Refs.NPCDrawings[model] = nil end
+    local hl = CC.Refs.NPCHighlights[model]; if hl then pcall(function() hl:Destroy() end); CC.Refs.NPCHighlights[model] = nil end
+end
+local function hideAllNPC()
+    for _, d in pairs(CC.Refs.NPCDrawings) do d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false end
+    for _, hl in pairs(CC.Refs.NPCHighlights) do if hl and hl.Parent then hl.Enabled = false end end
+end
+local function updateNPCESP()
+    if not Flags.ESP_NPC or Flags.NPCDistance <= 0 then hideAllNPC(); return end
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not localRoot then hideAllNPC(); return end
+    local localPos = localRoot.Position; local npcs = CC.Refs.NPCList or {}; local alive = {}
+    for _, model in ipairs(npcs) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.NPCDistance then
+                    alive[model] = true; local hum = model:FindFirstChildOfClass("Humanoid"); local isDead = not hum or hum.Health <= 0
+                    local hl = CC.Refs.NPCHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight"); hl.Name = "VelcloudNPC"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = model; CC.Refs.NPCHighlights[model] = hl
+                    end
+                    if isDead then if hl.FillColor ~= Color3.fromRGB(90,90,90) then hl.FillColor = Color3.fromRGB(90,90,90); hl.OutlineColor = Color3.fromRGB(60,60,60) end; hl.FillTransparency = 0.6; hl.OutlineTransparency = 0.3
+                    else if hl.FillColor ~= Flags.NPCColor then hl.FillColor = Flags.NPCColor; hl.OutlineColor = Flags.NPCColor end; hl.FillTransparency = 0.4; hl.OutlineTransparency = 0 end
+                    hl.Enabled = true
+                    local head = model:FindFirstChild("Head")
+                    if head then
+                        local d = createNPCDrawing(model); local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1, 0)); local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0)); local sp = fovWorldToViewport(root.Position)
+                        if sp.Z > 0 and hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
+                            if Flags.NPC_Box then d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sp.X - w/2, hS.Y); d.Box.Color = isDead and Color3.fromRGB(120,120,120) or Flags.NPCColor; d.Box.Visible = true else d.Box.Visible = false end
+                            if Flags.NPC_Name then d.Name.Text = model.Name .. (isDead and " [DEAD]" or ""); d.Name.Position = Vector2.new(sp.X, hS.Y - 16); d.Name.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor; d.Name.Visible = true else d.Name.Visible = false end
+                            if Flags.NPC_Health then if hum then d.Health.Text = isDead and "DEAD" or ("HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)); d.Health.Position = Vector2.new(sp.X, fS.Y + 2); d.Health.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor; d.Health.Visible = true else d.Health.Visible = false end else d.Health.Visible = false end
+                            if Flags.NPC_Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sp.X, fS.Y + 18); d.Distance.Color = isDead and Color3.fromRGB(150,150,150) or Flags.NPCColor; d.Distance.Visible = true else d.Distance.Visible = false end
+                        else d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false end
+                    end
+                end
+            end
+        end
+    end
+    for model, d in pairs(CC.Refs.NPCDrawings) do if not alive[model] then removeNPCDrawing(model) end end
+    for model, hl in pairs(CC.Refs.NPCHighlights) do if not alive[model] and hl then pcall(function() hl:Destroy() end); CC.Refs.NPCHighlights[model] = nil end end
+end
+task.spawn(function() while true do task.wait(3); pcall(refreshNPCList) end end)
+RunService.RenderStepped:Connect(function() pcall(updateNPCESP) end)
+
+-- ===== ANIMALS ESP =====
+CC.Refs.AnimalList = {}; CC.Refs.AnimalDrawings = {}; CC.Refs.AnimalHighlights = {}
+local TARGET_ANIMAL_NAME = "bear"
+local function isTargetAnimalName(name) return string.lower(name) == TARGET_ANIMAL_NAME end
+local function refreshAnimalList()
+    if not Flags.ESP_Animals then CC.Refs.AnimalList = {}; return end
+    local result = {}; local root = workspace:FindFirstChild("Animals")
+    if root then for _, obj in ipairs(root:GetDescendants()) do if obj:IsA("Model") and not isPlayerChar(obj) and isTargetAnimalName(obj.Name) then local hum = obj:FindFirstChildOfClass("Humanoid"); if hum then result[#result+1] = obj end end end end
+    CC.Refs.AnimalList = result
+end
+local function createAnimalDrawing(model)
+    if CC.Refs.AnimalDrawings[model] then return CC.Refs.AnimalDrawings[model] end
+    local d = {}
+    d.Box = Drawing.new("Square"); d.Box.Thickness=1; d.Box.Filled=false; d.Box.Visible=false
+    d.Name = Drawing.new("Text"); d.Name.Size=13; d.Name.Center=true; d.Name.Outline=true; d.Name.Visible=false
+    d.Health = Drawing.new("Text"); d.Health.Size=11; d.Health.Center=true; d.Health.Outline=true; d.Health.Visible=false
+    d.Distance = Drawing.new("Text"); d.Distance.Size=11; d.Distance.Center=true; d.Distance.Outline=true; d.Distance.Visible=false
+    CC.Refs.AnimalDrawings[model] = d; return d
+end
+local function removeAnimalDrawing(model)
+    local d = CC.Refs.AnimalDrawings[model]
+    if d then for _, o in pairs(d) do pcall(function() o:Remove() end) end; CC.Refs.AnimalDrawings[model] = nil end
+    local hl = CC.Refs.AnimalHighlights[model]; if hl then pcall(function() hl:Destroy() end); CC.Refs.AnimalHighlights[model] = nil end
+end
+local function hideAllAnimals()
+    for _, d in pairs(CC.Refs.AnimalDrawings) do d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false end
+    for _, hl in pairs(CC.Refs.AnimalHighlights) do if hl and hl.Parent then hl.Enabled = false end end
+end
+local function updateAnimalESP()
+    if not Flags.ESP_Animals or Flags.AnimalDistance <= 0 then hideAllAnimals(); return end
+    local localRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not localRoot then hideAllAnimals(); return end
+    local localPos = localRoot.Position; local animals = CC.Refs.AnimalList or {}; local alive = {}
+    for _, model in ipairs(animals) do
+        if model.Parent then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("Head")
+            if root and root:IsA("BasePart") then
+                local dist = (root.Position - localPos).Magnitude
+                if dist <= Flags.AnimalDistance then
+                    alive[model] = true; local hum = model:FindFirstChildOfClass("Humanoid"); local isDead = not hum or hum.Health <= 0
+                    local hl = CC.Refs.AnimalHighlights[model]
+                    if not hl or not hl.Parent then
+                        if hl then pcall(function() hl:Destroy() end) end
+                        hl = Instance.new("Highlight"); hl.Name = "VelcloudAnimal"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = model; CC.Refs.AnimalHighlights[model] = hl
+                    end
+                    if isDead then if hl.FillColor ~= Color3.fromRGB(90,90,90) then hl.FillColor = Color3.fromRGB(90,90,90); hl.OutlineColor = Color3.fromRGB(60,60,60) end; hl.FillTransparency = 0.6; hl.OutlineTransparency = 0.3
+                    else if hl.FillColor ~= Flags.AnimalColor then hl.FillColor = Flags.AnimalColor; hl.OutlineColor = Flags.AnimalColor end; hl.FillTransparency = 0.4; hl.OutlineTransparency = 0 end
+                    hl.Enabled = true
+                    local head = model:FindFirstChild("Head")
+                    if head then
+                        local d = createAnimalDrawing(model); local hS = fovWorldToViewport(head.Position + Vector3.new(0, 1, 0)); local fS = fovWorldToViewport(root.Position - Vector3.new(0, 2.5, 0)); local sp = fovWorldToViewport(root.Position)
+                        if sp.Z > 0 and hS.Z > 0 and fS.Z > 0 then
+                            local h = math.abs(hS.Y - fS.Y); local w = h * 0.5
+                            if Flags.Animal_Box then d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(sp.X - w/2, hS.Y); d.Box.Color = isDead and Color3.fromRGB(120,120,120) or Flags.AnimalColor; d.Box.Visible = true else d.Box.Visible = false end
+                            if Flags.Animal_Name then d.Name.Text = model.Name .. (isDead and " [DEAD]" or ""); d.Name.Position = Vector2.new(sp.X, hS.Y - 16); d.Name.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor; d.Name.Visible = true else d.Name.Visible = false end
+                            if Flags.Animal_Health then if hum then d.Health.Text = isDead and "DEAD" or ("HP: "..math.floor(hum.Health).."/"..math.floor(hum.MaxHealth)); d.Health.Position = Vector2.new(sp.X, fS.Y + 2); d.Health.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor; d.Health.Visible = true else d.Health.Visible = false end else d.Health.Visible = false end
+                            if Flags.Animal_Distance then d.Distance.Text = math.floor(dist).."m"; d.Distance.Position = Vector2.new(sp.X, fS.Y + 18); d.Distance.Color = isDead and Color3.fromRGB(150,150,150) or Flags.AnimalColor; d.Distance.Visible = true else d.Distance.Visible = false end
+                        else d.Box.Visible = false; d.Name.Visible = false; d.Health.Visible = false; d.Distance.Visible = false end
+                    end
+                end
+            end
+        end
+    end
+    for model, d in pairs(CC.Refs.AnimalDrawings) do if not alive[model] then removeAnimalDrawing(model) end end
+    for model, hl in pairs(CC.Refs.AnimalHighlights) do if not alive[model] and hl then pcall(function() hl:Destroy() end); CC.Refs.AnimalHighlights[model] = nil end end
+end
+task.spawn(function() while true do task.wait(3); pcall(refreshAnimalList) end end)
+RunService.RenderStepped:Connect(function() pcall(updateAnimalESP) end)
+
+-- ===== ХУКИ ИГРОКОВ =====
+local function hookPlayer(plr)
+    if plr == LP then return end
+    createDrawings(plr)
+    plr.CharacterAdded:Connect(function() task.wait(0.2); applyHighlight(plr) end)
+    plr.CharacterRemoving:Connect(function() clearHighlight(plr) end)
+    applyHighlight(plr)
+end
+for _,plr in ipairs(Players:GetPlayers()) do hookPlayer(plr) end
+Players.PlayerAdded:Connect(hookPlayer)
+Players.PlayerRemoving:Connect(removeDrawings)
+
+-- ===== FPS/PING/ONLINE HUD =====
+local StatsService = game:GetService("Stats")
+local fpsCounter = 0; local lastFpsCheck = os.clock(); local currentFps = 0
+RunService.RenderStepped:Connect(function()
+    if Flags.FPSPing then
+        fpsCounter = fpsCounter + 1; local now = os.clock()
+        if now - lastFpsCheck >= 1 then currentFps = fpsCounter; fpsCounter = 0; lastFpsCheck = now end
+    else fpsCounter = 0; currentFps = 0 end
+end)
+local function createHud()
+    CC.Refs.HudPanel = CC.Lib:CreateNewWindow({ Title = "Stats", Name = "VelcloudStats", Size = {220}, Minimizable = true, Position = UDim2.new(1, -240, 0, 20), OnClose = function() if UI.Elements.statsHudToggle then UI.Elements.statsHudToggle:Set(false) end end })
+    CC.Refs.HudPanel:AddHeader("Performance"); CC.Refs.fpsRow = CC.Refs.HudPanel:AddRow("FPS"); CC.Refs.pingRow = CC.Refs.HudPanel:AddRow("Ping")
+    CC.Refs.HudPanel:AddSeparator(); CC.Refs.HudPanel:AddHeader("Player"); CC.Refs.hpRow = CC.Refs.HudPanel:AddRow("Health"); CC.Refs.posRow = CC.Refs.HudPanel:AddRow("Position", { Style = "Vertical", AccentKey = "white", ValueColorKey = "text" })
+    CC.Refs.HudPanel:AddSeparator(); CC.Refs.HudPanel:AddHeader("Status"); CC.Refs.onlineRow = CC.Refs.HudPanel:AddRow("Online"); CC.Refs.onlineRow:Set("0")
+end
+local function destroyHud()
+    if CC.Refs.HudPanel then pcall(function() CC.Refs.HudPanel:Destroy() end); CC.Refs.HudPanel = nil end
+    CC.Refs.fpsRow, CC.Refs.pingRow, CC.Refs.hpRow, CC.Refs.posRow, CC.Refs.onlineRow = nil, nil, nil, nil, nil
+end
 task.spawn(function()
-	while true do
-		task.wait(.05);
-		if H.Fullbright then
-			Ha();
-		elseif H.WorldTimeEnabled then
-			za();
-		end;
-	end;
-end);
-if v then
-	local E, z = pcall(function()
-			local E;
-			E = hookmetamethod(game, "__newindex", function(z, i, c)
-					if z == O then
-						if H.Fullbright or H.WorldTimeEnabled then
-							if i == "ClockTime" or i == "Brightness" or i == "GlobalShadows" or i == "Ambient" or i == "OutdoorAmbient" or i == "FogEnd" or i == "FogStart" then
-								return;
-							end;
-						end;
-					end;
-					return E(z, i, c);
-				end);
-		end);
-	if not E then
-		warn("[velcloud.xd] Lighting hook failed:", z);
-	end;
-end;
-local function ia(z, i)
-	local c = O;
-	if not E.Refs.origSky then
-		for H, z in ipairs(c:GetChildren()) do
-			if z:IsA("Sky") then
-				E.Refs.origSky = z:Clone();
-				break;
-			end;
-		end;
-	end;
-	if z then
-		if not E.Refs.customSky then
-			E.Refs.customSky = Instance.new("Sky");
-			E.Refs.customSky.Name = "VelcloudCustomSky";
-			E.Refs.customSky.Parent = c;
-		end;
-		local z = i or H.SkyColor;
-		E.Refs.customSky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex";
-		E.Refs.customSky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex";
-		E.Refs.customSky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex";
-		E.Refs.customSky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex";
-		E.Refs.customSky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex";
-		E.Refs.customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex";
-		E.Refs.customSky.SunAngularSize = 0;
-		E.Refs.customSky.MoonAngularSize = 0;
-		local a = c:FindFirstChild("VelcloudSkyTint");
-		if not a then
-			a = Instance.new("ColorCorrectionEffect");
-			a.Name = "VelcloudSkyTint";
-			a.Parent = c;
-		end;
-		a.TintColor = z;
-		a.Brightness = 0;
-		a.Contrast = 0;
-		a.Saturation = 0;
-	else
-		if E.Refs.customSky then
-			E.Refs.customSky:Destroy();
-			E.Refs.customSky = nil;
-		end;
-		local H = c:FindFirstChild("VelcloudSkyTint");
-		if H then
-			H:Destroy();
-		end;
-	end;
-end;
-local ca = {
-		"Neon",
-		"ForceField",
-		"Glass",
-		"Ice",
-		"Marble",
-		"Granite",
-		"Metal",
-		"DiamondPlate",
-	};
-local function aa(H)
-	if E.Refs.OriginalWeaponProps[H] then
-		return;
-	end;
-	local z = H:FindFirstChildOfClass("SpecialMesh");
-	local i = H:FindFirstChildOfClass("SurfaceAppearance");
-	local c = {};
-	for E, H in ipairs(H:GetChildren()) do
-		if H:IsA("Decal") or H:IsA("Texture") then
-			c[H] = H.Transparency;
-		end;
-	end;
-	E.Refs.OriginalWeaponProps[H] = {
-			Color = H.Color,
-			Material = H.Material,
-			TextureID = H:IsA("MeshPart") and H.TextureID or nil,
-			SpecialMeshTexture = z and z.TextureId or nil,
-			SpecialMeshId = z and z.MeshId or nil,
-			SurfaceAppearanceClone = i and i:Clone() or nil,
-			Decals = c,
-		};
-end;
-local function qa(E)
-	if not E then
-		return;
-	end;
-	for E, z in ipairs(E:GetDescendants()) do
-		if z:IsA("BasePart") then
-			aa(z);
-			if z:IsA("MeshPart") then
-				pcall(function()
-					z.TextureID = "";
-				end);
-			end;
-			for E, H in ipairs(z:GetChildren()) do
-				if H:IsA("SpecialMesh") then
-					pcall(function()
-						H.TextureId = "";
-					end);
-					pcall(function()
-						H.MeshId = "";
-					end);
-				elseif H:IsA("SurfaceAppearance") then
-					pcall(function()
-						H:Destroy();
-					end);
-				elseif H:IsA("Decal") or H:IsA("Texture") then
-					pcall(function()
-						H.Transparency = 1;
-					end);
-				end;
-			end;
-			pcall(function()
-				z.Color = H.WeaponColor;
-			end);
-			pcall(function()
-				z.Material = H.WeaponMaterial;
-			end);
-			task.defer(function()
-				pcall(function()
-					z.Color = H.WeaponColor;
-				end);
-				pcall(function()
-					z.Material = H.WeaponMaterial;
-				end);
-			end);
-		end;
-	end;
-end;
-local function da(H)
-	if not H then
-		return;
-	end;
-	for H, z in ipairs(H:GetDescendants()) do
-		if z:IsA("BasePart") then
-			local H = E.Refs.OriginalWeaponProps[z];
-			if H then
-				pcall(function()
-					z.Color = H.Color;
-				end);
-				pcall(function()
-					z.Material = H.Material;
-				end);
-				if H.TextureID and z:IsA("MeshPart") then
-					pcall(function()
-						z.TextureID = H.TextureID;
-					end);
-				end;
-				if H.SpecialMeshTexture then
-					local E = z:FindFirstChildOfClass("SpecialMesh");
-					if E then
-						pcall(function()
-							E.TextureId = H.SpecialMeshTexture;
-						end);
-					end;
-				end;
-				if H.SpecialMeshId then
-					local E = z:FindFirstChildOfClass("SpecialMesh");
-					if E then
-						pcall(function()
-							E.MeshId = H.SpecialMeshId;
-						end);
-					end;
-				end;
-				if H.SurfaceAppearanceClone then
-					local E = z:FindFirstChildOfClass("SurfaceAppearance");
-					if E then
-						E:Destroy();
-					end;
-					local i = H.SurfaceAppearanceClone:Clone();
-					i.Parent = z;
-				end;
-				if H.Decals then
-					for E, H in pairs(H.Decals) do
-						if E and E.Parent then
-							pcall(function()
-								E.Transparency = H;
-							end);
-						end;
-					end;
-				end;
-				E.Refs.OriginalWeaponProps[z] = nil;
-			end;
-		end;
-	end;
-end;
-local Za = {
-		Head = true,
-		Torso = true,
-		UpperTorso = true,
-		LowerTorso = true,
-		HumanoidRootPart = true,
-		Humanoid = true,
-		["Left Arm"] = true,
-		["Right Arm"] = true,
-		["Left Leg"] = true,
-		["Right Leg"] = true,
-		LeftUpperArm = true,
-		RightUpperArm = true,
-		LeftLowerArm = true,
-		RightLowerArm = true,
-		LeftHand = true,
-		RightHand = true,
-		LeftUpperLeg = true,
-		RightUpperLeg = true,
-		LeftLowerLeg = true,
-		RightLowerLeg = true,
-		LeftFoot = true,
-		RightFoot = true,
-	};
-local Ca = {
-		Humanoid = true,
-		Animator = true,
-		HumanoidDescription = true,
-		Accessory = true,
-		Accoutrement = true,
-		Shirt = true,
-		Pants = true,
-		ShirtGraphic = true,
-		CharacterMesh = true,
-		BodyColors = true,
-		Script = true,
-		LocalScript = true,
-		ModuleScript = true,
-		Sound = true,
-		Animation = true,
-		ParticleEmitter = true,
-		Fire = true,
-		Smoke = true,
-		Sparkles = true,
-		BillboardGui = true,
-		SurfaceGui = true,
-		Highlight = true,
-		Folder = true,
-	};
-local function Ba()
-	local E = {};
-	local H = {};
-	local z = A.Character;
-	if not z then
-		return E;
-	end;
-	local function i(z)
-		if z and (typeof(z) == "Instance" and not H[z]) then
-			H[z] = true;
-			table.insert(E, z);
-		end;
-	end;
-	for E, H in ipairs(z:GetChildren()) do
-		if H:IsA("Tool") then
-			i(H);
-		end;
-	end;
-	for E, H in ipairs(z:GetChildren()) do
-		if H:IsA("Model") and not H:IsA("Tool") then
-			if not Za[H.Name] and not Ca[H.ClassName] then
-				local E = false;
-				for H, z in ipairs(H:GetChildren()) do
-					if z:IsA("BasePart") then
-						E = true;
-						break;
-					end;
-				end;
-				if E then
-					i(H);
-				end;
-			end;
-		end;
-	end;
-	for E, H in ipairs(z:GetChildren()) do
-		if H:IsA("BasePart") and not Za[H.Name] then
-			i(H);
-		end;
-	end;
-	for E, H in ipairs(g:GetChildren()) do
-		if H:IsA("Model") then
-			i(H);
-		end;
-	end;
-	return E;
-end;
-local function ra()
-	if E.Refs.weaponColorConn then
-		E.Refs.weaponColorConn:Disconnect();
-		E.Refs.weaponColorConn = nil;
-	end;
-	for E, H in ipairs(E.Refs.lastWeaponModels) do
-		da(H);
-	end;
-	E.Refs.lastWeaponModels = {};
-	E.Refs.weaponColorConn = W.Heartbeat:Connect(function()
-			if not H.WeaponColorEnabled then
-				for E, H in ipairs(E.Refs.lastWeaponModels) do
-					da(H);
-				end;
-				E.Refs.lastWeaponModels = {};
-				return;
-			end;
-			local z = Ba();
-			for E, H in ipairs(E.Refs.lastWeaponModels) do
-				local i = false;
-				for E, z in ipairs(z) do
-					if H == z then
-						i = true;
-						break;
-					end;
-				end;
-				if not i then
-					da(H);
-				end;
-			end;
-			E.Refs.lastWeaponModels = z;
-			for E, H in ipairs(z) do
-				qa(H);
-			end;
-		end);
-end;
-local Ta = { ["4:3"] = .75, ["16:9"] = 1 };
-local function wa()
-	if E.Refs.aspectConn then
-		E.Refs.aspectConn:Disconnect();
-		E.Refs.aspectConn = nil;
-	end;
-end;
-local function Va()
-	wa();
-	if not H.AspectRatioEnabled then
-		return;
-	end;
-	local z = Ta[H.AspectRatioMode] or 1;
-	H.AspectRatioValue = z;
-	E.Refs.aspectConn = W.RenderStepped:Connect(function()
-			if not H.AspectRatioEnabled then
-				return;
-			end;
-			g.CFrame = g.CFrame * CFrame.new(0, 0, 0, 1, 0, 0, 0, z, 0, 0, 0, 1);
-		end);
-end;
-local function Ga()
-	if H.AspectRatioEnabled then
-		Va();
-	else
-		wa();
-	end;
-end;
-local Qa = {
-		lines = {},
-		outline = {},
-		dot = Drawing.new("Square"),
-		dotOutline = Drawing.new("Square"),
-		circle = nil,
-		circleOutline = nil,
-		circleDot = nil,
-		circleDotOutline = nil,
-	};
-local function Ja()
-	local E = H.Crosshair or H.CrosshairDot;
-	if not E then
-		for E, H in pairs(Qa.lines) do
-			H.Visible = false;
-		end;
-		for E, H in pairs(Qa.outline) do
-			H.Visible = false;
-		end;
-		if Qa.circle then
-			Qa.circle.Visible = false;
-		end;
-		if Qa.circleOutline then
-			Qa.circleOutline.Visible = false;
-		end;
-		if Qa.circleDot then
-			Qa.circleDot.Visible = false;
-		end;
-		if Qa.circleDotOutline then
-			Qa.circleDotOutline.Visible = false;
-		end;
-		return;
-	end;
-	local z = g.ViewportSize;
-	local i = math.floor(z.X / 2);
-	local c = math.floor(z.Y / 2);
-	local a = H.CrosshairColor;
-	local q = 1 - (H.CrosshairTransparency / 100);
-	local d = H.CrosshairType;
-	local Z = math.max(1, math.floor(H.CrosshairThickness));
-	if Z % 2 == 0 then
-		Z = Z + 1;
-	end;
-	local C = math.max(2, math.floor(H.CrosshairSize));
-	if C % 2 == 1 then
-		C = C + 1;
-	end;
-	local B = math.max(0, math.floor(H.CrosshairDistance));
-	for E, H in pairs(Qa.lines) do
-		H.Visible = false;
-	end;
-	for E, H in pairs(Qa.outline) do
-		H.Visible = false;
-	end;
-	if Qa.circle then
-		Qa.circle.Visible = false;
-	end;
-	if Qa.circleOutline then
-		Qa.circleOutline.Visible = false;
-	end;
-	if Qa.circleDot then
-		Qa.circleDot.Visible = false;
-	end;
-	if Qa.circleDotOutline then
-		Qa.circleDotOutline.Visible = false;
-	end;
-	local function r(E, H, z, i, c, d)
-		local C = d and Qa.outline or Qa.lines;
-		if not C[E] then
-			C[E] = Drawing.new("Line");
-		end;
-		local B = C[E];
-		B.Visible = true;
-		B.From = Vector2.new(H + .5, z + .5);
-		B.To = Vector2.new(i + .5, c + .5);
-		B.Color = d and Color3.new(0, 0, 0) or a;
-		B.Thickness = d and (Z + 1) or Z;
-		B.Transparency = d and (q * .7) or q;
-	end;
-	if H.Crosshair then
-		if d == "Cross" then
-			r(1, i, (c - B) - C, i, c - B);
-			if H.CrosshairOutline then
-				r(1, i, (c - B) - C, i, c - B, true);
-			end;
-			r(2, i, c + B, i, (c + B) + C);
-			if H.CrosshairOutline then
-				r(2, i, c + B, i, (c + B) + C, true);
-			end;
-			r(3, (i - B) - C, c, i - B, c);
-			if H.CrosshairOutline then
-				r(3, (i - B) - C, c, i - B, c, true);
-			end;
-			r(4, i + B, c, (i + B) + C, c);
-			if H.CrosshairOutline then
-				r(4, i + B, c, (i + B) + C, c, true);
-			end;
-		elseif d == "T-Shape" then
-			r(1, i, c + B, i, (c + B) + C);
-			if H.CrosshairOutline then
-				r(1, i, c + B, i, (c + B) + C, true);
-			end;
-			r(2, (i - B) - C, c, i - B, c);
-			if H.CrosshairOutline then
-				r(2, (i - B) - C, c, i - B, c, true);
-			end;
-			r(3, i + B, c, (i + B) + C, c);
-			if H.CrosshairOutline then
-				r(3, i + B, c, (i + B) + C, c, true);
-			end;
-		elseif d == "Circle" then
-			if not Qa.circle then
-				Qa.circle = Drawing.new("Circle");
-				Qa.circle.Filled = false;
-				Qa.circle.NumSides = 32;
-				Qa.circleOutline = Drawing.new("Circle");
-				Qa.circleOutline.Filled = false;
-				Qa.circleOutline.NumSides = 32;
-			end;
-			if H.CrosshairOutline then
-				Qa.circleOutline.Visible = true;
-				Qa.circleOutline.Position = Vector2.new(i + .5, c + .5);
-				Qa.circleOutline.Radius = C + B;
-				Qa.circleOutline.Thickness = Z + 1;
-				Qa.circleOutline.Color = Color3.new(0, 0, 0);
-				Qa.circleOutline.Transparency = q * .5;
-			end;
-			Qa.circle.Visible = true;
-			Qa.circle.Position = Vector2.new(i + .5, c + .5);
-			Qa.circle.Radius = C + B;
-			Qa.circle.Thickness = Z;
-			Qa.circle.Color = a;
-			Qa.circle.Transparency = q;
-		end;
-	end;
-	if H.CrosshairDot then
-		if not Qa.circleDot then
-			Qa.circleDot = Drawing.new("Circle");
-			Qa.circleDot.Filled = true;
-			Qa.circleDot.NumSides = 16;
-			Qa.circleDotOutline = Drawing.new("Circle");
-			Qa.circleDotOutline.Filled = true;
-			Qa.circleDotOutline.NumSides = 16;
-		end;
-		local E = math.max(1, math.floor(H.CrosshairDotSize));
-		if H.CrosshairOutline then
-			Qa.circleDotOutline.Visible = true;
-			Qa.circleDotOutline.Position = Vector2.new(i + .5, c + .5);
-			Qa.circleDotOutline.Radius = E + 1;
-			Qa.circleDotOutline.Color = Color3.new(0, 0, 0);
-			Qa.circleDotOutline.Transparency = q * .5;
-		end;
-		Qa.circleDot.Visible = true;
-		Qa.circleDot.Position = Vector2.new(i + .5, c + .5);
-		Qa.circleDot.Radius = E;
-		Qa.circleDot.Color = a;
-		Qa.circleDot.Transparency = q;
-	end;
-end;
-W.RenderStepped:Connect(Ja);
-local function Wa(H)
-	if not H then
-		return;
-	end;
-	for E, H in pairs(E.Refs.OriginalHitboxSizes) do
-		if E and E.Parent then
-			pcall(function()
-				E.Size = H;
-			end);
-			pcall(function()
-				E.CanCollide = true;
-			end);
-		end;
-	end;
-	for H in pairs(E.Refs.OriginalHitboxSizes) do
-		if H and not H.Parent then
-			E.Refs.OriginalHitboxSizes[H] = nil;
-		end;
-	end;
-end;
-local function Xa()
-	for E, H in ipairs(J:GetPlayers()) do
-		if H.Character then
-			Wa(H.Character);
-		end;
-	end;
-end;
-local function ua(z)
-	if not z then
-		return;
-	end;
-	local i = z:FindFirstChildOfClass("Humanoid");
-	if not i or i.Health <= 0 then
-		return;
-	end;
-	local c = H.HitboxSize or 2;
-	for z, i in ipairs(z:GetChildren()) do
-		if i:IsA("BasePart") then
-			local z = i.Name;
-			if z == "Head" or z == "Torso" or z == "UpperTorso" or z == "LowerTorso" or z == "HumanoidRootPart" or z == "Left Arm" or z == "Right Arm" or z == "Left Leg" or z == "Right Leg" or z == "LeftUpperArm" or z == "RightUpperArm" or z == "LeftLowerArm" or z == "RightLowerArm" or z == "LeftUpperLeg" or z == "RightUpperLeg" or z == "LeftLowerLeg" or z == "RightLowerLeg" then
-				if not E.Refs.OriginalHitboxSizes[i] then
-					E.Refs.OriginalHitboxSizes[i] = i.Size;
-				end;
-				pcall(function()
-					i.Size = E.Refs.OriginalHitboxSizes[i] * c;
-				end);
-				if H.HitboxTransparency > 0 then
-					pcall(function()
-						i.Transparency = math.clamp(H.HitboxTransparency / 100, 0, 1);
-					end);
-				end;
-			end;
-		end;
-	end;
-end;
-local function Oa()
-	for E, z in ipairs(J:GetPlayers()) do
-		if z ~= A and z.Character then
-			if H.HitboxEnabled and P(z.Character) then
-				ua(z.Character);
-			else
-				Wa(z.Character);
-			end;
-		end;
-	end;
-end;
-local Aa = RaycastParams.new();
-Aa.FilterType = Enum.RaycastFilterType.Exclude;
-local function ga(E)
-	if not E then
-		return false;
-	end;
-	Aa.FilterDescendantsInstances = { A.Character, E.Parent };
-	local H = g.CFrame.Position;
-	local z = (E.Position - H);
-	local i = workspace:Raycast(H, z, Aa);
-	return i == nil;
-end;
-local function la(E)
-	for H, z in ipairs(J:GetPlayers()) do
-		if z.Character == E then
-			return true;
-		end;
-	end;
-	return false;
-end;
-local function Pa(E)
-	local H = string.lower(E.Name);
-	return H == "scientist";
-end;
-local function Ra(E)
-	local H = string.lower(E.Name);
-	return H == "bear" or H == "wolf" or H == "boar" or H == "stag";
-end;
-local function ta()
-	local z, i;
-	local c = math.huge;
-	local a = A.Character and A.Character:FindFirstChild("HumanoidRootPart");
-	if not a then
-		return nil, nil;
-	end;
-	local q = a.Position;
-	local d = g.ViewportSize;
-	local Z = Vector2.new(d.X / 2, d.Y / 2);
-	for E, a in ipairs(J:GetPlayers()) do
-		if a ~= A and P(a.Character) then
-			if H.AimbotIgnoreTeam and o(a) then
-				continue;
-			end;
-			local E = a.Character;
-			local d = I(E, H.AimbotBone);
-			if d then
-				local E = ((d.Position - q)).Magnitude;
-				if E > H.AimbotDistanceLimit then
-					continue;
-				end;
-				local C = U(d.Position);
-				if C.Z > 0 then
-					local q = ((Z - Vector2.new(C.X, C.Y))).Magnitude;
-					if q < H.AimbotFOV then
-						if H.AimbotVisibleCheck and not ga(d) then
-							continue;
-						end;
-						if E < c then
-							c = E;
-							z = a;
-							i = d;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	if not H.AimbotIgnoreNPC then
-		for E, a in ipairs(E.Refs.NPCList or {}) do
-			if a.Parent and (P(a) and (not la(a) and Pa(a))) then
-				local E = I(a, H.AimbotBone);
-				if E then
-					local d = ((E.Position - q)).Magnitude;
-					if d > H.AimbotDistanceLimit then
-						continue;
-					end;
-					local C = U(E.Position);
-					if C.Z > 0 then
-						local q = ((Z - Vector2.new(C.X, C.Y))).Magnitude;
-						if q < H.AimbotFOV then
-							if H.AimbotVisibleCheck and not ga(E) then
-								continue;
-							end;
-							if d < c then
-								c = d;
-								z = a;
-								i = E;
-							end;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	if not H.AimbotIgnoreAnimals then
-		for E, a in ipairs(E.Refs.AnimalList or {}) do
-			if a.Parent and (P(a) and (not la(a) and Ra(a))) then
-				local E = I(a, H.AimbotBone);
-				if E then
-					local d = ((E.Position - q)).Magnitude;
-					if d > H.AimbotDistanceLimit then
-						continue;
-					end;
-					local C = U(E.Position);
-					if C.Z > 0 then
-						local q = ((Z - Vector2.new(C.X, C.Y))).Magnitude;
-						if q < H.AimbotFOV then
-							if H.AimbotVisibleCheck and not ga(E) then
-								continue;
-							end;
-							if d < c then
-								c = d;
-								z = a;
-								i = E;
-							end;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	return z, i;
-end;
-W:BindToRenderStep("VelcloudAimbot", Enum.RenderPriority.Last.Value, function(z)
-	if not H.AimbotEnabled then
-		E.Refs.CurrentTargetPart = nil;
-		if g.CameraType == Enum.CameraType.Scriptable then
-			g.CameraType = Enum.CameraType.Custom;
-		end;
-		return;
-	end;
-	local i, c = ta();
-	if H.AimbotAutoSwitch then
-		if not c then
-			E.Refs.CurrentTarget = nil;
-			E.Refs.CurrentTargetPart = nil;
-		else
-			E.Refs.CurrentTarget = i;
-			E.Refs.CurrentTargetPart = c;
-		end;
-	else
-		if not E.Refs.CurrentTargetPart or not E.Refs.CurrentTargetPart.Parent then
-			E.Refs.CurrentTarget = i;
-			E.Refs.CurrentTargetPart = c;
-		end;
-	end;
-	if not E.Refs.CurrentTargetPart then
-		if g.CameraType == Enum.CameraType.Scriptable then
-			g.CameraType = Enum.CameraType.Custom;
-		end;
-		return;
-	end;
-	if not t() then
-		if g.CameraType == Enum.CameraType.Scriptable then
-			g.CameraType = Enum.CameraType.Custom;
-		end;
-		return;
-	end;
-	if H.AimbotType == "Mouse" then
-		local i = g.CFrame.Position;
-		local c = b(E.Refs.CurrentTargetPart, E.Refs.CurrentTargetPart.Parent);
-		local a = CFrame.lookAt(i, c);
-		local q = 1 / math.max(1, H.AimbotSmooth);
-		local d = 1 - ((1 - q)) ^ ((z * 60));
-		g.CFrame = g.CFrame:Lerp(a, d);
-	end;
-end);
-local ea = Drawing.new("Circle");
-ea.Thickness = 1;
-ea.Color = Color3.fromRGB(255, 255, 255);
-ea.Filled = false;
-ea.Visible = false;
-ea.NumSides = 64;
-local Ya = Drawing.new("Circle");
-Ya.Thickness = 2;
-Ya.Color = Color3.fromRGB(255, 0, 0);
-Ya.Filled = false;
-Ya.Visible = false;
-Ya.NumSides = 32;
-W.RenderStepped:Connect(function()
-	if H.AimbotEnabled and H.AimbotDrawFOV then
-		ea.Position = Vector2.new(g.ViewportSize.X / 2, g.ViewportSize.Y / 2);
-		ea.Radius = H.AimbotFOV;
-		ea.Color = H.AimbotDrawFOVColor;
-		ea.Visible = true;
-	else
-		ea.Visible = false;
-	end;
-	if H.AimbotEnabled and (H.AimbotDrawTarget and E.Refs.CurrentTargetPart) then
-		local z = U(E.Refs.CurrentTargetPart.Position);
-		if z.Z > 0 then
-			Ya.Position = Vector2.new(z.X, z.Y);
-			Ya.Radius = 20;
-			Ya.Color = H.AimbotDrawTargetColor;
-			Ya.Visible = true;
-		else
-			Ya.Visible = false;
-		end;
-	else
-		Ya.Visible = false;
-	end;
-end);
-local function ma()
-	if E.Refs.freecamConn then
-		E.Refs.freecamConn:Disconnect();
-		E.Refs.freecamConn = nil;
-	end;
-	if E.Refs.freecamMouseConn then
-		E.Refs.freecamMouseConn:Disconnect();
-		E.Refs.freecamMouseConn = nil;
-	end;
-	if E.Refs.savedCamType then
-		g.CameraType = E.Refs.savedCamType;
-		E.Refs.savedCamType = nil;
-	end;
-	if E.Refs.savedMouseBehavior then
-		X.MouseBehavior = E.Refs.savedMouseBehavior;
-		E.Refs.savedMouseBehavior = nil;
-	end;
-	local z = A.Character and A.Character:FindFirstChildOfClass("Humanoid");
-	if z then
-		z.WalkSpeed = E.Refs.savedWS;
-		z.JumpPower = E.Refs.savedJP;
-	end;
-	H.FreeCam = false;
-end;
-local function Fa()
-	if E.Refs.freecamConn then
-		return;
-	end;
-	E.Refs.savedCamType = g.CameraType;
-	g.CameraType = Enum.CameraType.Scriptable;
-	E.Refs.savedMouseBehavior = X.MouseBehavior;
-	X.MouseBehavior = Enum.MouseBehavior.LockCenter;
-	E.Refs.freecamPos = g.CFrame.Position;
-	local z = g.CFrame.LookVector;
-	E.Refs.freecamYaw = math.atan2(-z.X, -z.Z);
-	E.Refs.freecamPitch = math.asin(math.clamp(z.Y, -1, 1));
-	local i = A.Character and A.Character:FindFirstChildOfClass("Humanoid");
-	if i then
-		E.Refs.savedWS = i.WalkSpeed;
-		E.Refs.savedJP = i.JumpPower;
-		i.WalkSpeed = 0;
-		i.JumpPower = 0;
-	end;
-	E.Refs.freecamMouseConn = X.InputChanged:Connect(function(H)
-			if H.UserInputType == Enum.UserInputType.MouseMovement then
-				E.Refs.freecamYaw = E.Refs.freecamYaw - H.Delta.X * .005;
-				E.Refs.freecamPitch = math.clamp(E.Refs.freecamPitch - H.Delta.Y * .005, -math.rad(89), math.rad(89));
-			end;
-		end);
-	E.Refs.freecamConn = W.RenderStepped:Connect(function(H)
-			local z = X:IsKeyDown(Enum.KeyCode.LeftShift) and 150 or 50;
-			local i = CFrame.fromEulerAnglesYXZ(E.Refs.freecamPitch, E.Refs.freecamYaw, 0);
-			local c = Vector3.new(0, 0, 0);
-			if X:IsKeyDown(Enum.KeyCode.W) then
-				c = c + i.LookVector;
-			end;
-			if X:IsKeyDown(Enum.KeyCode.S) then
-				c = c - i.LookVector;
-			end;
-			if X:IsKeyDown(Enum.KeyCode.A) then
-				c = c - i.RightVector;
-			end;
-			if X:IsKeyDown(Enum.KeyCode.D) then
-				c = c + i.RightVector;
-			end;
-			if X:IsKeyDown(Enum.KeyCode.Space) then
-				c = c + Vector3.new(0, 1, 0);
-			end;
-			if X:IsKeyDown(Enum.KeyCode.LeftControl) then
-				c = c - Vector3.new(0, 1, 0);
-			end;
-			if c.Magnitude > 0 then
-				E.Refs.freecamPos = E.Refs.freecamPos + (c.Unit * z) * H;
-			end;
-			g.CFrame = CFrame.new(E.Refs.freecamPos) * i;
-		end);
-	H.FreeCam = true;
-end;
-A.CharacterAdded:Connect(function()
-	task.wait(.1);
-	if E.Refs.freecamConn then
-		ma();
-	end;
-end);
-local oa = nil;
-local Sa = {};
-local function Ia()
-	if oa then
-		oa:Disconnect();
-	end;
-	Sa = {};
-	oa = W.RenderStepped:Connect(function()
-			if not H.NoRecoil then
-				return;
-			end;
-			local E = A.Character;
-			if not E then
-				return;
-			end;
-			local z = E:FindFirstChildOfClass("Humanoid");
-			if not z then
-				return;
-			end;
-			if z.CameraOffset.Magnitude > .001 then
-				z.CameraOffset = Vector3.zero;
-			end;
-			local i = X:IsMouseButtonPressed(Enum.UserInputType.MouseButton1);
-			for E, H in ipairs(E:GetDescendants()) do
-				if H:IsA("Motor6D") then
-					if H.Name == "Neck" or H.Name == "RightShoulder" or H.Name == "LeftShoulder" then
-						if i then
-							if not Sa[H] then
-								Sa[H] = H.Transform;
-							end;
-							if H.Transform ~= Sa[H] then
-								H.Transform = Sa[H];
-							end;
-						else
-							Sa[H] = nil;
-						end;
-					end;
-				end;
-			end;
-		end);
-end;
-local function ba()
-	if oa then
-		oa:Disconnect();
-		oa = nil;
-	end;
-	Sa = {};
-	local E = A.Character;
-	if E then
-		local H = E:FindFirstChildOfClass("Humanoid");
-		if H then
-			H.CameraOffset = Vector3.zero;
-		end;
-	end;
-end;
-local function na(H)
-	if H == A or E.Refs.Drawings[H] then
-		return;
-	end;
-	local z = {};
-	z.Box = Drawing.new("Square");
-	z.Box.Thickness = 1;
-	z.Box.Filled = false;
-	z.Box.Visible = false;
-	z.Name = Drawing.new("Text");
-	z.Name.Size = 14;
-	z.Name.Center = true;
-	z.Name.Outline = true;
-	z.Name.Visible = false;
-	z.Health = Drawing.new("Text");
-	z.Health.Size = 12;
-	z.Health.Center = true;
-	z.Health.Outline = true;
-	z.Health.Visible = false;
-	z.Line = Drawing.new("Line");
-	z.Line.Thickness = 1;
-	z.Line.Visible = false;
-	z.Distance = Drawing.new("Text");
-	z.Distance.Size = 12;
-	z.Distance.Center = true;
-	z.Distance.Outline = true;
-	z.Distance.Visible = false;
-	z.Weapon = Drawing.new("Text");
-	z.Weapon.Size = 12;
-	z.Weapon.Center = true;
-	z.Weapon.Outline = true;
-	z.Weapon.Visible = false;
-	E.Refs.Drawings[H] = z;
-end;
-local function ja(H)
-	if E.Refs.Highlights[H] then
-		pcall(function()
-			E.Refs.Highlights[H]:Destroy();
-		end);
-		E.Refs.Highlights[H] = nil;
-	end;
-end;
-local function va(H)
-	if E.Refs.Drawings[H] then
-		for E, H in pairs(E.Refs.Drawings[H]) do
-			if H then
-				pcall(function()
-					H:Remove();
-				end);
-			end;
-		end;
-		E.Refs.Drawings[H] = nil;
-	end;
-	ja(H);
-	if E.Refs.Skeletons[H] then
-		for E, H in pairs(E.Refs.Skeletons[H].lines) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-		E.Refs.Skeletons[H] = nil;
-	end;
-	if E.Refs.WeaponLabels[H] then
-		pcall(function()
-			E.Refs.WeaponLabels[H]:Remove();
-		end);
-		E.Refs.WeaponLabels[H] = nil;
-	end;
-end;
-local function ya(z)
-	if z == A then
-		return;
-	end;
-	local i = z.Character;
-	local c = H.ESP and H.MaxDistance > 0;
-	if not c or not i or not P(i) then
-		ja(z);
-		return;
-	end;
-	local a = E.Refs.Highlights[z];
-	if not a or not a.Parent then
-		if a then
-			pcall(function()
-				a:Destroy();
-			end);
-		end;
-		a = Instance.new("Highlight");
-		a.Name = "VelcloudESP";
-		a.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop;
-		a.Parent = i;
-		E.Refs.Highlights[z] = a;
-	end;
-	if a.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then
-		a.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop;
-	end;
-	local q = H.TeamCheck and o(z);
-	local d = q and H.TeamColor or H.ESPColor;
-	if H.ESPMode == "Chams" then
-		a.FillColor = d;
-		a.FillTransparency = 0;
-		a.OutlineColor = d;
-		a.OutlineTransparency = 1;
-	else
-		a.FillColor = d;
-		a.FillTransparency = 1;
-		a.OutlineColor = d;
-		a.OutlineTransparency = 0;
-	end;
-end;
-local Na = {
-		{ "Head", "UpperTorso" },
-		{ "UpperTorso", "LowerTorso" },
-		{ "UpperTorso", "LeftUpperArm" },
-		{ "LeftUpperArm", "LeftLowerArm" },
-		{ "UpperTorso", "RightUpperArm" },
-		{ "RightUpperArm", "RightLowerArm" },
-		{ "LowerTorso", "LeftUpperLeg" },
-		{ "LeftUpperLeg", "LeftLowerLeg" },
-		{ "LowerTorso", "RightUpperLeg" },
-		{ "RightUpperLeg", "RightLowerLeg" },
-	};
-local pa = {
-		{ "Head", "Torso" },
-		{ "Torso", "Left Arm" },
-		{ "Torso", "Right Arm" },
-		{ "Torso", "Left Leg" },
-		{ "Torso", "Right Leg" },
-	};
-local function Ua(H, z)
-	local i = E.Refs.Skeletons[H];
-	local c = z and Na or pa;
-	if i and #i.lines == #c then
-		return;
-	end;
-	if i then
-		for E, H in pairs(i.lines) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-	end;
-	local a = {};
-	for E = 1, #c, 1 do
-		local H = Drawing.new("Line");
-		H.Thickness = 1;
-		H.Visible = false;
-		a[E] = H;
-	end;
-	E.Refs.Skeletons[H] = { lines = a, conns = c };
-end;
-local function xa(z, i)
-	local c = i:FindFirstChild("UpperTorso") ~= nil;
-	Ua(z, c);
-	local a = E.Refs.Skeletons[z];
-	if not a then
-		return;
-	end;
-	local q = H.TeamCheck and o(z);
-	local d = q and H.TeamColor or H.SkeletonColor;
-	for E, H in ipairs(a.conns) do
-		local z = i:FindFirstChild(H[1]);
-		local c = i:FindFirstChild(H[2]);
-		local q = a.lines[E];
-		if z and c then
-			local E = U(z.Position);
-			local H = U(c.Position);
-			if E.Z > 0 and H.Z > 0 then
-				q.From = Vector2.new(E.X, E.Y);
-				q.To = Vector2.new(H.X, H.Y);
-				q.Color = d;
-				q.Visible = true;
-			elseif q.Visible then
-				q.Visible = false;
-			end;
-		elseif q.Visible then
-			q.Visible = false;
-		end;
-	end;
-end;
-local Ma = {
-		Handle = true,
-		Grip = true,
-		Attachment = true,
-		Attachment1 = true,
-		LeftGrip = true,
-		RightGrip = true,
-		Tool = true,
-		Head = true,
-		Torso = true,
-		UpperTorso = true,
-		LowerTorso = true,
-		["Left Arm"] = true,
-		["Right Arm"] = true,
-		["Left Leg"] = true,
-		["Right Leg"] = true,
-		LeftUpperArm = true,
-		RightUpperArm = true,
-		LeftLowerArm = true,
-		RightLowerArm = true,
-		LeftUpperLeg = true,
-		RightUpperLeg = true,
-		LeftLowerLeg = true,
-		RightLowerLeg = true,
-		HumanoidRootPart = true,
-		Humanoid = true,
-		[""] = true,
-		None = true,
-		Nil = true,
-		Part = true,
-		Mesh = true,
-	};
-local function sa(E)
-	if not E or E == "" then
-		return false;
-	end;
-	if Ma[E] then
-		return false;
-	end;
-	if #E < 2 then
-		return false;
-	end;
-	if tonumber(E) then
-		return false;
-	end;
-	return true;
-end;
-local function Da(E)
-	if not E then
-		return nil;
-	end;
-	local H = E:FindFirstChildOfClass("Tool");
-	if not H then
-		return nil;
-	end;
-	if sa(H.Name) then
-		return H.Name;
-	end;
-	for E, H in ipairs(H:GetChildren()) do
-		if H:IsA("BasePart") and sa(H.Name) then
-			return H.Name;
-		end;
-	end;
-	return nil;
-end;
-local function ha(z, i, c)
-	local a = E.Refs.Highlights[z];
-	if not a or not a.Parent then
-		return;
-	end;
-	local q = H.ESP and (H.MaxDistance > 0 and (c and i <= H.MaxDistance));
-	if a.Enabled ~= q then
-		a.Enabled = q;
-	end;
-end;
-local function fa()
-	for E, H in pairs(E.Refs.Drawings) do
-		if H.Box.Visible then
-			H.Box.Visible = false;
-		end;
-		if H.Name.Visible then
-			H.Name.Visible = false;
-		end;
-		if H.Health.Visible then
-			H.Health.Visible = false;
-		end;
-		if H.Line.Visible then
-			H.Line.Visible = false;
-		end;
-		if H.Distance.Visible then
-			H.Distance.Visible = false;
-		end;
-		if H.Weapon.Visible then
-			H.Weapon.Visible = false;
-		end;
-	end;
-	for E, H in pairs(E.Refs.Skeletons) do
-		for E, H in pairs(H.lines) do
-			if H.Visible then
-				H.Visible = false;
-			end;
-		end;
-	end;
-	for E, H in pairs(E.Refs.Highlights) do
-		if H and (H.Parent and H.Enabled) then
-			H.Enabled = false;
-		end;
-	end;
-end;
-local function La()
-	if not H.ESP or H.MaxDistance <= 0 then
-		fa();
-		return;
-	end;
-	local z = A.Character and A.Character:FindFirstChild("HumanoidRootPart");
-	if not z then
-		fa();
-		return;
-	end;
-	local i = z.Position;
-	local c = g.ViewportSize;
-	for z, a in pairs(E.Refs.Drawings) do
-		local q = z.Character;
-		local d = q and q:FindFirstChild("HumanoidRootPart");
-		local Z = q and q:FindFirstChildOfClass("Humanoid");
-		if not d or not Z or Z.Health <= 0 then
-			if a.Box.Visible then
-				a.Box.Visible = false;
-			end;
-			if a.Name.Visible then
-				a.Name.Visible = false;
-			end;
-			if a.Health.Visible then
-				a.Health.Visible = false;
-			end;
-			if a.Line.Visible then
-				a.Line.Visible = false;
-			end;
-			if a.Distance.Visible then
-				a.Distance.Visible = false;
-			end;
-			if a.Weapon.Visible then
-				a.Weapon.Visible = false;
-			end;
-			local H = E.Refs.Skeletons[z];
-			if H then
-				for E, H in pairs(H.lines) do
-					if H.Visible then
-						H.Visible = false;
-					end;
-				end;
-			end;
-			ha(z, math.huge, false);
-			continue;
-		end;
-		local C = ((d.Position - i)).Magnitude;
-		if C > H.MaxDistance then
-			if a.Box.Visible then
-				a.Box.Visible = false;
-			end;
-			if a.Name.Visible then
-				a.Name.Visible = false;
-			end;
-			if a.Health.Visible then
-				a.Health.Visible = false;
-			end;
-			if a.Line.Visible then
-				a.Line.Visible = false;
-			end;
-			if a.Distance.Visible then
-				a.Distance.Visible = false;
-			end;
-			if a.Weapon.Visible then
-				a.Weapon.Visible = false;
-			end;
-			local H = E.Refs.Skeletons[z];
-			if H then
-				for E, H in pairs(H.lines) do
-					if H.Visible then
-						H.Visible = false;
-					end;
-				end;
-			end;
-			ha(z, C, false);
-			continue;
-		end;
-		local B = U(d.Position);
-		if B.Z <= 0 then
-			if a.Box.Visible then
-				a.Box.Visible = false;
-			end;
-			if a.Name.Visible then
-				a.Name.Visible = false;
-			end;
-			if a.Health.Visible then
-				a.Health.Visible = false;
-			end;
-			if a.Line.Visible then
-				a.Line.Visible = false;
-			end;
-			if a.Distance.Visible then
-				a.Distance.Visible = false;
-			end;
-			if a.Weapon.Visible then
-				a.Weapon.Visible = false;
-			end;
-			local H = E.Refs.Skeletons[z];
-			if H then
-				for E, H in pairs(H.lines) do
-					if H.Visible then
-						H.Visible = false;
-					end;
-				end;
-			end;
-			ha(z, C, false);
-			continue;
-		end;
-		local r, T = B.X, B.Y;
-		local w = q:FindFirstChild("Head") or d;
-		local V = w.Position + Vector3.new(0, 1.5, 0);
-		local G = d.Position - Vector3.new(0, 2.5, 0);
-		local Q = U(V);
-		local J = U(G);
-		local W = H.TeamCheck and o(z);
-		local X = W and H.TeamColor or H.BoxColor;
-		local u = W and H.TeamColor or H.TextColor;
-		local O = W and H.TeamColor or H.LineColor;
-		if H.Box and (Q.Z > 0 and J.Z > 0) then
-			local E = math.abs(Q.Y - J.Y);
-			local H = E * .5;
-			a.Box.Size = Vector2.new(H, E);
-			a.Box.Position = Vector2.new(r - H / 2, Q.Y);
-			a.Box.Color = X;
-			if not a.Box.Visible then
-				a.Box.Visible = true;
-			end;
-		elseif a.Box.Visible then
-			a.Box.Visible = false;
-		end;
-		if H.Name then
-			a.Name.Text = z.Name;
-			a.Name.Position = Vector2.new(r, Q.Y - 18);
-			a.Name.Color = u;
-			if not a.Name.Visible then
-				a.Name.Visible = true;
-			end;
-		elseif a.Name.Visible then
-			a.Name.Visible = false;
-		end;
-		if H.Health then
-			a.Health.Text = "HP: " .. (math.floor(Z.Health) .. ("/" .. math.floor(Z.MaxHealth)));
-			a.Health.Position = Vector2.new(r, J.Y + 2);
-			a.Health.Color = u;
-			if not a.Health.Visible then
-				a.Health.Visible = true;
-			end;
-		elseif a.Health.Visible then
-			a.Health.Visible = false;
-		end;
-		if H.Distance then
-			a.Distance.Text = math.floor(C) .. "m";
-			a.Distance.Position = Vector2.new(r, J.Y + 18);
-			a.Distance.Color = u;
-			if not a.Distance.Visible then
-				a.Distance.Visible = true;
-			end;
-		elseif a.Distance.Visible then
-			a.Distance.Visible = false;
-		end;
-		if H.Line then
-			a.Line.From = Vector2.new(c.X / 2, c.Y);
-			a.Line.To = Vector2.new(r, T);
-			a.Line.Color = O;
-			if not a.Line.Visible then
-				a.Line.Visible = true;
-			end;
-		elseif a.Line.Visible then
-			a.Line.Visible = false;
-		end;
-		if H.WeaponESP then
-			local E = Da(q);
-			if E then
-				a.Weapon.Text = "[" .. (E .. "]");
-				a.Weapon.Position = Vector2.new(r, J.Y + 34);
-				a.Weapon.Color = u;
-				if not a.Weapon.Visible then
-					a.Weapon.Visible = true;
-				end;
-			elseif a.Weapon.Visible then
-				a.Weapon.Visible = false;
-			end;
-		elseif a.Weapon.Visible then
-			a.Weapon.Visible = false;
-		end;
-		if H.Skeleton then
-			xa(z, q);
-		else
-			local H = E.Refs.Skeletons[z];
-			if H then
-				for E, H in pairs(H.lines) do
-					if H.Visible then
-						H.Visible = false;
-					end;
-				end;
-			end;
-		end;
-		ha(z, C, true);
-		local A = E.Refs.Highlights[z];
-		if A and A.Parent then
-			local E = H.TeamCheck and o(z);
-			local i = E and H.TeamColor or H.ESPColor;
-			if A.FillColor ~= i then
-				A.FillColor = i;
-				if H.ESPMode == "Chams" then
-					A.FillTransparency = 0;
-					A.OutlineColor = i;
-					A.OutlineTransparency = 1;
-				else
-					A.FillTransparency = 1;
-					A.OutlineColor = i;
-					A.OutlineTransparency = 0;
-				end;
-			end;
-		end;
-	end;
-end;
-E.Refs.SleeperList = {};
-E.Refs.SleeperDrawings = {};
-E.Refs.SleeperHighlights = {};
-E.Refs.SleeperSkeletons = {};
-local function ka()
-	if not H.ESP_Sleeper then
-		E.Refs.SleeperList = {};
-		return;
-	end;
-	local z = {};
-	local i = workspace:FindFirstChild("SleepingPlayers");
-	if i then
-		for E, H in ipairs(i:GetChildren()) do
-			if H:IsA("Model") and H.Name == "Sleeper" then
-				local E = H:FindFirstChildOfClass("Humanoid");
-				if E then
-					z[#z + 1] = H;
-				end;
-			end;
-		end;
-	end;
-	E.Refs.SleeperList = z;
-end;
-local function Ka(H)
-	if E.Refs.SleeperDrawings[H] then
-		return E.Refs.SleeperDrawings[H];
-	end;
-	local z = {};
-	z.Box = Drawing.new("Square");
-	z.Box.Thickness = 1;
-	z.Box.Filled = false;
-	z.Box.Visible = false;
-	z.Name = Drawing.new("Text");
-	z.Name.Size = 14;
-	z.Name.Center = true;
-	z.Name.Outline = true;
-	z.Name.Visible = false;
-	z.Health = Drawing.new("Text");
-	z.Health.Size = 12;
-	z.Health.Center = true;
-	z.Health.Outline = true;
-	z.Health.Visible = false;
-	z.Line = Drawing.new("Line");
-	z.Line.Thickness = 1;
-	z.Line.Visible = false;
-	z.Distance = Drawing.new("Text");
-	z.Distance.Size = 12;
-	z.Distance.Center = true;
-	z.Distance.Outline = true;
-	z.Distance.Visible = false;
-	z.Weapon = Drawing.new("Text");
-	z.Weapon.Size = 12;
-	z.Weapon.Center = true;
-	z.Weapon.Outline = true;
-	z.Weapon.Visible = false;
-	E.Refs.SleeperDrawings[H] = z;
-	return z;
-end;
-local function E6(H)
-	local z = E.Refs.SleeperDrawings[H];
-	if z then
-		for E, H in pairs(z) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-		E.Refs.SleeperDrawings[H] = nil;
-	end;
-	local i = E.Refs.SleeperHighlights[H];
-	if i then
-		pcall(function()
-			i:Destroy();
-		end);
-		E.Refs.SleeperHighlights[H] = nil;
-	end;
-	local c = E.Refs.SleeperSkeletons[H];
-	if c then
-		for E, H in pairs(c.lines) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-		E.Refs.SleeperSkeletons[H] = nil;
-	end;
-end;
-local function H6(H, z)
-	local i = E.Refs.SleeperSkeletons[H];
-	local c = z and Na or pa;
-	if i and #i.lines == #c then
-		return;
-	end;
-	if i then
-		for E, H in pairs(i.lines) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-	end;
-	local a = {};
-	for E = 1, #c, 1 do
-		local H = Drawing.new("Line");
-		H.Thickness = 1;
-		H.Visible = false;
-		a[E] = H;
-	end;
-	E.Refs.SleeperSkeletons[H] = { lines = a, conns = c };
-end;
-local function z6(z)
-	local i = z:FindFirstChild("UpperTorso") ~= nil;
-	H6(z, i);
-	local c = E.Refs.SleeperSkeletons[z];
-	if not c then
-		return;
-	end;
-	for E, i in ipairs(c.conns) do
-		local a = z:FindFirstChild(i[1]);
-		local q = z:FindFirstChild(i[2]);
-		local d = c.lines[E];
-		if a and q then
-			local E = U(a.Position);
-			local z = U(q.Position);
-			if E.Z > 0 and z.Z > 0 then
-				d.From = Vector2.new(E.X, E.Y);
-				d.To = Vector2.new(z.X, z.Y);
-				d.Color = H.SleeperColor;
-				d.Visible = true;
-			elseif d.Visible then
-				d.Visible = false;
-			end;
-		elseif d.Visible then
-			d.Visible = false;
-		end;
-	end;
-end;
-local function i6()
-	for E, H in pairs(E.Refs.SleeperDrawings) do
-		H.Box.Visible = false;
-		H.Name.Visible = false;
-		H.Health.Visible = false;
-		H.Distance.Visible = false;
-		H.Line.Visible = false;
-		H.Weapon.Visible = false;
-	end;
-	for E, H in pairs(E.Refs.SleeperHighlights) do
-		if H and H.Parent then
-			H.Enabled = false;
-		end;
-	end;
-	for E, H in pairs(E.Refs.SleeperSkeletons) do
-		for E, H in pairs(H.lines) do
-			if H.Visible then
-				H.Visible = false;
-			end;
-		end;
-	end;
-end;
-local function c6()
-	if not H.ESP_Sleeper then
-		i6();
-		return;
-	end;
-	local z = A.Character and A.Character:FindFirstChild("HumanoidRootPart");
-	if not z then
-		i6();
-		return;
-	end;
-	local i = z.Position;
-	local c = g.ViewportSize;
-	local a = E.Refs.SleeperList or {};
-	local q = {};
-	local d = H.SleeperColor;
-	for z, a in ipairs(a) do
-		if a.Parent then
-			local z = a:FindFirstChild("HumanoidRootPart") or a:FindFirstChild("Torso") or a:FindFirstChild("Head");
-			if z and z:IsA("BasePart") then
-				local Z = a:FindFirstChildOfClass("Humanoid");
-				local C = ((z.Position - i)).Magnitude;
-				if C <= H.MaxDistance then
-					q[a] = true;
-					local i = E.Refs.SleeperHighlights[a];
-					if not i or not i.Parent then
-						if i then
-							pcall(function()
-								i:Destroy();
-							end);
-						end;
-						i = Instance.new("Highlight");
-						i.Name = "VelcloudSleeper";
-						i.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop;
-						i.Parent = a;
-						E.Refs.SleeperHighlights[a] = i;
-					end;
-					if i.FillColor ~= d then
-						i.FillColor = d;
-						i.OutlineColor = d;
-					end;
-					if H.ESPMode == "Chams" then
-						i.FillTransparency = 0;
-						i.OutlineTransparency = 1;
-					else
-						i.FillTransparency = 1;
-						i.OutlineTransparency = 0;
-					end;
-					i.Enabled = true;
-					local B = a:FindFirstChild("Head");
-					local r = Ka(a);
-					local T = U(z.Position);
-					if B and T.Z > 0 then
-						local E = U(B.Position + Vector3.new(0, 1.5, 0));
-						local i = U(z.Position - Vector3.new(0, 2.5, 0));
-						if E.Z > 0 and i.Z > 0 then
-							local z = math.abs(E.Y - i.Y);
-							local q = z * .5;
-							if H.Box then
-								r.Box.Size = Vector2.new(q, z);
-								r.Box.Position = Vector2.new(T.X - q / 2, E.Y);
-								r.Box.Color = d;
-								r.Box.Visible = true;
-							else
-								r.Box.Visible = false;
-							end;
-							if H.Name then
-								r.Name.Text = a.Name;
-								r.Name.Position = Vector2.new(T.X, E.Y - 18);
-								r.Name.Color = d;
-								r.Name.Visible = true;
-							else
-								r.Name.Visible = false;
-							end;
-							if H.Health then
-								if Z then
-									r.Health.Text = "HP: " .. (math.floor(Z.Health) .. ("/" .. math.floor(Z.MaxHealth)));
-									r.Health.Position = Vector2.new(T.X, i.Y + 2);
-									r.Health.Color = d;
-									r.Health.Visible = true;
-								else
-									r.Health.Visible = false;
-								end;
-							else
-								r.Health.Visible = false;
-							end;
-							if H.Distance then
-								r.Distance.Text = math.floor(C) .. "m";
-								r.Distance.Position = Vector2.new(T.X, i.Y + 18);
-								r.Distance.Color = d;
-								r.Distance.Visible = true;
-							else
-								r.Distance.Visible = false;
-							end;
-							if H.Line then
-								r.Line.From = Vector2.new(c.X / 2, c.Y);
-								r.Line.To = Vector2.new(T.X, T.Y);
-								r.Line.Color = d;
-								r.Line.Visible = true;
-							else
-								r.Line.Visible = false;
-							end;
-							if H.WeaponESP then
-								local E = Da(a);
-								if E then
-									r.Weapon.Text = "[" .. (E .. "]");
-									r.Weapon.Position = Vector2.new(T.X, i.Y + 34);
-									r.Weapon.Color = d;
-									r.Weapon.Visible = true;
-								else
-									r.Weapon.Visible = false;
-								end;
-							else
-								r.Weapon.Visible = false;
-							end;
-						else
-							r.Box.Visible = false;
-							r.Name.Visible = false;
-							r.Health.Visible = false;
-							r.Distance.Visible = false;
-							r.Line.Visible = false;
-							r.Weapon.Visible = false;
-						end;
-					else
-						r.Box.Visible = false;
-						r.Name.Visible = false;
-						r.Health.Visible = false;
-						r.Distance.Visible = false;
-						r.Line.Visible = false;
-						r.Weapon.Visible = false;
-					end;
-					if H.Skeleton then
-						z6(a);
-					else
-						local H = E.Refs.SleeperSkeletons[a];
-						if H then
-							for E, H in pairs(H.lines) do
-								if H.Visible then
-									H.Visible = false;
-								end;
-							end;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	for E, H in pairs(E.Refs.SleeperDrawings) do
-		if not q[E] then
-			E6(E);
-		end;
-	end;
-	for H, z in pairs(E.Refs.SleeperHighlights) do
-		if not q[H] and z then
-			pcall(function()
-				z:Destroy();
-			end);
-			E.Refs.SleeperHighlights[H] = nil;
-		end;
-	end;
-end;
+    while true do
+        if Flags.FPSPing then
+            if not CC.Refs.HudPanel then createHud() end
+            if CC.Refs.fpsRow then CC.Refs.fpsRow:Set(tostring(currentFps)) end
+            local ok, ping = pcall(function() return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+            if CC.Refs.pingRow then CC.Refs.pingRow:Set(ok and ping and (math.floor(ping).." ms") or "n/a") end
+            local char = LP.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if root and CC.Refs.posRow then local p = root.Position; CC.Refs.posRow:Set(string.format("%d, %d, %d", p.X, p.Y, p.Z)) end
+            if hum and CC.Refs.hpRow then CC.Refs.hpRow:Set(string.format("%d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))) end
+            if CC.Refs.onlineRow then CC.Refs.onlineRow:Set(tostring(#Players:GetPlayers())) end
+        elseif CC.Refs.HudPanel then destroyHud() end
+        task.wait(0.2)
+    end
+end)
+
+-- ===== BIND HUD =====
+local function getBindString(keyEnum)
+    if not keyEnum then return "NONE" end
+    if typeof(keyEnum) == "EnumItem" then
+        if keyEnum == Enum.KeyCode.Unknown or keyEnum == Enum.UserInputType.None then return "NONE" end
+        local name = keyEnum.Name; name = name:gsub("MouseButton", "M"):gsub("Left", "L"):gsub("Right", "R"); return name
+    end
+    return tostring(keyEnum)
+end
+local function createBindHud()
+    CC.Refs.BindHudPanel = CC.Lib:CreateNewWindow({ Title = "Binds", Name = "VelcloudBinds", Size = {240}, Minimizable = true, Position = UDim2.new(1, -500, 0, 20), OnClose = function() if UI.Elements.bindHudToggle then UI.Elements.bindHudToggle:Set(false) end end })
+    local body = CC.Refs.BindHudPanel.Body or CC.Refs.BindHudPanel.Gui:FindFirstChild("Body", true) or CC.Refs.BindHudPanel.Gui
+    local container = Instance.new("Frame"); container.Name = "CustomBindList"; container.BackgroundTransparency = 1; container.Size = UDim2.new(1, -24, 0, 0); container.Position = UDim2.new(0, 12, 0, 45); container.AutomaticSize = Enum.AutomaticSize.Y; container.ZIndex = 10; container.Parent = body
+    local layout = Instance.new("UIListLayout", container); layout.SortOrder = Enum.SortOrder.LayoutOrder; layout.Padding = UDim.new(0, 4)
+    local function updateBinds()
+        if not CC.Refs.BindHudPanel or not container.Parent then return end
+        for _, child in ipairs(container:GetChildren()) do if child:IsA("TextLabel") then child:Destroy() end end
+        local function safeGet(elem) if elem and elem.Get then return elem:Get() end; return nil end
+        local function drawRow(name, state, keyEnum)
+            local bindStr = getBindString(keyEnum)
+            local row = Instance.new("TextLabel"); row.Size = UDim2.new(1, 0, 0, 20); row.BackgroundTransparency = 1; row.Font = Enum.Font.BuilderSansMedium; row.TextSize = 12; row.TextXAlignment = Enum.TextXAlignment.Left; row.TextColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(150, 150, 150); row.Text = string.format("%s [%s]", name, bindStr); row.Parent = container
+            local statusLbl = Instance.new("TextLabel"); statusLbl.Size = UDim2.new(0.4, 0, 1, 0); statusLbl.Position = UDim2.new(0.6, 0, 0, 0); statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.BuilderSansBold; statusLbl.TextSize = 12; statusLbl.TextXAlignment = Enum.TextXAlignment.Right; statusLbl.TextColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100); statusLbl.Text = state and "ON" or "OFF"; statusLbl.Parent = row
+        end
+        drawRow("ESP", Flags.ESP, safeGet(UI.Elements.keybindESP))
+        drawRow("Aimbot", Flags.AimbotEnabled, Flags.AimbotKey)
+        drawRow("FreeCam", Flags.FreeCam, safeGet(UI.Elements.keybindFreecam))
+        drawRow("No Recoil", Flags.NoRecoil, safeGet(UI.Elements.keybindNoRecoil))
+        drawRow("FOV", Flags.FOVEnabled, safeGet(UI.Elements.keybindFOV))
+        drawRow("Spider", Flags.Spider, safeGet(UI.Elements.keybindSpider))
+        drawRow("Fullbright", Flags.Fullbright, safeGet(UI.Elements.keybindFullbright))
+        drawRow("Cam Zoom", Flags.CameraZoom, safeGet(UI.Elements.keybindCameraZoom))
+        drawRow("Walls", Flags.RemoveConstructions, safeGet(UI.Elements.keybindRemoveConstructions))
+    end
+    task.spawn(function() task.wait(1); while CC.Refs.BindHudPanel do pcall(updateBinds); task.wait(0.5) end end)
+end
+local function destroyBindHud() if CC.Refs.BindHudPanel then pcall(function() CC.Refs.BindHudPanel:Destroy() end); CC.Refs.BindHudPanel = nil end end
+
+-- ===== MAIN LOOP =====
+RunService.RenderStepped:Connect(function()
+    if Flags.ESP and Flags.MaxDistance > 0 then local ok, err = pcall(updateESP); if not ok then warn("[velcloud.xd] ESP error:", err); pcall(hideAll) end
+    else hideAll() end
+end)
+
+-- ===== UI: AIMBOT =====
+UI.Tabs.Aimbot = UI.Window:AddTab("Aimbot", "crosshair")
+UI.Tabs.Aimbot:AddLabel("AIMBOT SYSTEM", "crosshair")
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.aimbotEnabled = UI.Tabs.Aimbot:AddToggle({Title="Aimbot", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotEnabled=s end})
+UI.Elements.aimbotType = UI.Tabs.Aimbot:AddDropdown({Title="Aimbot Type", Icon="layers", Options={"Mouse", "Silent"}, Default="Mouse", Callback=function(v) Flags.AimbotType=v end})
+UI.Elements.aimbotBone = UI.Tabs.Aimbot:AddDropdown({Title="Bone", Icon="user", Options={"Nearest", "Head", "Chest", "Pelvis"}, Default="Head", Callback=function(v) Flags.AimbotBone=v end})
+UI.Elements.aimbotKey = UI.Tabs.Aimbot:AddDropdown({Title="Aim Key", Icon="mouse-pointer", Options={"MouseButton2","MouseButton1","LeftShift","Q","E","C"}, Default="MouseButton2", Callback=function(s) Flags.AimbotKey = Enum.UserInputType[s] or Enum.KeyCode[s] or Enum.UserInputType.MouseButton2 end})
+UI.Elements.aimbotVisibleCheck = UI.Tabs.Aimbot:AddToggle({Title="Visible Check", Icon="eye", Default=true, Callback=function(s) Flags.AimbotVisibleCheck=s end})
+UI.Elements.aimbotAutoSwitch = UI.Tabs.Aimbot:AddToggle({Title="Auto Switch", Icon="repeat", Default=true, Callback=function(s) Flags.AimbotAutoSwitch=s end})
+
+UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddLabel("SMART AIMBOT SYSTEM", "cpu")
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.dynamicPred = UI.Tabs.Aimbot:AddToggle({Title = "Dynamic Prediction", Subtitle = "Отключает предсказание в упор (< 30м) и на дальняке (> 500м)", Icon = "activity", Default = true, Callback = function(s) Flags.DynamicPrediction = s end})
+UI.Elements.ballisticToggle = UI.Tabs.Aimbot:AddToggle({Title="Ballistic Prediction", Subtitle="Учёт гравитации пули", Icon="trending-down", Default=true, Callback=function(s) Flags.Ballistic=s end})
+UI.Elements.humanoidCheckToggle = UI.Tabs.Aimbot:AddToggle({Title="Humanoid State Check", Subtitle="Аим по прыгающим (в грудь)", Icon="user", Default=true, Callback=function(s) Flags.HumanoidCheck=s end})
+UI.Elements.noSpreadToggle = UI.Tabs.Aimbot:AddToggle({Title="No Spread", Subtitle="Убирает разброс оружия", Icon="crosshair", Default=false, Callback=function(s) Flags.NoSpread=s end})
+
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.aimbotFOV = UI.Tabs.Aimbot:AddSlider({Title="Target FOV", Icon="circle", Min=1, Max=400, Default=120, Callback=function(v) Flags.AimbotFOV=v end})
+UI.Elements.aimbotSmooth = UI.Tabs.Aimbot:AddSlider({Title="Mouse Aimbot Time", Icon="activity", Min=1, Max=100, Default=5, Callback=function(v) Flags.AimbotSmooth=v end})
+UI.Elements.aimbotPrediction = UI.Tabs.Aimbot:AddSlider({Title="Aim Prediction", Subtitle="0=выкл · 1=норма · >1 если промах перед целью", Icon="trending-up", Min=0, Max=2, Step=0.1, Default=1.0, Callback=function(v) Flags.AimbotPrediction=v end})
+UI.Elements.aimbotBulletSpeed = UI.Tabs.Aimbot:AddSlider({Title="Bullet Speed", Subtitle="Лук ~90 · Ревик ~450 · Автомат ~375", Icon="wind", Min=50, Max=800, Step=25, Default=450, Callback=function(v) Flags.AimbotBulletSpeed=v end})
+UI.Elements.aimbotHitChance = UI.Tabs.Aimbot:AddSlider({Title="Hit Chance %", Icon="percent", Min=0, Max=100, Default=100, Callback=function(v) Flags.AimbotHitChance=v end})
+UI.Elements.aimbotDistanceLimit = UI.Tabs.Aimbot:AddSlider({Title="Distance Limit", Icon="ruler", Min=1, Max=600, Default=400, Callback=function(v) Flags.AimbotDistanceLimit=v end})
+
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.aimbotDrawFOV = UI.Tabs.Aimbot:AddToggle({Title="Draw FOV", Icon="circle", Default=false, Callback=function(s) Flags.AimbotDrawFOV=s end})
+UI.Elements.aimbotDrawFOVColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw FOV Color", Icon="palette", Default=Flags.AimbotDrawFOVColor, Callback=function(c) Flags.AimbotDrawFOVColor=c end})
+UI.Elements.aimbotDrawTarget = UI.Tabs.Aimbot:AddToggle({Title="Draw Target", Icon="crosshair", Default=false, Callback=function(s) Flags.AimbotDrawTarget=s end})
+UI.Elements.aimbotDrawTargetColor = UI.Tabs.Aimbot:AddColorPicker({Title="Draw Target Color", Icon="palette", Default=Flags.AimbotDrawTargetColor, Callback=function(c) Flags.AimbotDrawTargetColor=c end})
+
+UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddLabel("IGNORE", "users")
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.aimbotIgnoreTeam = UI.Tabs.Aimbot:AddToggle({Title="Ignore Team", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreTeam=s end})
+UI.Elements.aimbotIgnoreSleepers = UI.Tabs.Aimbot:AddToggle({Title="Ignore Sleepers", Icon="bed", Default=true, Callback=function(s) Flags.AimbotIgnoreSleepers=s end})
+UI.Elements.aimbotIgnoreNPC = UI.Tabs.Aimbot:AddToggle({Title="Ignore NPC", Icon="users", Default=true, Callback=function(s) Flags.AimbotIgnoreNPC=s end})
+UI.Elements.aimbotIgnoreAnimals = UI.Tabs.Aimbot:AddToggle({Title="Ignore Animals", Icon="paw-print", Default=true, Callback=function(s) Flags.AimbotIgnoreAnimals=s end})
+
+UI.Tabs.Aimbot:AddSeparator()
+UI.Tabs.Aimbot:AddLabel("HITBOX EXPANDER", "box")
+UI.Tabs.Aimbot:AddSeparator()
+
+UI.Elements.hitboxToggle = UI.Tabs.Aimbot:AddToggle({Title="Hitbox Expander", Icon="box", Default=false, Callback=function(s) Flags.HitboxEnabled=s; if not s then restoreAllHitboxes() end end})
+UI.Elements.hitboxSizeSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Size", Icon="ruler", Min=1, Max=5, Step=0.1, Default=2, Callback=function(v) Flags.HitboxSize=v end})
+UI.Elements.hitboxTranspSlider = UI.Tabs.Aimbot:AddSlider({Title="Hitbox Transparency %", Icon="eye-off", Min=0, Max=100, Default=50, Callback=function(v) Flags.HitboxTransparency=v end})
+
+-- ===== UI: VISUALS =====
+UI.Tabs.Visuals = UI.Window:AddTab("Visuals", "eye")
+UI.Tabs.Visuals:AddLabel("ESP PLAYER", "user")
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.espToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Player", Icon="eye", Default=false, Callback=function(s) Flags.ESP=s; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.espColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Esp Color", Icon="palette", Default=Flags.ESPColor, Callback=function(c)
+    Flags.ESPColor=c
+    for plr, hl in pairs(CC.Refs.Highlights) do
+        if hl and hl.Parent then local useTeam = Flags.TeamCheck and isTeammate(plr); if not useTeam then hl.FillColor = c; hl.OutlineColor = c end end
+    end
+end})
+UI.Elements.espModeDropdown = UI.Tabs.Visuals:AddDropdown({Title="Esp Player Mode", Icon="layers", Options={"Chams","Glow"}, Default="Chams", Callback=function(v) Flags.ESPMode = v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+UI.Elements.keybindESP = UI.Tabs.Visuals:AddKeybind({Title = "ESP Keybind", Icon = "eye", Callback = function() UI.Elements.espToggle:Set(not Flags.ESP) end})
+
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.espDistSlider = UI.Tabs.Visuals:AddSlider({Title="Distance Player", Icon="ruler", Min=250, Max=2500, Default=Flags.MaxDistance, Callback=function(v) Flags.MaxDistance=v; for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end end})
+
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.sleeperToggle = UI.Tabs.Visuals:AddToggle({Title="Sleeper", Icon="bed", Default=false, Callback=function(s) Flags.ESP_Sleeper=s end})
+UI.Elements.sleeperColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Color Sleeper", Icon="palette", Default=Flags.SleeperColor, Callback=function(c)
+    Flags.SleeperColor=c
+    for _,hl in pairs(CC.Refs.SleeperHighlights) do if hl and hl.Parent then hl.FillColor = c; hl.OutlineColor = c end end
+end})
+
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.boxToggle = UI.Tabs.Visuals:AddToggle({Title="Box", Icon="box", Default=false, Callback=function(s) Flags.Box=s end})
+UI.Elements.boxColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Box Color", Icon="square", Default=Flags.BoxColor, Callback=function(c) Flags.BoxColor=c end})
+
+UI.Elements.nameToggle = UI.Tabs.Visuals:AddToggle({Title="Name", Icon="user", Default=false, Callback=function(s) Flags.Name=s end})
+UI.Elements.healthToggle = UI.Tabs.Visuals:AddToggle({Title="Health", Icon="heart", Default=false, Callback=function(s) Flags.Health=s end})
+UI.Elements.distToggle = UI.Tabs.Visuals:AddToggle({Title="Distance", Icon="ruler", Default=false, Callback=function(s) Flags.Distance=s end})
+UI.Elements.weaponToggle = UI.Tabs.Visuals:AddToggle({Title="Weapon", Icon="sword", Default=false, Callback=function(s) Flags.WeaponESP=s end})
+UI.Elements.textColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Text Color", Icon="type", Default=Flags.TextColor, Callback=function(c) Flags.TextColor=c end})
+
+UI.Elements.lineToggle = UI.Tabs.Visuals:AddToggle({Title="Line", Icon="move", Default=false, Callback=function(s) Flags.Line=s end})
+UI.Elements.lineColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Line Color", Icon="move", Default=Flags.LineColor, Callback=function(c) Flags.LineColor=c end})
+
+UI.Elements.skeletonToggle = UI.Tabs.Visuals:AddToggle({Title="Skeleton", Icon="bone", Default=false, Callback=function(s) Flags.Skeleton=s end})
+UI.Elements.skelColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Skeleton Color", Icon="bone", Default=Flags.SkeletonColor, Callback=function(c) Flags.SkeletonColor=c end})
+
+UI.Tabs.Visuals:AddSeparator()
+UI.Tabs.Visuals:AddLabel("TEAM CHECK", "users")
+UI.Tabs.Visuals:AddSeparator()
+
+UI.Elements.teamCheckVisualToggle = UI.Tabs.Visuals:AddToggle({Title="Team Check", Subtitle="Работает если включен Esp Player", Icon="users", Default=true, Callback=function(s)
+    Flags.TeamCheck=s
+    for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+end})
+UI.Elements.teamColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Team Color", Icon="palette", Default=Flags.TeamColor, Callback=function(c)
+    Flags.TeamColor=c
+    for plr, hl in pairs(CC.Refs.Highlights) do
+        if hl and hl.Parent then local useTeam = Flags.TeamCheck and isTeammate(plr); if useTeam then hl.FillColor = c; hl.OutlineColor = c end end
+    end
+end})
+
+UI.Tabs.Visuals:AddSeparator()
+UI.Tabs.Visuals:AddLabel("OTHER VISUALS", "sparkles")
+UI.Tabs.Visuals:AddSeparator()
+
+-- NPC
+UI.Elements.espNpcToggle = UI.Tabs.Visuals:AddToggle({Title="Esp NPC", Icon="users", Default=false, Callback=function(s) Flags.ESP_NPC=s end})
+UI.Elements.npcColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="NPC Color", Icon="palette", Default=Flags.NPCColor, Callback=function(c) Flags.NPCColor=c end})
+UI.Elements.npcDistSlider = UI.Tabs.Visuals:AddSlider({Title="NPC Distance", Icon="ruler", Min=100, Max=500, Default=Flags.NPCDistance, Callback=function(v) Flags.NPCDistance=v end})
+
+UI.Elements.npcElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
+    Title = "NPC Elements", Subtitle = "Что рисовать на NPC", Icon = "layers", Options = {"Name", "Box", "Health", "Distance"}, Default = {"Name", "Box", "Health", "Distance"},
+    Callback = function(selected) Flags.NPC_Name = selected["Name"] == true; Flags.NPC_Box = selected["Box"] == true; Flags.NPC_Health = selected["Health"] == true; Flags.NPC_Distance = selected["Distance"] == true end
+})
+
+UI.Tabs.Visuals:AddSeparator()
+
+-- Animals
+UI.Elements.espAnimalsToggle = UI.Tabs.Visuals:AddToggle({Title="Esp Animals", Icon="paw-print", Default=false, Callback=function(s) Flags.ESP_Animals=s end})
+UI.Elements.animalColorPicker = UI.Tabs.Visuals:AddColorPicker({Title="Animal Color", Icon="palette", Default=Flags.AnimalColor, Callback=function(c) Flags.AnimalColor=c end})
+UI.Elements.animalDistSlider = UI.Tabs.Visuals:AddSlider({Title="Animal Distance", Icon="ruler", Min=250, Max=1000, Default=Flags.AnimalDistance, Callback=function(v) Flags.AnimalDistance=v end})
+
+UI.Elements.animalElementsDropdown = UI.Tabs.Visuals:AddMultiDropdown({
+    Title = "Animal Elements", Subtitle = "Что рисовать на животных", Icon = "layers", Options = {"Name", "Box", "Health", "Distance"}, Default = {"Name", "Box", "Health", "Distance"},
+    Callback = function(selected) Flags.Animal_Name = selected["Name"] == true; Flags.Animal_Box = selected["Box"] == true; Flags.Animal_Health = selected["Health"] == true; Flags.Animal_Distance = selected["Distance"] == true end
+})
+
+-- ===== UI: LOOT =====
+UI.Tabs.Loot = UI.Window:AddTab("Loot", "package")
+UI.Tabs.Loot:AddSeparator()
+UI.Tabs.Loot:AddLabel("COMING SOON", "clock")
+UI.Tabs.Loot:AddSeparator()
+
+-- ===== UI: WORLD =====
+UI.Tabs.World = UI.Window:AddTab("World", "sun")
+UI.Tabs.World:AddLabel("SKY", "cloud")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.skyColorToggle = UI.Tabs.World:AddToggle({ Title = "Custom Sky Color", Subtitle = "Перекрашивает небо", Icon = "cloud", Default = false, Callback = function(s) Flags.SkyColorEnabled = s; setSkyColor(s, Flags.SkyColor) end })
+UI.Elements.skyColorPicker = UI.Tabs.World:AddColorPicker({ Title = "Sky Color", Icon = "palette", Default = Flags.SkyColor, Callback = function(c) Flags.SkyColor = c; if Flags.SkyColorEnabled then setSkyColor(true, c) end end })
+
+UI.Tabs.World:AddSeparator()
+UI.Tabs.World:AddLabel("LIGHTING", "sun")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.fullbrightToggle = UI.Tabs.World:AddToggle({ Title = "Fullbright", Subtitle = "Освещает всё вокруг, небо не мигает", Icon = "sun", Default = false, Callback = function(s) Flags.Fullbright = s; pcall(function() if s then captureLighting(); applyFullbright() else if not Flags.WorldTimeEnabled then restoreLighting() end end end) end })
+UI.Elements.keybindFullbright = UI.Tabs.World:AddKeybind({ Title = "Fullbright Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown, Callback = function() UI.Elements.fullbrightToggle:Set(not Flags.Fullbright) end })
+
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.worldTimeToggle = UI.Tabs.World:AddToggle({ Title = "World Time", Subtitle = "Фиксирует время суток", Icon = "sun-moon", Default = false, Callback = function(s) Flags.WorldTimeEnabled = s; pcall(function() if s then captureLighting(); applyWorldTime() else if not Flags.Fullbright then restoreLighting() end end end) end })
+UI.Elements.worldTimeSlider = UI.Tabs.World:AddSlider({ Title = "Hour (1-24)", Icon = "clock", Min = 1, Max = 24, Default = 12, Callback = function(v) Flags.WorldTimeValue = v; pcall(function() if Flags.WorldTimeEnabled then applyWorldTime() end end) end })
+
+UI.Tabs.World:AddSeparator()
+UI.Tabs.World:AddLabel("WEAPON SKIN", "paintbrush")
+UI.Tabs.World:AddSeparator()
+
+UI.Elements.weaponColorToggle = UI.Tabs.World:AddToggle({ Title = "Enable Weapon Color", Subtitle = "Неон на любое оружие", Icon = "palette", Default = false, Callback = function(s) Flags.WeaponColorEnabled = s; if s then startWeaponColor() else for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end; CC.Refs.lastWeaponModels = {}; if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end end end })
+UI.Elements.weaponColorPicker = UI.Tabs.World:AddColorPicker({ Title = "Neon Color", Icon = "droplet", Default = Flags.WeaponColor, Callback = function(c) Flags.WeaponColor = c; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end })
+UI.Elements.materialDropdown = UI.Tabs.World:AddDropdown({ Title = "Material", Icon = "gem", Options = WEAPON_MATERIALS, Default = "Neon", Callback = function(s) Flags.WeaponMaterial = Enum.Material[s] or Enum.Material.Neon; if Flags.WeaponColorEnabled then for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end end end })
+
+-- ===== UI: MISC =====
+UI.Tabs.Misc = UI.Window:AddTab("Misc", "settings-2")
+UI.Tabs.Misc:AddLabel("PLAYER", "user")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.freecamToggle = UI.Tabs.Misc:AddToggle({Title="FreeCam", Subtitle="WASD + Space/Ctrl", Icon="camera", Default=false, Callback=function(s) Flags.FreeCam=s; if s then startFreeCam() else stopFreeCam() end end})
+UI.Elements.keybindFreecam = UI.Tabs.Misc:AddKeybind({Title = "FreeCam Keybind", Icon = "keyboard", Callback = function() UI.Elements.freecamToggle:Set(not Flags.FreeCam) end})
+
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.noRecoilToggle = UI.Tabs.Misc:AddToggle({ Title="No Recoil", Subtitle="Стрельба на ходу без тряски", Icon="target", Default=false, Callback=function(s) Flags.NoRecoil = s; if s then startNoRecoil() else stopNoRecoil() end end })
+UI.Elements.keybindNoRecoil = UI.Tabs.Misc:AddKeybind({Title = "No Recoil Keybind", Icon = "keyboard", Callback = function() UI.Elements.noRecoilToggle:Set(not Flags.NoRecoil) end})
+
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.cameraZoomToggle = UI.Tabs.Misc:AddToggle({Title="Camera Zoom", Subtitle="Зажми бинд чтобы приблизить", Icon="zoom-in", Default=false, Callback=function(s) Flags.CameraZoom=s end})
+UI.Elements.keybindCameraZoom = UI.Tabs.Misc:AddKeybind({Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown})
+
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.fovToggle = UI.Tabs.Misc:AddToggle({Title="FOV Changer", Subtitle="Фиксирует FOV, отключение → дефолт", Icon="focus", Default=false, Callback=function(s)
+    Flags.FOVEnabled = s
+    if s then Flags.FOVValue = math.clamp(Flags.FOVValue, Flags.DefaultFOV, 120); CC.Refs.fovSettled = false end
+end})
+UI.Elements.fovSlider = UI.Tabs.Misc:AddSlider({Title="FOV Value", Icon="move-horizontal", Min=70, Max=120, Default=70, Callback=function(v) Flags.FOVValue = v; CC.Refs.fovSettled = false end})
+UI.Elements.keybindFOV = UI.Tabs.Misc:AddKeybind({ Title = "FOV Keybind", Subtitle = "Вкл/Выкл FOV", Icon = "keyboard", Default = Enum.KeyCode.Unknown, Callback = function() UI.Elements.fovToggle:Set(not Flags.FOVEnabled) end })
+
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.removeConstructionsToggle = UI.Tabs.Misc:AddToggle({ Title = "Remove Constructions", Subtitle = "Скрывает стены вокруг тебя", Icon = "box", Default = false, Callback = function(s) toggleRemoveConstructions(s) end })
+UI.Elements.removeDistanceSlider = UI.Tabs.Misc:AddSlider({ Title = "Remove Distance", Icon = "ruler", Min = 50, Max = 150, Default = 75, Callback = function(v) Flags.RemoveDistance = v end })
+UI.Elements.keybindRemoveConstructions = UI.Tabs.Misc:AddKeybind({ Title = "Remove Constructions Keybind", Subtitle = "Вкл/Выкл стены", Icon = "keyboard", Default = Enum.KeyCode.Unknown, Callback = function() UI.Elements.removeConstructionsToggle:Set(not Flags.RemoveConstructions) end })
+
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.spiderToggle = UI.Tabs.Misc:AddToggle({ Title = "Spider", Subtitle = "Лазание по стенам (W/Space вверх, S/Ctrl вниз)", Icon = "move-vertical", Default = false, Callback = function(s) toggleSpider(s) end })
+UI.Elements.spiderSpeedSlider = UI.Tabs.Misc:AddSlider({ Title = "Spider Speed", Icon = "activity", Min = 15, Max = 40, Default = 30, Callback = function(v) Flags.SpiderSpeed = v end })
+UI.Elements.keybindSpider = UI.Tabs.Misc:AddKeybind({ Title = "Spider Keybind", Subtitle = "Вкл/Выкл Spider", Icon = "keyboard", Default = Enum.KeyCode.Unknown, Callback = function() UI.Elements.spiderToggle:Set(not Flags.Spider) end })
+
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("ASPECT RATIO", "monitor")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.aspectToggle = UI.Tabs.Misc:AddToggle({Title="Aspect Ratio", Subtitle="Сжатие вертикали камеры", Icon="monitor", Default=false, Callback=function(s) Flags.AspectRatioEnabled = s; applyAspectRatio() end})
+UI.Elements.aspectModeDropdown = UI.Tabs.Misc:AddDropdown({ Title="Ratio", Icon="rectangle-horizontal", Options={"4:3", "16:9"}, Default="16:9", Callback=function(v) Flags.AspectRatioMode = v; if Flags.AspectRatioEnabled then startAspectRatio() end end })
+
+UI.Tabs.Misc:AddSeparator()
+UI.Tabs.Misc:AddLabel("CROSSHAIR SYSTEM", "crosshair")
+UI.Tabs.Misc:AddSeparator()
+
+UI.Elements.crosshairToggle = UI.Tabs.Misc:AddToggle({Title="Enable Crosshair", Icon="crosshair", Default=false, Callback=function(s) Flags.Crosshair=s end})
+UI.Elements.crosshairType = UI.Tabs.Misc:AddDropdown({Title="Style", Icon="shape", Options={"Cross", "T-Shape", "Circle"}, Default="Cross", Callback=function(s) Flags.CrosshairType=s end})
+UI.Elements.crosshairOutlineToggle = UI.Tabs.Misc:AddToggle({Title="Outline (Обводка)", Icon="square", Default=false, Callback=function(s) Flags.CrosshairOutline=s end})
+UI.Elements.crosshairDotToggle = UI.Tabs.Misc:AddToggle({Title="Center Dot", Icon="circle", Default=false, Callback=function(s) Flags.CrosshairDot=s end})
+UI.Elements.crosshairColorPicker = UI.Tabs.Misc:AddColorPicker({Title="Crosshair Color", Icon="palette", Default=Flags.CrosshairColor, Callback=function(c) Flags.CrosshairColor=c end})
+UI.Elements.crosshairSizeSlider = UI.Tabs.Misc:AddSlider({Title="Size (Длина)", Icon="ruler", Min=2, Max=40, Default=10, Callback=function(v) Flags.CrosshairSize=v end})
+UI.Elements.crosshairDistSlider = UI.Tabs.Misc:AddSlider({Title="Gap (Отступ)", Icon="move", Min=0, Max=30, Default=5, Callback=function(v) Flags.CrosshairDistance=v end})
+UI.Elements.crosshairThickSlider = UI.Tabs.Misc:AddSlider({Title="Thickness (Толщина)", Icon="minus", Min=1, Max=6, Default=1, Callback=function(v) Flags.CrosshairThickness=v end})
+UI.Elements.crosshairTranspSlider = UI.Tabs.Misc:AddSlider({Title="Transparency (Прозрачность)", Icon="eye-off", Min=0, Max=100, Default=0, Callback=function(v) Flags.CrosshairTransparency=v end})
+UI.Elements.crosshairDotSizeSlider = UI.Tabs.Misc:AddSlider({Title="Dot Size", Icon="circle", Min=1, Max=10, Default=2, Callback=function(v) Flags.CrosshairDotSize=v end})
+
+-- ===== UI: SETTINGS =====
+UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
+UI.Elements.keyInfoLabel = UI.Tabs.Settings:AddLabel( string.format("Ключ: %s | до: %s", _G.VelcloudKeyState.name or "—", keyRemainingText()), "key" )
+UI.Tabs.Settings:AddSeparator()
+
+local themeNames = {}
+for name in pairs(CC.Lib.Themes) do table.insert(themeNames, name) end
+table.sort(themeNames)
+
+UI.Tabs.Settings:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=UI.Window:GetTheme(), Callback=function(s) UI.Window:SetTheme(s) end})
+UI.Tabs.Settings:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+    local colors = { White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255), Red=Color3.fromRGB(230,70,70), Green=Color3.fromRGB(80,210,120), Purple=Color3.fromRGB(170,110,240) }
+    CC.Lib:SetAccentColor(colors[s])
+end})
+
+UI.Tabs.Settings:AddSeparator()
+UI.Elements.statsHudToggle = UI.Tabs.Settings:AddToggle({Title="Stats HUD", Icon="gauge", Default=false, Callback=function(s) Flags.FPSPing = s; if s then if not CC.Refs.HudPanel then createHud() end else destroyHud() end end})
+UI.Elements.bindHudToggle = UI.Tabs.Settings:AddToggle({Title="Bind HUD", Icon="list", Default=false, Callback=function(s) Flags.BindHUD = s; if s then if not CC.Refs.BindHudPanel then createBindHud() end else destroyBindHud() end end})
+
+UI.Tabs.Settings:AddSeparator(); UI.Tabs.Settings:AddLabel("KEYBINDS", "keyboard"); UI.Tabs.Settings:AddSeparator()
+UI.Elements.keybindHideUI = UI.Tabs.Settings:AddKeybind({ Title = "Hide UI Keybind", Icon = "keyboard", Default = Enum.KeyCode.Delete, Callback = function() local sg = UI.Window.Gui; if sg then sg.Enabled = not sg.Enabled end end })
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if not Flags.CameraZoom then return end
+    local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
+    if zoomBind and zoomBind ~= Enum.KeyCode.Unknown and input.KeyCode == zoomBind then Flags.ZoomActive = true end
+end)
+UIS.InputEnded:Connect(function(input, gpe)
+    local zoomBind = UI.Elements.keybindCameraZoom and UI.Elements.keybindCameraZoom:Get()
+    if zoomBind and zoomBind ~= Enum.KeyCode.Unknown and input.KeyCode == zoomBind then Flags.ZoomActive = false end
+end)
+
+UI.buildConfig = function(name)
+    local cfg = UI.Window.ConfigManager:CreateConfig(name)
+    cfg:RegisterElement("AimbotEnabled", UI.Elements.aimbotEnabled)
+    cfg:RegisterElement("AimbotType", UI.Elements.aimbotType)
+    cfg:RegisterElement("AimbotBone", UI.Elements.aimbotBone)
+    cfg:RegisterElement("DynamicPrediction", UI.Elements.dynamicPred)
+    cfg:RegisterElement("Ballistic", UI.Elements.ballisticToggle)
+    cfg:RegisterElement("HumanoidCheck", UI.Elements.humanoidCheckToggle)
+    cfg:RegisterElement("NoSpread", UI.Elements.noSpreadToggle)
+    cfg:RegisterElement("AimbotIgnoreTeam", UI.Elements.aimbotIgnoreTeam)
+    cfg:RegisterElement("AimbotIgnoreSleepers", UI.Elements.aimbotIgnoreSleepers)
+    cfg:RegisterElement("AimbotIgnoreNPC", UI.Elements.aimbotIgnoreNPC)
+    cfg:RegisterElement("AimbotIgnoreAnimals", UI.Elements.aimbotIgnoreAnimals)
+    cfg:RegisterElement("AimbotVisibleCheck", UI.Elements.aimbotVisibleCheck)
+    cfg:RegisterElement("AimbotFOV", UI.Elements.aimbotFOV)
+    cfg:RegisterElement("AimbotSmooth", UI.Elements.aimbotSmooth)
+    cfg:RegisterElement("AimbotPrediction", UI.Elements.aimbotPrediction)
+    cfg:RegisterElement("AimbotBulletSpeed", UI.Elements.aimbotBulletSpeed)
+    cfg:RegisterElement("AimbotHitChance", UI.Elements.aimbotHitChance)
+    cfg:RegisterElement("AimbotDistanceLimit", UI.Elements.aimbotDistanceLimit)
+    cfg:RegisterElement("AimbotDrawFOV", UI.Elements.aimbotDrawFOV)
+    cfg:RegisterElement("AimbotDrawFOVColor", UI.Elements.aimbotDrawFOVColor)
+    cfg:RegisterElement("AimbotDrawTarget", UI.Elements.aimbotDrawTarget)
+    cfg:RegisterElement("AimbotDrawTargetColor", UI.Elements.aimbotDrawTargetColor)
+    cfg:RegisterElement("AimbotAutoSwitch", UI.Elements.aimbotAutoSwitch)
+    cfg:RegisterElement("AimbotKey", UI.Elements.aimbotKey)
+    cfg:RegisterElement("Hitbox", UI.Elements.hitboxToggle)
+    cfg:RegisterElement("HitboxSize", UI.Elements.hitboxSizeSlider)
+    cfg:RegisterElement("HitboxTransp", UI.Elements.hitboxTranspSlider)
+    cfg:RegisterElement("ESP", UI.Elements.espToggle)
+    cfg:RegisterElement("ESPMode", UI.Elements.espModeDropdown)
+    cfg:RegisterElement("ESPDistance", UI.Elements.espDistSlider)
+    cfg:RegisterElement("ESPColor", UI.Elements.espColorPicker)
+    cfg:RegisterElement("Sleeper", UI.Elements.sleeperToggle)
+    cfg:RegisterElement("ColorSleeper", UI.Elements.sleeperColorPicker)
+    cfg:RegisterElement("TeamCheckVisual", UI.Elements.teamCheckVisualToggle)
+    cfg:RegisterElement("TeamColor", UI.Elements.teamColorPicker)
+    cfg:RegisterElement("Box", UI.Elements.boxToggle)
+    cfg:RegisterElement("Name", UI.Elements.nameToggle)
+    cfg:RegisterElement("Health", UI.Elements.healthToggle)
+    cfg:RegisterElement("Distance", UI.Elements.distToggle)
+    cfg:RegisterElement("Line", UI.Elements.lineToggle)
+    cfg:RegisterElement("Skeleton", UI.Elements.skeletonToggle)
+    cfg:RegisterElement("Weapon", UI.Elements.weaponToggle)
+    cfg:RegisterElement("TextColor", UI.Elements.textColorPicker)
+    cfg:RegisterElement("BoxColor", UI.Elements.boxColorPicker)
+    cfg:RegisterElement("LineColor", UI.Elements.lineColorPicker)
+    cfg:RegisterElement("SkelColor", UI.Elements.skelColorPicker)
+    cfg:RegisterElement("ESPNPC", UI.Elements.espNpcToggle)
+    cfg:RegisterElement("NPCColor", UI.Elements.npcColorPicker)
+    cfg:RegisterElement("NPCDistance", UI.Elements.npcDistSlider)
+    cfg:RegisterElement("NPCElements", UI.Elements.npcElementsDropdown)
+    cfg:RegisterElement("ESPAnimals", UI.Elements.espAnimalsToggle)
+    cfg:RegisterElement("AnimalColor", UI.Elements.animalColorPicker)
+    cfg:RegisterElement("AnimalDistance", UI.Elements.animalDistSlider)
+    cfg:RegisterElement("AnimalElements", UI.Elements.animalElementsDropdown)
+    cfg:RegisterElement("CrosshairOn", UI.Elements.crosshairToggle)
+    cfg:RegisterElement("CrosshairType", UI.Elements.crosshairType)
+    cfg:RegisterElement("CrosshairOutline", UI.Elements.crosshairOutlineToggle)
+    cfg:RegisterElement("CrosshairDot", UI.Elements.crosshairDotToggle)
+    cfg:RegisterElement("CrosshairColor", UI.Elements.crosshairColorPicker)
+    cfg:RegisterElement("CrosshairSize", UI.Elements.crosshairSizeSlider)
+    cfg:RegisterElement("CrosshairDistance", UI.Elements.crosshairDistSlider)
+    cfg:RegisterElement("CrosshairThick", UI.Elements.crosshairThickSlider)
+    cfg:RegisterElement("CrosshairTransp", UI.Elements.crosshairTranspSlider)
+    cfg:RegisterElement("CrosshairDotSize", UI.Elements.crosshairDotSizeSlider)
+    cfg:RegisterElement("WeaponColorOn", UI.Elements.weaponColorToggle)
+    cfg:RegisterElement("WeaponColorPick", UI.Elements.weaponColorPicker)
+    cfg:RegisterElement("WeaponMat", UI.Elements.materialDropdown)
+    cfg:RegisterElement("AspectRatio", UI.Elements.aspectToggle)
+    cfg:RegisterElement("AspectRatioMode", UI.Elements.aspectModeDropdown)
+    cfg:RegisterElement("SkyColorEnabled", UI.Elements.skyColorToggle)
+    cfg:RegisterElement("SkyColorPicker", UI.Elements.skyColorPicker)
+    cfg:RegisterElement("Fullbright", UI.Elements.fullbrightToggle)
+    cfg:RegisterElement("BindFullbright", UI.Elements.keybindFullbright)
+    cfg:RegisterElement("WorldTime", UI.Elements.worldTimeToggle)
+    cfg:RegisterElement("WorldTimeValue", UI.Elements.worldTimeSlider)
+    cfg:RegisterElement("FreeCam", UI.Elements.freecamToggle)
+    cfg:RegisterElement("CameraZoom", UI.Elements.cameraZoomToggle)
+    cfg:RegisterElement("FOVEnabled", UI.Elements.fovToggle)
+    cfg:RegisterElement("FOVValue", UI.Elements.fovSlider)
+    cfg:RegisterElement("NoRecoil", UI.Elements.noRecoilToggle)
+    cfg:RegisterElement("StatsHUD", UI.Elements.statsHudToggle)
+    cfg:RegisterElement("BindHUD", UI.Elements.bindHudToggle)
+    cfg:RegisterElement("BindESP",        UI.Elements.keybindESP)
+    cfg:RegisterElement("BindFreecam",    UI.Elements.keybindFreecam)
+    cfg:RegisterElement("BindCameraZoom", UI.Elements.keybindCameraZoom)
+    cfg:RegisterElement("BindNoRecoil",   UI.Elements.keybindNoRecoil)
+    cfg:RegisterElement("BindHideUI",     UI.Elements.keybindHideUI)
+    cfg:RegisterElement("RemoveWall", UI.Elements.removeConstructionsToggle)
+    cfg:RegisterElement("RemoveDist", UI.Elements.removeDistanceSlider)
+    cfg:RegisterElement("BindRemoveWall", UI.Elements.keybindRemoveConstructions)
+    cfg:RegisterElement("BindFOV", UI.Elements.keybindFOV)
+    cfg:RegisterElement("Spider", UI.Elements.spiderToggle)
+    cfg:RegisterElement("SpiderSpeed", UI.Elements.spiderSpeedSlider)
+    cfg:RegisterElement("BindSpider", UI.Elements.keybindSpider)
+    return cfg
+end
+
+UI.Tabs.Settings:AddSeparator()
+UI.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save")
+UI.Tabs.Settings:AddSeparator()
+
+UI.Window.ConfigManager:SetFolder("velcloud_configs")
+
+UI.Elements.configNameBox = UI.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" })
+UI.Elements.savedConfigs = UI.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = UI.Window.ConfigManager:GetConfigs() })
+
+UI.Tabs.Settings:AddButton({Title="Save Config", Text="Save", Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.configNameBox:Get()
+        if not name or name == "" then error("empty name") end
+        UI.buildConfig(name):Save()
+        UI.Elements.savedConfigs:SetOptions(UI.Window.ConfigManager:GetConfigs())
+        UI.Window:Notify({Title="Config", Text="Сохранён: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] save:", err); UI.Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+end})
+
+UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.savedConfigs:Get()
+        if not name or name == "" then error("no config") end
+        UI.Elements.configNameBox:Set(name)
+        UI.buildConfig(name):Load()
+        if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
+        else if CC.Refs.freecamConn then stopFreeCam() end end
+        if Flags.NoRecoil then startNoRecoil() else stopNoRecoil() end
+        if Flags.HitboxEnabled then updateHitboxes() else restoreAllHitboxes() end
+        if Flags.Spider then toggleSpider(true) else toggleSpider(false) end
+
+        if not Flags.ESP_NPC then
+            for model, d in pairs(CC.Refs.NPCDrawings or {}) do for _, o in pairs(d) do pcall(function() o:Remove() end) end end
+            CC.Refs.NPCDrawings = {}; for model, hl in pairs(CC.Refs.NPCHighlights or {}) do pcall(function() hl:Destroy() end) end
+            CC.Refs.NPCHighlights = {}; CC.Refs.NPCList = {}
+        end
+
+        if not Flags.ESP_Animals then
+            for model, d in pairs(CC.Refs.AnimalDrawings or {}) do for _, o in pairs(d) do pcall(function() o:Remove() end) end end
+            CC.Refs.AnimalDrawings = {}; for model, hl in pairs(CC.Refs.AnimalHighlights or {}) do pcall(function() hl:Destroy() end) end
+            CC.Refs.AnimalHighlights = {}; CC.Refs.AnimalList = {}
+        end
+
+        if not Flags.ESP_Sleeper then
+            for model, d in pairs(CC.Refs.SleeperDrawings or {}) do for _, o in pairs(d) do pcall(function() o:Remove() end) end end
+            CC.Refs.SleeperDrawings = {}; for model, hl in pairs(CC.Refs.SleeperHighlights or {}) do pcall(function() hl:Destroy() end) end
+            CC.Refs.SleeperHighlights = {}; for model, sk in pairs(CC.Refs.SleeperSkeletons or {}) do for _, l in pairs(sk.lines) do pcall(function() l:Remove() end) end end
+            CC.Refs.SleeperSkeletons = {}; CC.Refs.SleeperList = {}
+        end
+
+        setSkyColor(Flags.SkyColorEnabled, Flags.SkyColor)
+        if Flags.Fullbright or Flags.WorldTimeEnabled then
+            captureLighting()
+            if Flags.Fullbright then applyFullbright() end
+            if Flags.WorldTimeEnabled then applyWorldTime() end
+        else restoreLighting() end
+
+        if Flags.WeaponColorEnabled then
+            if not CC.Refs.weaponColorConn then startWeaponColor() end
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do applyWeaponColorToModel(m) end
+        else
+            for _, m in ipairs(CC.Refs.lastWeaponModels) do restoreWeaponColorFromModel(m) end
+            CC.Refs.lastWeaponModels = {}; if CC.Refs.weaponColorConn then CC.Refs.weaponColorConn:Disconnect(); CC.Refs.weaponColorConn = nil end
+        end
+
+        CC.Refs.fovSettled = false
+        for _,p in ipairs(Players:GetPlayers()) do applyHighlight(p) end
+        if not Flags.FPSPing and CC.Refs.HudPanel then destroyHud()
+        elseif Flags.FPSPing and not CC.Refs.HudPanel then createHud() end
+        if not Flags.BindHUD and CC.Refs.BindHudPanel then destroyBindHud()
+        elseif Flags.BindHUD and not CC.Refs.BindHudPanel then createBindHud() end
+        UI.Window:Notify({Title="Config", Text="Загружен: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] load:", err); UI.Window:Notify({Title="Config", Text="Ошибка: "..tostring(err), Duration=4}) end
+end})
+
+UI.Tabs.Settings:AddButton({Title="Delete Config", Text="Delete", Risky=true, Callback=function()
+    local ok, err = pcall(function()
+        local name = UI.Elements.savedConfigs:Get()
+        if not name or name == "" then return end
+        UI.Window.ConfigManager:DeleteConfig(name)
+        UI.Elements.savedConfigs:SetOptions(UI.Window.ConfigManager:GetConfigs())
+        UI.Window:Notify({Title="Config", Text="Удалён: "..name, Duration=2})
+    end)
+    if not ok then warn("[config] delete:", err) end
+end})
+
 task.spawn(function()
-	while true do
-		task.wait(.5);
-		pcall(ka);
-	end;
-end);
-W.RenderStepped:Connect(function()
-	pcall(c6);
-end);
-E.Refs.NPCList = {};
-E.Refs.NPCDrawings = {};
-E.Refs.NPCHighlights = {};
-local function a6(E)
-	for H, z in ipairs(J:GetPlayers()) do
-		if z.Character == E then
-			return true;
-		end;
-	end;
-	return false;
-end;
-local function q6()
-	if not H.ESP_NPC then
-		E.Refs.NPCList = {};
-		return;
-	end;
-	local z = {};
-	local i = {};
-	local c = { workspace:FindFirstChild("GeneratedMonuments"), workspace:FindFirstChild("Junkpiles") };
-	for E, H in ipairs(c) do
-		if H then
-			for E, H in ipairs(H:GetDescendants()) do
-				if H:IsA("Model") and not a6(H) then
-					local E = string.lower(H.Name);
-					if E == "scientist" then
-						local E = H:FindFirstChildOfClass("Humanoid");
-						if E and (E.Health > 0 and not i[H]) then
-							i[H] = true;
-							table.insert(z, H);
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	E.Refs.NPCList = z;
-end;
-local function d6(H)
-	if E.Refs.NPCDrawings[H] then
-		return E.Refs.NPCDrawings[H];
-	end;
-	local z = {};
-	z.Box = Drawing.new("Square");
-	z.Box.Thickness = 1;
-	z.Box.Filled = false;
-	z.Box.Visible = false;
-	z.Name = Drawing.new("Text");
-	z.Name.Size = 13;
-	z.Name.Center = true;
-	z.Name.Outline = true;
-	z.Name.Visible = false;
-	z.Health = Drawing.new("Text");
-	z.Health.Size = 11;
-	z.Health.Center = true;
-	z.Health.Outline = true;
-	z.Health.Visible = false;
-	z.Distance = Drawing.new("Text");
-	z.Distance.Size = 11;
-	z.Distance.Center = true;
-	z.Distance.Outline = true;
-	z.Distance.Visible = false;
-	E.Refs.NPCDrawings[H] = z;
-	return z;
-end;
-local function Z6(H)
-	local z = E.Refs.NPCDrawings[H];
-	if z then
-		for E, H in pairs(z) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-		E.Refs.NPCDrawings[H] = nil;
-	end;
-	local i = E.Refs.NPCHighlights[H];
-	if i then
-		pcall(function()
-			i:Destroy();
-		end);
-		E.Refs.NPCHighlights[H] = nil;
-	end;
-end;
-local function C6()
-	for E, H in pairs(E.Refs.NPCDrawings) do
-		H.Box.Visible = false;
-		H.Name.Visible = false;
-		H.Health.Visible = false;
-		H.Distance.Visible = false;
-	end;
-	for E, H in pairs(E.Refs.NPCHighlights) do
-		if H and H.Parent then
-			H.Enabled = false;
-		end;
-	end;
-end;
-local function B6()
-	if not H.ESP_NPC or H.NPCDistance <= 0 then
-		C6();
-		return;
-	end;
-	local z = A.Character and A.Character:FindFirstChild("HumanoidRootPart");
-	if not z then
-		C6();
-		return;
-	end;
-	local i = z.Position;
-	local c = E.Refs.NPCList or {};
-	local a = {};
-	for z, c in ipairs(c) do
-		if c.Parent then
-			local z = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("Head");
-			if z and z:IsA("BasePart") then
-				local q = ((z.Position - i)).Magnitude;
-				if q <= H.NPCDistance then
-					a[c] = true;
-					local i = c:FindFirstChildOfClass("Humanoid");
-					local d = not i or i.Health <= 0;
-					local Z = E.Refs.NPCHighlights[c];
-					if not Z or not Z.Parent then
-						if Z then
-							pcall(function()
-								Z:Destroy();
-							end);
-						end;
-						Z = Instance.new("Highlight");
-						Z.Name = "VelcloudNPC";
-						Z.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop;
-						Z.Parent = c;
-						E.Refs.NPCHighlights[c] = Z;
-					end;
-					if d then
-						if Z.FillColor ~= Color3.fromRGB(90, 90, 90) then
-							Z.FillColor = Color3.fromRGB(90, 90, 90);
-							Z.OutlineColor = Color3.fromRGB(60, 60, 60);
-						end;
-						Z.FillTransparency = .6;
-						Z.OutlineTransparency = .3;
-					else
-						if Z.FillColor ~= H.NPCColor then
-							Z.FillColor = H.NPCColor;
-							Z.OutlineColor = H.NPCColor;
-						end;
-						Z.FillTransparency = .4;
-						Z.OutlineTransparency = 0;
-					end;
-					Z.Enabled = true;
-					local C = c:FindFirstChild("Head");
-					if C then
-						local E = d6(c);
-						local a = U(C.Position + Vector3.new(0, 1, 0));
-						local Z = U(z.Position - Vector3.new(0, 2.5, 0));
-						local B = U(z.Position);
-						if B.Z > 0 and (a.Z > 0 and Z.Z > 0) then
-							local z = math.abs(a.Y - Z.Y);
-							local C = z * .5;
-							if H.NPC_Box then
-								E.Box.Size = Vector2.new(C, z);
-								E.Box.Position = Vector2.new(B.X - C / 2, a.Y);
-								E.Box.Color = d and Color3.fromRGB(120, 120, 120) or H.NPCColor;
-								E.Box.Visible = true;
-							else
-								E.Box.Visible = false;
-							end;
-							if H.NPC_Name then
-								E.Name.Text = c.Name .. ((d and " [DEAD]" or ""));
-								E.Name.Position = Vector2.new(B.X, a.Y - 16);
-								E.Name.Color = d and Color3.fromRGB(150, 150, 150) or H.NPCColor;
-								E.Name.Visible = true;
-							else
-								E.Name.Visible = false;
-							end;
-							if H.NPC_Health then
-								if i then
-									E.Health.Text = d and "DEAD" or ("HP: " .. (math.floor(i.Health) .. ("/" .. math.floor(i.MaxHealth))));
-									E.Health.Position = Vector2.new(B.X, Z.Y + 2);
-									E.Health.Color = d and Color3.fromRGB(150, 150, 150) or H.NPCColor;
-									E.Health.Visible = true;
-								else
-									E.Health.Visible = false;
-								end;
-							else
-								E.Health.Visible = false;
-							end;
-							if H.NPC_Distance then
-								E.Distance.Text = math.floor(q) .. "m";
-								E.Distance.Position = Vector2.new(B.X, Z.Y + 18);
-								E.Distance.Color = d and Color3.fromRGB(150, 150, 150) or H.NPCColor;
-								E.Distance.Visible = true;
-							else
-								E.Distance.Visible = false;
-							end;
-						else
-							E.Box.Visible = false;
-							E.Name.Visible = false;
-							E.Health.Visible = false;
-							E.Distance.Visible = false;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	for E, H in pairs(E.Refs.NPCDrawings) do
-		if not a[E] then
-			Z6(E);
-		end;
-	end;
-	for H, z in pairs(E.Refs.NPCHighlights) do
-		if not a[H] and z then
-			pcall(function()
-				z:Destroy();
-			end);
-			E.Refs.NPCHighlights[H] = nil;
-		end;
-	end;
-end;
-task.spawn(function()
-	while true do
-		task.wait(3);
-		pcall(q6);
-	end;
-end);
-W.RenderStepped:Connect(function()
-	pcall(B6);
-end);
-E.Refs.AnimalList = {};
-E.Refs.AnimalDrawings = {};
-E.Refs.AnimalHighlights = {};
-local r6 = "bear";
-local function T6(E)
-	return string.lower(E) == r6;
-end;
-local function w6()
-	if not H.ESP_Animals then
-		E.Refs.AnimalList = {};
-		return;
-	end;
-	local z = {};
-	local i = workspace:FindFirstChild("Animals");
-	if i then
-		for E, H in ipairs(i:GetDescendants()) do
-			if H:IsA("Model") and (not a6(H) and T6(H.Name)) then
-				local E = H:FindFirstChildOfClass("Humanoid");
-				if E then
-					z[#z + 1] = H;
-				end;
-			end;
-		end;
-	end;
-	E.Refs.AnimalList = z;
-end;
-local function V6(H)
-	if E.Refs.AnimalDrawings[H] then
-		return E.Refs.AnimalDrawings[H];
-	end;
-	local z = {};
-	z.Box = Drawing.new("Square");
-	z.Box.Thickness = 1;
-	z.Box.Filled = false;
-	z.Box.Visible = false;
-	z.Name = Drawing.new("Text");
-	z.Name.Size = 13;
-	z.Name.Center = true;
-	z.Name.Outline = true;
-	z.Name.Visible = false;
-	z.Health = Drawing.new("Text");
-	z.Health.Size = 11;
-	z.Health.Center = true;
-	z.Health.Outline = true;
-	z.Health.Visible = false;
-	z.Distance = Drawing.new("Text");
-	z.Distance.Size = 11;
-	z.Distance.Center = true;
-	z.Distance.Outline = true;
-	z.Distance.Visible = false;
-	E.Refs.AnimalDrawings[H] = z;
-	return z;
-end;
-local function G6(H)
-	local z = E.Refs.AnimalDrawings[H];
-	if z then
-		for E, H in pairs(z) do
-			pcall(function()
-				H:Remove();
-			end);
-		end;
-		E.Refs.AnimalDrawings[H] = nil;
-	end;
-	local i = E.Refs.AnimalHighlights[H];
-	if i then
-		pcall(function()
-			i:Destroy();
-		end);
-		E.Refs.AnimalHighlights[H] = nil;
-	end;
-end;
-local function Q6()
-	for E, H in pairs(E.Refs.AnimalDrawings) do
-		H.Box.Visible = false;
-		H.Name.Visible = false;
-		H.Health.Visible = false;
-		H.Distance.Visible = false;
-	end;
-	for E, H in pairs(E.Refs.AnimalHighlights) do
-		if H and H.Parent then
-			H.Enabled = false;
-		end;
-	end;
-end;
-local function J6()
-	if not H.ESP_Animals or H.AnimalDistance <= 0 then
-		Q6();
-		return;
-	end;
-	local z = A.Character and A.Character:FindFirstChild("HumanoidRootPart");
-	if not z then
-		Q6();
-		return;
-	end;
-	local i = z.Position;
-	local c = E.Refs.AnimalList or {};
-	local a = {};
-	for z, c in ipairs(c) do
-		if c.Parent then
-			local z = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("Head");
-			if z and z:IsA("BasePart") then
-				local q = ((z.Position - i)).Magnitude;
-				if q <= H.AnimalDistance then
-					a[c] = true;
-					local i = c:FindFirstChildOfClass("Humanoid");
-					local d = not i or i.Health <= 0;
-					local Z = E.Refs.AnimalHighlights[c];
-					if not Z or not Z.Parent then
-						if Z then
-							pcall(function()
-								Z:Destroy();
-							end);
-						end;
-						Z = Instance.new("Highlight");
-						Z.Name = "VelcloudAnimal";
-						Z.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop;
-						Z.Parent = c;
-						E.Refs.AnimalHighlights[c] = Z;
-					end;
-					if d then
-						if Z.FillColor ~= Color3.fromRGB(90, 90, 90) then
-							Z.FillColor = Color3.fromRGB(90, 90, 90);
-							Z.OutlineColor = Color3.fromRGB(60, 60, 60);
-						end;
-						Z.FillTransparency = .6;
-						Z.OutlineTransparency = .3;
-					else
-						if Z.FillColor ~= H.AnimalColor then
-							Z.FillColor = H.AnimalColor;
-							Z.OutlineColor = H.AnimalColor;
-						end;
-						Z.FillTransparency = .4;
-						Z.OutlineTransparency = 0;
-					end;
-					Z.Enabled = true;
-					local C = c:FindFirstChild("Head");
-					if C then
-						local E = V6(c);
-						local a = U(C.Position + Vector3.new(0, 1, 0));
-						local Z = U(z.Position - Vector3.new(0, 2.5, 0));
-						local B = U(z.Position);
-						if B.Z > 0 and (a.Z > 0 and Z.Z > 0) then
-							local z = math.abs(a.Y - Z.Y);
-							local C = z * .5;
-							if H.Animal_Box then
-								E.Box.Size = Vector2.new(C, z);
-								E.Box.Position = Vector2.new(B.X - C / 2, a.Y);
-								E.Box.Color = d and Color3.fromRGB(120, 120, 120) or H.AnimalColor;
-								E.Box.Visible = true;
-							else
-								E.Box.Visible = false;
-							end;
-							if H.Animal_Name then
-								E.Name.Text = c.Name .. ((d and " [DEAD]" or ""));
-								E.Name.Position = Vector2.new(B.X, a.Y - 16);
-								E.Name.Color = d and Color3.fromRGB(150, 150, 150) or H.AnimalColor;
-								E.Name.Visible = true;
-							else
-								E.Name.Visible = false;
-							end;
-							if H.Animal_Health then
-								if i then
-									E.Health.Text = d and "DEAD" or ("HP: " .. (math.floor(i.Health) .. ("/" .. math.floor(i.MaxHealth))));
-									E.Health.Position = Vector2.new(B.X, Z.Y + 2);
-									E.Health.Color = d and Color3.fromRGB(150, 150, 150) or H.AnimalColor;
-									E.Health.Visible = true;
-								else
-									E.Health.Visible = false;
-								end;
-							else
-								E.Health.Visible = false;
-							end;
-							if H.Animal_Distance then
-								E.Distance.Text = math.floor(q) .. "m";
-								E.Distance.Position = Vector2.new(B.X, Z.Y + 18);
-								E.Distance.Color = d and Color3.fromRGB(150, 150, 150) or H.AnimalColor;
-								E.Distance.Visible = true;
-							else
-								E.Distance.Visible = false;
-							end;
-						else
-							E.Box.Visible = false;
-							E.Name.Visible = false;
-							E.Health.Visible = false;
-							E.Distance.Visible = false;
-						end;
-					end;
-				end;
-			end;
-		end;
-	end;
-	for E, H in pairs(E.Refs.AnimalDrawings) do
-		if not a[E] then
-			G6(E);
-		end;
-	end;
-	for H, z in pairs(E.Refs.AnimalHighlights) do
-		if not a[H] and z then
-			pcall(function()
-				z:Destroy();
-			end);
-			E.Refs.AnimalHighlights[H] = nil;
-		end;
-	end;
-end;
-task.spawn(function()
-	while true do
-		task.wait(3);
-		pcall(w6);
-	end;
-end);
-W.RenderStepped:Connect(function()
-	pcall(J6);
-end);
-local function W6(E)
-	if E == A then
-		return;
-	end;
-	na(E);
-	E.CharacterAdded:Connect(function()
-		task.wait(.2);
-		ya(E);
-	end);
-	E.CharacterRemoving:Connect(function()
-		ja(E);
-	end);
-	ya(E);
-end;
-for E, H in ipairs(J:GetPlayers()) do
-	W6(H);
-end;
-J.PlayerAdded:Connect(W6);
-J.PlayerRemoving:Connect(va);
-local X6 = game:GetService("Stats");
-local u6 = 0;
-local O6 = os.clock();
-local A6 = 0;
-W.RenderStepped:Connect(function()
-	if H.FPSPing then
-		u6 = u6 + 1;
-		local E = os.clock();
-		if E - O6 >= 1 then
-			A6 = u6;
-			u6 = 0;
-			O6 = E;
-		end;
-	else
-		u6 = 0;
-		A6 = 0;
-	end;
-end);
-local function g6()
-	E.Refs.HudPanel = E.Lib:CreateNewWindow({
-			Title = "Stats",
-			Name = "VelcloudStats",
-			Size = { 220 },
-			Minimizable = true,
-			Position = UDim2.new(1, -240, 0, 20),
-			OnClose = function()
-				if z.Elements.statsHudToggle then
-					z.Elements.statsHudToggle:Set(false);
-				end;
-			end,
-		});
-	E.Refs.HudPanel:AddHeader("Performance");
-	E.Refs.fpsRow = E.Refs.HudPanel:AddRow("FPS");
-	E.Refs.pingRow = E.Refs.HudPanel:AddRow("Ping");
-	E.Refs.HudPanel:AddSeparator();
-	E.Refs.HudPanel:AddHeader("Player");
-	E.Refs.hpRow = E.Refs.HudPanel:AddRow("Health");
-	E.Refs.posRow = E.Refs.HudPanel:AddRow("Position", { Style = "Vertical", AccentKey = "white", ValueColorKey = "text" });
-	E.Refs.HudPanel:AddSeparator();
-	E.Refs.HudPanel:AddHeader("Status");
-	E.Refs.onlineRow = E.Refs.HudPanel:AddRow("Online");
-	E.Refs.onlineRow:Set("0");
-end;
-local function l6()
-	if E.Refs.HudPanel then
-		pcall(function()
-			E.Refs.HudPanel:Destroy();
-		end);
-		E.Refs.HudPanel = nil;
-	end;
-	E.Refs.fpsRow, E.Refs.pingRow, E.Refs.hpRow, E.Refs.posRow, E.Refs.onlineRow = nil, nil, nil, nil, nil;
-end;
-task.spawn(function()
-	while true do
-		if H.FPSPing then
-			if not E.Refs.HudPanel then
-				g6();
-			end;
-			if E.Refs.fpsRow then
-				E.Refs.fpsRow:Set(tostring(A6));
-			end;
-			local H, z = pcall(function()
-					return X6.Network.ServerStatsItem["Data Ping"]:GetValue();
-				end);
-			if E.Refs.pingRow then
-				E.Refs.pingRow:Set(H and (z and (math.floor(z) .. " ms")) or "n/a");
-			end;
-			local i = A.Character;
-			local c = i and i:FindFirstChild("HumanoidRootPart");
-			local a = i and i:FindFirstChildOfClass("Humanoid");
-			if c and E.Refs.posRow then
-				local H = c.Position;
-				E.Refs.posRow:Set(string.format("%d, %d, %d", H.X, H.Y, H.Z));
-			end;
-			if a and E.Refs.hpRow then
-				E.Refs.hpRow:Set(string.format("%d / %d", math.floor(a.Health), math.floor(a.MaxHealth)));
-			end;
-			if E.Refs.onlineRow then
-				E.Refs.onlineRow:Set(tostring(#J:GetPlayers()));
-			end;
-		elseif E.Refs.HudPanel then
-			l6();
-		end;
-		task.wait(.2);
-	end;
-end);
-local function P6(E)
-	if not E then
-		return "NONE";
-	end;
-	if typeof(E) == "EnumItem" then
-		if E == Enum.KeyCode.Unknown or E == Enum.UserInputType.None then
-			return "NONE";
-		end;
-		local H = E.Name;
-		H = ((H:gsub("MouseButton", "M")):gsub("Left", "L")):gsub("Right", "R");
-		return H;
-	end;
-	return tostring(E);
-end;
-local function R6()
-	E.Refs.BindHudPanel = E.Lib:CreateNewWindow({
-			Title = "Binds",
-			Name = "VelcloudBinds",
-			Size = { 240 },
-			Minimizable = true,
-			Position = UDim2.new(1, -500, 0, 20),
-			OnClose = function()
-				if z.Elements.bindHudToggle then
-					z.Elements.bindHudToggle:Set(false);
-				end;
-			end,
-		});
-	local i = E.Refs.BindHudPanel.Body or E.Refs.BindHudPanel.Gui:FindFirstChild("Body", true) or E.Refs.BindHudPanel.Gui;
-	local c = Instance.new("Frame");
-	c.Name = "CustomBindList";
-	c.BackgroundTransparency = 1;
-	c.Size = UDim2.new(1, -24, 0, 0);
-	c.Position = UDim2.new(0, 12, 0, 45);
-	c.AutomaticSize = Enum.AutomaticSize.Y;
-	c.ZIndex = 10;
-	c.Parent = i;
-	local a = Instance.new("UIListLayout", c);
-	a.SortOrder = Enum.SortOrder.LayoutOrder;
-	a.Padding = UDim.new(0, 4);
-	local function q()
-		if not E.Refs.BindHudPanel or not c.Parent then
-			return;
-		end;
-		for E, H in ipairs(c:GetChildren()) do
-			if H:IsA("TextLabel") then
-				H:Destroy();
-			end;
-		end;
-		local function i(E)
-			if E and E.Get then
-				return E:Get();
-			end;
-			return nil;
-		end;
-		local function a(E, H, z)
-			local i = P6(z);
-			local a = Instance.new("TextLabel");
-			a.Size = UDim2.new(1, 0, 0, 20);
-			a.BackgroundTransparency = 1;
-			a.Font = Enum.Font.BuilderSansMedium;
-			a.TextSize = 12;
-			a.TextXAlignment = Enum.TextXAlignment.Left;
-			a.TextColor3 = H and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(150, 150, 150);
-			a.Text = string.format("%s [%s]", E, i);
-			a.Parent = c;
-			local q = Instance.new("TextLabel");
-			q.Size = UDim2.new(.4, 0, 1, 0);
-			q.Position = UDim2.new(.6, 0, 0, 0);
-			q.BackgroundTransparency = 1;
-			q.Font = Enum.Font.BuilderSansBold;
-			q.TextSize = 12;
-			q.TextXAlignment = Enum.TextXAlignment.Right;
-			q.TextColor3 = H and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100);
-			q.Text = H and "ON" or "OFF";
-			q.Parent = a;
-		end;
-		a("ESP", H.ESP, i(z.Elements.keybindESP));
-		a("Aimbot", H.AimbotEnabled, H.AimbotKey);
-		a("FreeCam", H.FreeCam, i(z.Elements.keybindFreecam));
-		a("No Recoil", H.NoRecoil, i(z.Elements.keybindNoRecoil));
-		a("FOV", H.FOVEnabled, i(z.Elements.keybindFOV));
-		a("Spider", H.Spider, i(z.Elements.keybindSpider));
-		a("Fullbright", H.Fullbright, i(z.Elements.keybindFullbright));
-		a("Cam Zoom", H.CameraZoom, i(z.Elements.keybindCameraZoom));
-		a("Walls", H.RemoveConstructions, i(z.Elements.keybindRemoveConstructions));
-	end;
-	task.spawn(function()
-		task.wait(1);
-		while E.Refs.BindHudPanel do
-			pcall(q);
-			task.wait(.5);
-		end;
-	end);
-end;
-local function t6()
-	if E.Refs.BindHudPanel then
-		pcall(function()
-			E.Refs.BindHudPanel:Destroy();
-		end);
-		E.Refs.BindHudPanel = nil;
-	end;
-end;
-W.RenderStepped:Connect(function()
-	if H.ESP and H.MaxDistance > 0 then
-		local E, H = pcall(La);
-		if not E then
-			warn("[velcloud.xd] ESP error:", H);
-			pcall(fa);
-		end;
-	else
-		fa();
-	end;
-end);
-z.Tabs.Aimbot = z.Window:AddTab("Aimbot", "crosshair");
-z.Tabs.Aimbot:AddLabel("AIMBOT SYSTEM", "crosshair");
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.aimbotEnabled = z.Tabs.Aimbot:AddToggle({
-		Title = "Aimbot",
-		Icon = "crosshair",
-		Default = false,
-		Callback = function(E)
-			H.AimbotEnabled = E;
-		end,
-	});
-z.Elements.aimbotType = z.Tabs.Aimbot:AddDropdown({
-		Title = "Aimbot Type",
-		Icon = "layers",
-		Options = { "Mouse", "Silent" },
-		Default = "Mouse",
-		Callback = function(E)
-			H.AimbotType = E;
-		end,
-	});
-z.Elements.aimbotBone = z.Tabs.Aimbot:AddDropdown({
-		Title = "Bone",
-		Icon = "user",
-		Options = {
-			"Nearest",
-			"Head",
-			"Chest",
-			"Pelvis",
-		},
-		Default = "Head",
-		Callback = function(E)
-			H.AimbotBone = E;
-		end,
-	});
-z.Elements.aimbotKey = z.Tabs.Aimbot:AddDropdown({
-		Title = "Aim Key",
-		Icon = "mouse-pointer",
-		Options = {
-			"MouseButton2",
-			"MouseButton1",
-			"LeftShift",
-			"Q",
-			"E",
-			"C",
-		},
-		Default = "MouseButton2",
-		Callback = function(E)
-			H.AimbotKey = Enum.UserInputType[E] or Enum.KeyCode[E] or Enum.UserInputType.MouseButton2;
-		end,
-	});
-z.Elements.aimbotVisibleCheck = z.Tabs.Aimbot:AddToggle({
-		Title = "Visible Check",
-		Icon = "eye",
-		Default = true,
-		Callback = function(E)
-			H.AimbotVisibleCheck = E;
-		end,
-	});
-z.Elements.aimbotAutoSwitch = z.Tabs.Aimbot:AddToggle({
-		Title = "Auto Switch",
-		Icon = "repeat",
-		Default = true,
-		Callback = function(E)
-			H.AimbotAutoSwitch = E;
-		end,
-	});
-z.Tabs.Aimbot:AddSeparator();
-z.Tabs.Aimbot:AddLabel("SMART AIMBOT SYSTEM", "cpu");
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.dynamicPred = z.Tabs.Aimbot:AddToggle({
-		Title = "Dynamic Prediction",
-		Subtitle = "????????? ???????????? ? ???? (< 30?) ? ?? ???????? (> 500?)",
-		Icon = "activity",
-		Default = true,
-		Callback = function(E)
-			H.DynamicPrediction = E;
-		end,
-	});
-z.Elements.ballisticToggle = z.Tabs.Aimbot:AddToggle({
-		Title = "Ballistic Prediction",
-		Subtitle = "???? ?????????? ????",
-		Icon = "trending-down",
-		Default = true,
-		Callback = function(E)
-			H.Ballistic = E;
-		end,
-	});
-z.Elements.humanoidCheckToggle = z.Tabs.Aimbot:AddToggle({
-		Title = "Humanoid State Check",
-		Subtitle = "??? ?? ????????? (? ?????)",
-		Icon = "user",
-		Default = true,
-		Callback = function(E)
-			H.HumanoidCheck = E;
-		end,
-	});
-z.Elements.noSpreadToggle = z.Tabs.Aimbot:AddToggle({
-		Title = "No Spread",
-		Subtitle = "??????? ??????? ??????",
-		Icon = "crosshair",
-		Default = false,
-		Callback = function(E)
-			H.NoSpread = E;
-		end,
-	});
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.aimbotFOV = z.Tabs.Aimbot:AddSlider({
-		Title = "Target FOV",
-		Icon = "circle",
-		Min = 1,
-		Max = 400,
-		Default = 120,
-		Callback = function(E)
-			H.AimbotFOV = E;
-		end,
-	});
-z.Elements.aimbotSmooth = z.Tabs.Aimbot:AddSlider({
-		Title = "Mouse Aimbot Time",
-		Icon = "activity",
-		Min = 1,
-		Max = 100,
-		Default = 5,
-		Callback = function(E)
-			H.AimbotSmooth = E;
-		end,
-	});
-z.Elements.aimbotPrediction = z.Tabs.Aimbot:AddSlider({
-		Title = "Aim Prediction",
-		Subtitle = "0=???? \194\183 1=????? \194\183 >1 ???? ?????? ????? ?????",
-		Icon = "trending-up",
-		Min = 0,
-		Max = 2,
-		Step = .1,
-		Default = 1,
-		Callback = function(E)
-			H.AimbotPrediction = E;
-		end,
-	});
-z.Elements.aimbotBulletSpeed = z.Tabs.Aimbot:AddSlider({
-		Title = "Bullet Speed",
-		Subtitle = "??? ~90 \194\183 ????? ~450 \194\183 ??????? ~375",
-		Icon = "wind",
-		Min = 50,
-		Max = 800,
-		Step = 25,
-		Default = 450,
-		Callback = function(E)
-			H.AimbotBulletSpeed = E;
-		end,
-	});
-z.Elements.aimbotHitChance = z.Tabs.Aimbot:AddSlider({
-		Title = "Hit Chance %",
-		Icon = "percent",
-		Min = 0,
-		Max = 100,
-		Default = 100,
-		Callback = function(E)
-			H.AimbotHitChance = E;
-		end,
-	});
-z.Elements.aimbotDistanceLimit = z.Tabs.Aimbot:AddSlider({
-		Title = "Distance Limit",
-		Icon = "ruler",
-		Min = 1,
-		Max = 600,
-		Default = 400,
-		Callback = function(E)
-			H.AimbotDistanceLimit = E;
-		end,
-	});
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.aimbotDrawFOV = z.Tabs.Aimbot:AddToggle({
-		Title = "Draw FOV",
-		Icon = "circle",
-		Default = false,
-		Callback = function(E)
-			H.AimbotDrawFOV = E;
-		end,
-	});
-z.Elements.aimbotDrawFOVColor = z.Tabs.Aimbot:AddColorPicker({
-		Title = "Draw FOV Color",
-		Icon = "palette",
-		Default = H.AimbotDrawFOVColor,
-		Callback = function(E)
-			H.AimbotDrawFOVColor = E;
-		end,
-	});
-z.Elements.aimbotDrawTarget = z.Tabs.Aimbot:AddToggle({
-		Title = "Draw Target",
-		Icon = "crosshair",
-		Default = false,
-		Callback = function(E)
-			H.AimbotDrawTarget = E;
-		end,
-	});
-z.Elements.aimbotDrawTargetColor = z.Tabs.Aimbot:AddColorPicker({
-		Title = "Draw Target Color",
-		Icon = "palette",
-		Default = H.AimbotDrawTargetColor,
-		Callback = function(E)
-			H.AimbotDrawTargetColor = E;
-		end,
-	});
-z.Tabs.Aimbot:AddSeparator();
-z.Tabs.Aimbot:AddLabel("IGNORE", "users");
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.aimbotIgnoreTeam = z.Tabs.Aimbot:AddToggle({
-		Title = "Ignore Team",
-		Icon = "users",
-		Default = true,
-		Callback = function(E)
-			H.AimbotIgnoreTeam = E;
-		end,
-	});
-z.Elements.aimbotIgnoreSleepers = z.Tabs.Aimbot:AddToggle({
-		Title = "Ignore Sleepers",
-		Icon = "bed",
-		Default = true,
-		Callback = function(E)
-			H.AimbotIgnoreSleepers = E;
-		end,
-	});
-z.Elements.aimbotIgnoreNPC = z.Tabs.Aimbot:AddToggle({
-		Title = "Ignore NPC",
-		Icon = "users",
-		Default = true,
-		Callback = function(E)
-			H.AimbotIgnoreNPC = E;
-		end,
-	});
-z.Elements.aimbotIgnoreAnimals = z.Tabs.Aimbot:AddToggle({
-		Title = "Ignore Animals",
-		Icon = "paw-print",
-		Default = true,
-		Callback = function(E)
-			H.AimbotIgnoreAnimals = E;
-		end,
-	});
-z.Tabs.Aimbot:AddSeparator();
-z.Tabs.Aimbot:AddLabel("HITBOX EXPANDER", "box");
-z.Tabs.Aimbot:AddSeparator();
-z.Elements.hitboxToggle = z.Tabs.Aimbot:AddToggle({
-		Title = "Hitbox Expander",
-		Icon = "box",
-		Default = false,
-		Callback = function(E)
-			H.HitboxEnabled = E;
-			if not E then
-				Xa();
-			end;
-		end,
-	});
-z.Elements.hitboxSizeSlider = z.Tabs.Aimbot:AddSlider({
-		Title = "Hitbox Size",
-		Icon = "ruler",
-		Min = 1,
-		Max = 5,
-		Step = .1,
-		Default = 2,
-		Callback = function(E)
-			H.HitboxSize = E;
-		end,
-	});
-z.Elements.hitboxTranspSlider = z.Tabs.Aimbot:AddSlider({
-		Title = "Hitbox Transparency %",
-		Icon = "eye-off",
-		Min = 0,
-		Max = 100,
-		Default = 50,
-		Callback = function(E)
-			H.HitboxTransparency = E;
-		end,
-	});
-z.Tabs.Visuals = z.Window:AddTab("Visuals", "eye");
-z.Tabs.Visuals:AddLabel("ESP PLAYER", "user");
-z.Tabs.Visuals:AddSeparator();
-z.Elements.espToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Esp Player",
-		Icon = "eye",
-		Default = false,
-		Callback = function(E)
-			H.ESP = E;
-			for E, H in ipairs(J:GetPlayers()) do
-				ya(H);
-			end;
-		end,
-	});
-z.Elements.espColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Esp Color",
-		Icon = "palette",
-		Default = H.ESPColor,
-		Callback = function(z)
-			H.ESPColor = z;
-			for E, i in pairs(E.Refs.Highlights) do
-				if i and i.Parent then
-					local c = H.TeamCheck and o(E);
-					if not c then
-						i.FillColor = z;
-						i.OutlineColor = z;
-					end;
-				end;
-			end;
-		end,
-	});
-z.Elements.espModeDropdown = z.Tabs.Visuals:AddDropdown({
-		Title = "Esp Player Mode",
-		Icon = "layers",
-		Options = { "Chams", "Glow" },
-		Default = "Chams",
-		Callback = function(E)
-			H.ESPMode = E;
-			for E, H in ipairs(J:GetPlayers()) do
-				ya(H);
-			end;
-		end,
-	});
-z.Elements.keybindESP = z.Tabs.Visuals:AddKeybind({ Title = "ESP Keybind", Icon = "eye", Callback = function()
-			z.Elements.espToggle:Set(not H.ESP);
-		end });
-z.Tabs.Visuals:AddSeparator();
-z.Elements.espDistSlider = z.Tabs.Visuals:AddSlider({
-		Title = "Distance Player",
-		Icon = "ruler",
-		Min = 250,
-		Max = 2500,
-		Default = H.MaxDistance,
-		Callback = function(E)
-			H.MaxDistance = E;
-			for E, H in ipairs(J:GetPlayers()) do
-				ya(H);
-			end;
-		end,
-	});
-z.Tabs.Visuals:AddSeparator();
-z.Elements.sleeperToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Sleeper",
-		Icon = "bed",
-		Default = false,
-		Callback = function(E)
-			H.ESP_Sleeper = E;
-		end,
-	});
-z.Elements.sleeperColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Color Sleeper",
-		Icon = "palette",
-		Default = H.SleeperColor,
-		Callback = function(z)
-			H.SleeperColor = z;
-			for E, H in pairs(E.Refs.SleeperHighlights) do
-				if H and H.Parent then
-					H.FillColor = z;
-					H.OutlineColor = z;
-				end;
-			end;
-		end,
-	});
-z.Tabs.Visuals:AddSeparator();
-z.Elements.boxToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Box",
-		Icon = "box",
-		Default = false,
-		Callback = function(E)
-			H.Box = E;
-		end,
-	});
-z.Elements.boxColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Box Color",
-		Icon = "square",
-		Default = H.BoxColor,
-		Callback = function(E)
-			H.BoxColor = E;
-		end,
-	});
-z.Elements.nameToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Name",
-		Icon = "user",
-		Default = false,
-		Callback = function(E)
-			H.Name = E;
-		end,
-	});
-z.Elements.healthToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Health",
-		Icon = "heart",
-		Default = false,
-		Callback = function(E)
-			H.Health = E;
-		end,
-	});
-z.Elements.distToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Distance",
-		Icon = "ruler",
-		Default = false,
-		Callback = function(E)
-			H.Distance = E;
-		end,
-	});
-z.Elements.weaponToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Weapon",
-		Icon = "sword",
-		Default = false,
-		Callback = function(E)
-			H.WeaponESP = E;
-		end,
-	});
-z.Elements.textColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Text Color",
-		Icon = "type",
-		Default = H.TextColor,
-		Callback = function(E)
-			H.TextColor = E;
-		end,
-	});
-z.Elements.lineToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Line",
-		Icon = "move",
-		Default = false,
-		Callback = function(E)
-			H.Line = E;
-		end,
-	});
-z.Elements.lineColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Line Color",
-		Icon = "move",
-		Default = H.LineColor,
-		Callback = function(E)
-			H.LineColor = E;
-		end,
-	});
-z.Elements.skeletonToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Skeleton",
-		Icon = "bone",
-		Default = false,
-		Callback = function(E)
-			H.Skeleton = E;
-		end,
-	});
-z.Elements.skelColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Skeleton Color",
-		Icon = "bone",
-		Default = H.SkeletonColor,
-		Callback = function(E)
-			H.SkeletonColor = E;
-		end,
-	});
-z.Tabs.Visuals:AddSeparator();
-z.Tabs.Visuals:AddLabel("TEAM CHECK", "users");
-z.Tabs.Visuals:AddSeparator();
-z.Elements.teamCheckVisualToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Team Check",
-		Subtitle = "???????? ???? ??????? Esp Player",
-		Icon = "users",
-		Default = true,
-		Callback = function(E)
-			H.TeamCheck = E;
-			for E, H in ipairs(J:GetPlayers()) do
-				ya(H);
-			end;
-		end,
-	});
-z.Elements.teamColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Team Color",
-		Icon = "palette",
-		Default = H.TeamColor,
-		Callback = function(z)
-			H.TeamColor = z;
-			for E, i in pairs(E.Refs.Highlights) do
-				if i and i.Parent then
-					local c = H.TeamCheck and o(E);
-					if c then
-						i.FillColor = z;
-						i.OutlineColor = z;
-					end;
-				end;
-			end;
-		end,
-	});
-z.Tabs.Visuals:AddSeparator();
-z.Tabs.Visuals:AddLabel("OTHER VISUALS", "sparkles");
-z.Tabs.Visuals:AddSeparator();
-z.Elements.espNpcToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Esp NPC",
-		Icon = "users",
-		Default = false,
-		Callback = function(E)
-			H.ESP_NPC = E;
-		end,
-	});
-z.Elements.npcColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "NPC Color",
-		Icon = "palette",
-		Default = H.NPCColor,
-		Callback = function(E)
-			H.NPCColor = E;
-		end,
-	});
-z.Elements.npcDistSlider = z.Tabs.Visuals:AddSlider({
-		Title = "NPC Distance",
-		Icon = "ruler",
-		Min = 100,
-		Max = 500,
-		Default = H.NPCDistance,
-		Callback = function(E)
-			H.NPCDistance = E;
-		end,
-	});
-z.Elements.npcElementsDropdown = z.Tabs.Visuals:AddMultiDropdown({
-		Title = "NPC Elements",
-		Subtitle = "??? ???????? ?? NPC",
-		Icon = "layers",
-		Options = {
-			"Name",
-			"Box",
-			"Health",
-			"Distance",
-		},
-		Default = {
-			"Name",
-			"Box",
-			"Health",
-			"Distance",
-		},
-		Callback = function(E)
-			H.NPC_Name = E.Name == true;
-			H.NPC_Box = E.Box == true;
-			H.NPC_Health = E.Health == true;
-			H.NPC_Distance = E.Distance == true;
-		end,
-	});
-z.Tabs.Visuals:AddSeparator();
-z.Elements.espAnimalsToggle = z.Tabs.Visuals:AddToggle({
-		Title = "Esp Animals",
-		Icon = "paw-print",
-		Default = false,
-		Callback = function(E)
-			H.ESP_Animals = E;
-		end,
-	});
-z.Elements.animalColorPicker = z.Tabs.Visuals:AddColorPicker({
-		Title = "Animal Color",
-		Icon = "palette",
-		Default = H.AnimalColor,
-		Callback = function(E)
-			H.AnimalColor = E;
-		end,
-	});
-z.Elements.animalDistSlider = z.Tabs.Visuals:AddSlider({
-		Title = "Animal Distance",
-		Icon = "ruler",
-		Min = 250,
-		Max = 1000,
-		Default = H.AnimalDistance,
-		Callback = function(E)
-			H.AnimalDistance = E;
-		end,
-	});
-z.Elements.animalElementsDropdown = z.Tabs.Visuals:AddMultiDropdown({
-		Title = "Animal Elements",
-		Subtitle = "??? ???????? ?? ????????",
-		Icon = "layers",
-		Options = {
-			"Name",
-			"Box",
-			"Health",
-			"Distance",
-		},
-		Default = {
-			"Name",
-			"Box",
-			"Health",
-			"Distance",
-		},
-		Callback = function(E)
-			H.Animal_Name = E.Name == true;
-			H.Animal_Box = E.Box == true;
-			H.Animal_Health = E.Health == true;
-			H.Animal_Distance = E.Distance == true;
-		end,
-	});
-z.Tabs.Loot = z.Window:AddTab("Loot", "package");
-z.Tabs.Loot:AddSeparator();
-z.Tabs.Loot:AddLabel("COMING SOON", "clock");
-z.Tabs.Loot:AddSeparator();
-z.Tabs.World = z.Window:AddTab("World", "sun");
-z.Tabs.World:AddLabel("SKY", "cloud");
-z.Tabs.World:AddSeparator();
-z.Elements.skyColorToggle = z.Tabs.World:AddToggle({
-		Title = "Custom Sky Color",
-		Subtitle = "????????????? ????",
-		Icon = "cloud",
-		Default = false,
-		Callback = function(E)
-			H.SkyColorEnabled = E;
-			ia(E, H.SkyColor);
-		end,
-	});
-z.Elements.skyColorPicker = z.Tabs.World:AddColorPicker({
-		Title = "Sky Color",
-		Icon = "palette",
-		Default = H.SkyColor,
-		Callback = function(E)
-			H.SkyColor = E;
-			if H.SkyColorEnabled then
-				ia(true, E);
-			end;
-		end,
-	});
-z.Tabs.World:AddSeparator();
-z.Tabs.World:AddLabel("LIGHTING", "sun");
-z.Tabs.World:AddSeparator();
-z.Elements.fullbrightToggle = z.Tabs.World:AddToggle({
-		Title = "Fullbright",
-		Subtitle = "???????? ??? ??????, ???? ?? ??????",
-		Icon = "sun",
-		Default = false,
-		Callback = function(E)
-			H.Fullbright = E;
-			pcall(function()
-				if E then
-					K();
-					Ha();
-				else
-					if not H.WorldTimeEnabled then
-						Ea();
-					end;
-				end;
-			end);
-		end,
-	});
-z.Elements.keybindFullbright = z.Tabs.World:AddKeybind({
-		Title = "Fullbright Keybind",
-		Icon = "keyboard",
-		Default = Enum.KeyCode.Unknown,
-		Callback = function()
-			z.Elements.fullbrightToggle:Set(not H.Fullbright);
-		end,
-	});
-z.Tabs.World:AddSeparator();
-z.Elements.worldTimeToggle = z.Tabs.World:AddToggle({
-		Title = "World Time",
-		Subtitle = "????????? ????? ?????",
-		Icon = "sun-moon",
-		Default = false,
-		Callback = function(E)
-			H.WorldTimeEnabled = E;
-			pcall(function()
-				if E then
-					K();
-					za();
-				else
-					if not H.Fullbright then
-						Ea();
-					end;
-				end;
-			end);
-		end,
-	});
-z.Elements.worldTimeSlider = z.Tabs.World:AddSlider({
-		Title = "Hour (1-24)",
-		Icon = "clock",
-		Min = 1,
-		Max = 24,
-		Default = 12,
-		Callback = function(E)
-			H.WorldTimeValue = E;
-			pcall(function()
-				if H.WorldTimeEnabled then
-					za();
-				end;
-			end);
-		end,
-	});
-z.Tabs.World:AddSeparator();
-z.Tabs.World:AddLabel("WEAPON SKIN", "paintbrush");
-z.Tabs.World:AddSeparator();
-z.Elements.weaponColorToggle = z.Tabs.World:AddToggle({
-		Title = "Enable Weapon Color",
-		Subtitle = "???? ?? ????? ??????",
-		Icon = "palette",
-		Default = false,
-		Callback = function(z)
-			H.WeaponColorEnabled = z;
-			if z then
-				ra();
-			else
-				for E, H in ipairs(E.Refs.lastWeaponModels) do
-					da(H);
-				end;
-				E.Refs.lastWeaponModels = {};
-				if E.Refs.weaponColorConn then
-					E.Refs.weaponColorConn:Disconnect();
-					E.Refs.weaponColorConn = nil;
-				end;
-			end;
-		end,
-	});
-z.Elements.weaponColorPicker = z.Tabs.World:AddColorPicker({
-		Title = "Neon Color",
-		Icon = "droplet",
-		Default = H.WeaponColor,
-		Callback = function(z)
-			H.WeaponColor = z;
-			if H.WeaponColorEnabled then
-				for E, H in ipairs(E.Refs.lastWeaponModels) do
-					qa(H);
-				end;
-			end;
-		end,
-	});
-z.Elements.materialDropdown = z.Tabs.World:AddDropdown({
-		Title = "Material",
-		Icon = "gem",
-		Options = ca,
-		Default = "Neon",
-		Callback = function(z)
-			H.WeaponMaterial = Enum.Material[z] or Enum.Material.Neon;
-			if H.WeaponColorEnabled then
-				for E, H in ipairs(E.Refs.lastWeaponModels) do
-					qa(H);
-				end;
-			end;
-		end,
-	});
-z.Tabs.Misc = z.Window:AddTab("Misc", "settings-2");
-z.Tabs.Misc:AddLabel("PLAYER", "user");
-z.Tabs.Misc:AddSeparator();
-z.Elements.freecamToggle = z.Tabs.Misc:AddToggle({
-		Title = "FreeCam",
-		Subtitle = "WASD + Space/Ctrl",
-		Icon = "camera",
-		Default = false,
-		Callback = function(E)
-			H.FreeCam = E;
-			if E then
-				Fa();
-			else
-				ma();
-			end;
-		end,
-	});
-z.Elements.keybindFreecam = z.Tabs.Misc:AddKeybind({ Title = "FreeCam Keybind", Icon = "keyboard", Callback = function()
-			z.Elements.freecamToggle:Set(not H.FreeCam);
-		end });
-z.Tabs.Misc:AddSeparator();
-z.Elements.noRecoilToggle = z.Tabs.Misc:AddToggle({
-		Title = "No Recoil",
-		Subtitle = "???????? ?? ???? ??? ??????",
-		Icon = "target",
-		Default = false,
-		Callback = function(E)
-			H.NoRecoil = E;
-			if E then
-				Ia();
-			else
-				ba();
-			end;
-		end,
-	});
-z.Elements.keybindNoRecoil = z.Tabs.Misc:AddKeybind({ Title = "No Recoil Keybind", Icon = "keyboard", Callback = function()
-			z.Elements.noRecoilToggle:Set(not H.NoRecoil);
-		end });
-z.Tabs.Misc:AddSeparator();
-z.Elements.cameraZoomToggle = z.Tabs.Misc:AddToggle({
-		Title = "Camera Zoom",
-		Subtitle = "????? ???? ????? ??????????",
-		Icon = "zoom-in",
-		Default = false,
-		Callback = function(E)
-			H.CameraZoom = E;
-		end,
-	});
-z.Elements.keybindCameraZoom = z.Tabs.Misc:AddKeybind({ Title = "Camera Zoom Keybind", Icon = "keyboard", Default = Enum.KeyCode.Unknown });
-z.Tabs.Misc:AddSeparator();
-z.Elements.fovToggle = z.Tabs.Misc:AddToggle({
-		Title = "FOV Changer",
-		Subtitle = "????????? FOV, ?????????? ? ??????",
-		Icon = "focus",
-		Default = false,
-		Callback = function(z)
-			H.FOVEnabled = z;
-			if z then
-				H.FOVValue = math.clamp(H.FOVValue, H.DefaultFOV, 120);
-				E.Refs.fovSettled = false;
-			end;
-		end,
-	});
-z.Elements.fovSlider = z.Tabs.Misc:AddSlider({
-		Title = "FOV Value",
-		Icon = "move-horizontal",
-		Min = 70,
-		Max = 120,
-		Default = 70,
-		Callback = function(z)
-			H.FOVValue = z;
-			E.Refs.fovSettled = false;
-		end,
-	});
-z.Elements.keybindFOV = z.Tabs.Misc:AddKeybind({
-		Title = "FOV Keybind",
-		Subtitle = "???/???? FOV",
-		Icon = "keyboard",
-		Default = Enum.KeyCode.Unknown,
-		Callback = function()
-			z.Elements.fovToggle:Set(not H.FOVEnabled);
-		end,
-	});
-z.Tabs.Misc:AddSeparator();
-z.Elements.removeConstructionsToggle = z.Tabs.Misc:AddToggle({
-		Title = "Remove Constructions",
-		Subtitle = "???????? ????? ?????? ????",
-		Icon = "box",
-		Default = false,
-		Callback = function(E)
-			M(E);
-		end,
-	});
-z.Elements.removeDistanceSlider = z.Tabs.Misc:AddSlider({
-		Title = "Remove Distance",
-		Icon = "ruler",
-		Min = 50,
-		Max = 150,
-		Default = 75,
-		Callback = function(E)
-			H.RemoveDistance = E;
-		end,
-	});
-z.Elements.keybindRemoveConstructions = z.Tabs.Misc:AddKeybind({
-		Title = "Remove Constructions Keybind",
-		Subtitle = "???/???? ?????",
-		Icon = "keyboard",
-		Default = Enum.KeyCode.Unknown,
-		Callback = function()
-			z.Elements.removeConstructionsToggle:Set(not H.RemoveConstructions);
-		end,
-	});
-z.Tabs.Misc:AddSeparator();
-z.Elements.spiderToggle = z.Tabs.Misc:AddToggle({
-		Title = "Spider",
-		Subtitle = "??????? ?? ?????? (W/Space ?????, S/Ctrl ????)",
-		Icon = "move-vertical",
-		Default = false,
-		Callback = function(E)
-			k(E);
-		end,
-	});
-z.Elements.spiderSpeedSlider = z.Tabs.Misc:AddSlider({
-		Title = "Spider Speed",
-		Icon = "activity",
-		Min = 15,
-		Max = 40,
-		Default = 30,
-		Callback = function(E)
-			H.SpiderSpeed = E;
-		end,
-	});
-z.Elements.keybindSpider = z.Tabs.Misc:AddKeybind({
-		Title = "Spider Keybind",
-		Subtitle = "???/???? Spider",
-		Icon = "keyboard",
-		Default = Enum.KeyCode.Unknown,
-		Callback = function()
-			z.Elements.spiderToggle:Set(not H.Spider);
-		end,
-	});
-z.Tabs.Misc:AddSeparator();
-z.Tabs.Misc:AddLabel("ASPECT RATIO", "monitor");
-z.Tabs.Misc:AddSeparator();
-z.Elements.aspectToggle = z.Tabs.Misc:AddToggle({
-		Title = "Aspect Ratio",
-		Subtitle = "?????? ????????? ??????",
-		Icon = "monitor",
-		Default = false,
-		Callback = function(E)
-			H.AspectRatioEnabled = E;
-			Ga();
-		end,
-	});
-z.Elements.aspectModeDropdown = z.Tabs.Misc:AddDropdown({
-		Title = "Ratio",
-		Icon = "rectangle-horizontal",
-		Options = { "4:3", "16:9" },
-		Default = "16:9",
-		Callback = function(E)
-			H.AspectRatioMode = E;
-			if H.AspectRatioEnabled then
-				Va();
-			end;
-		end,
-	});
-z.Tabs.Misc:AddSeparator();
-z.Tabs.Misc:AddLabel("CROSSHAIR SYSTEM", "crosshair");
-z.Tabs.Misc:AddSeparator();
-z.Elements.crosshairToggle = z.Tabs.Misc:AddToggle({
-		Title = "Enable Crosshair",
-		Icon = "crosshair",
-		Default = false,
-		Callback = function(E)
-			H.Crosshair = E;
-		end,
-	});
-z.Elements.crosshairType = z.Tabs.Misc:AddDropdown({
-		Title = "Style",
-		Icon = "shape",
-		Options = { "Cross", "T-Shape", "Circle" },
-		Default = "Cross",
-		Callback = function(E)
-			H.CrosshairType = E;
-		end,
-	});
-z.Elements.crosshairOutlineToggle = z.Tabs.Misc:AddToggle({
-		Title = "Outline (???????)",
-		Icon = "square",
-		Default = false,
-		Callback = function(E)
-			H.CrosshairOutline = E;
-		end,
-	});
-z.Elements.crosshairDotToggle = z.Tabs.Misc:AddToggle({
-		Title = "Center Dot",
-		Icon = "circle",
-		Default = false,
-		Callback = function(E)
-			H.CrosshairDot = E;
-		end,
-	});
-z.Elements.crosshairColorPicker = z.Tabs.Misc:AddColorPicker({
-		Title = "Crosshair Color",
-		Icon = "palette",
-		Default = H.CrosshairColor,
-		Callback = function(E)
-			H.CrosshairColor = E;
-		end,
-	});
-z.Elements.crosshairSizeSlider = z.Tabs.Misc:AddSlider({
-		Title = "Size (?????)",
-		Icon = "ruler",
-		Min = 2,
-		Max = 40,
-		Default = 10,
-		Callback = function(E)
-			H.CrosshairSize = E;
-		end,
-	});
-z.Elements.crosshairDistSlider = z.Tabs.Misc:AddSlider({
-		Title = "Gap (??????)",
-		Icon = "move",
-		Min = 0,
-		Max = 30,
-		Default = 5,
-		Callback = function(E)
-			H.CrosshairDistance = E;
-		end,
-	});
-z.Elements.crosshairThickSlider = z.Tabs.Misc:AddSlider({
-		Title = "Thickness (???????)",
-		Icon = "minus",
-		Min = 1,
-		Max = 6,
-		Default = 1,
-		Callback = function(E)
-			H.CrosshairThickness = E;
-		end,
-	});
-z.Elements.crosshairTranspSlider = z.Tabs.Misc:AddSlider({
-		Title = "Transparency (????????????)",
-		Icon = "eye-off",
-		Min = 0,
-		Max = 100,
-		Default = 0,
-		Callback = function(E)
-			H.CrosshairTransparency = E;
-		end,
-	});
-z.Elements.crosshairDotSizeSlider = z.Tabs.Misc:AddSlider({
-		Title = "Dot Size",
-		Icon = "circle",
-		Min = 1,
-		Max = 10,
-		Default = 2,
-		Callback = function(E)
-			H.CrosshairDotSize = E;
-		end,
-	});
-z.Tabs.Settings = z.Window:AddTab("Settings", "settings");
-z.Elements.keyInfoLabel = z.Tabs.Settings:AddLabel(string.format("????: %s | ??: %s", _G.VelcloudKeyState.name or "\226\128\148", Q()), "key");
-z.Tabs.Settings:AddSeparator();
-local e6 = {};
-for E in pairs(E.Lib.Themes) do
-	table.insert(e6, E);
-end;
-table.sort(e6);
-z.Tabs.Settings:AddDropdown({
-	Title = "Theme",
-	Icon = "swatch-book",
-	Options = e6,
-	Default = z.Window:GetTheme(),
-	Callback = function(E)
-		z.Window:SetTheme(E);
-	end,
-});
-z.Tabs.Settings:AddDropdown({
-	Title = "Accent Color",
-	Icon = "droplet",
-	Options = {
-		"White",
-		"Blue",
-		"Red",
-		"Green",
-		"Purple",
-	},
-	Default = "White",
-	Callback = function(H)
-		local z = {
-				White = Color3.fromRGB(255, 255, 255),
-				Blue = Color3.fromRGB(64, 156, 255),
-				Red = Color3.fromRGB(230, 70, 70),
-				Green = Color3.fromRGB(80, 210, 120),
-				Purple = Color3.fromRGB(170, 110, 240),
-			};
-		E.Lib:SetAccentColor(z[H]);
-	end,
-});
-z.Tabs.Settings:AddSeparator();
-z.Elements.statsHudToggle = z.Tabs.Settings:AddToggle({
-		Title = "Stats HUD",
-		Icon = "gauge",
-		Default = false,
-		Callback = function(z)
-			H.FPSPing = z;
-			if z then
-				if not E.Refs.HudPanel then
-					g6();
-				end;
-			else
-				l6();
-			end;
-		end,
-	});
-z.Elements.bindHudToggle = z.Tabs.Settings:AddToggle({
-		Title = "Bind HUD",
-		Icon = "list",
-		Default = false,
-		Callback = function(z)
-			H.BindHUD = z;
-			if z then
-				if not E.Refs.BindHudPanel then
-					R6();
-				end;
-			else
-				t6();
-			end;
-		end,
-	});
-z.Tabs.Settings:AddSeparator();
-z.Tabs.Settings:AddLabel("KEYBINDS", "keyboard");
-z.Tabs.Settings:AddSeparator();
-z.Elements.keybindHideUI = z.Tabs.Settings:AddKeybind({
-		Title = "Hide UI Keybind",
-		Icon = "keyboard",
-		Default = Enum.KeyCode.Delete,
-		Callback = function()
-			local E = z.Window.Gui;
-			if E then
-				E.Enabled = not E.Enabled;
-			end;
-		end,
-	});
-X.InputBegan:Connect(function(E, i)
-	if i then
-		return;
-	end;
-	if not H.CameraZoom then
-		return;
-	end;
-	local c = z.Elements.keybindCameraZoom and z.Elements.keybindCameraZoom:Get();
-	if c and (c ~= Enum.KeyCode.Unknown and E.KeyCode == c) then
-		H.ZoomActive = true;
-	end;
-end);
-X.InputEnded:Connect(function(E, i)
-	local c = z.Elements.keybindCameraZoom and z.Elements.keybindCameraZoom:Get();
-	if c and (c ~= Enum.KeyCode.Unknown and E.KeyCode == c) then
-		H.ZoomActive = false;
-	end;
-end);
-z.buildConfig = function(E)
-		local H = z.Window.ConfigManager:CreateConfig(E);
-		H:RegisterElement("AimbotEnabled", z.Elements.aimbotEnabled);
-		H:RegisterElement("AimbotType", z.Elements.aimbotType);
-		H:RegisterElement("AimbotBone", z.Elements.aimbotBone);
-		H:RegisterElement("DynamicPrediction", z.Elements.dynamicPred);
-		H:RegisterElement("Ballistic", z.Elements.ballisticToggle);
-		H:RegisterElement("HumanoidCheck", z.Elements.humanoidCheckToggle);
-		H:RegisterElement("NoSpread", z.Elements.noSpreadToggle);
-		H:RegisterElement("AimbotIgnoreTeam", z.Elements.aimbotIgnoreTeam);
-		H:RegisterElement("AimbotIgnoreSleepers", z.Elements.aimbotIgnoreSleepers);
-		H:RegisterElement("AimbotIgnoreNPC", z.Elements.aimbotIgnoreNPC);
-		H:RegisterElement("AimbotIgnoreAnimals", z.Elements.aimbotIgnoreAnimals);
-		H:RegisterElement("AimbotVisibleCheck", z.Elements.aimbotVisibleCheck);
-		H:RegisterElement("AimbotFOV", z.Elements.aimbotFOV);
-		H:RegisterElement("AimbotSmooth", z.Elements.aimbotSmooth);
-		H:RegisterElement("AimbotPrediction", z.Elements.aimbotPrediction);
-		H:RegisterElement("AimbotBulletSpeed", z.Elements.aimbotBulletSpeed);
-		H:RegisterElement("AimbotHitChance", z.Elements.aimbotHitChance);
-		H:RegisterElement("AimbotDistanceLimit", z.Elements.aimbotDistanceLimit);
-		H:RegisterElement("AimbotDrawFOV", z.Elements.aimbotDrawFOV);
-		H:RegisterElement("AimbotDrawFOVColor", z.Elements.aimbotDrawFOVColor);
-		H:RegisterElement("AimbotDrawTarget", z.Elements.aimbotDrawTarget);
-		H:RegisterElement("AimbotDrawTargetColor", z.Elements.aimbotDrawTargetColor);
-		H:RegisterElement("AimbotAutoSwitch", z.Elements.aimbotAutoSwitch);
-		H:RegisterElement("AimbotKey", z.Elements.aimbotKey);
-		H:RegisterElement("Hitbox", z.Elements.hitboxToggle);
-		H:RegisterElement("HitboxSize", z.Elements.hitboxSizeSlider);
-		H:RegisterElement("HitboxTransp", z.Elements.hitboxTranspSlider);
-		H:RegisterElement("ESP", z.Elements.espToggle);
-		H:RegisterElement("ESPMode", z.Elements.espModeDropdown);
-		H:RegisterElement("ESPDistance", z.Elements.espDistSlider);
-		H:RegisterElement("ESPColor", z.Elements.espColorPicker);
-		H:RegisterElement("Sleeper", z.Elements.sleeperToggle);
-		H:RegisterElement("ColorSleeper", z.Elements.sleeperColorPicker);
-		H:RegisterElement("TeamCheckVisual", z.Elements.teamCheckVisualToggle);
-		H:RegisterElement("TeamColor", z.Elements.teamColorPicker);
-		H:RegisterElement("Box", z.Elements.boxToggle);
-		H:RegisterElement("Name", z.Elements.nameToggle);
-		H:RegisterElement("Health", z.Elements.healthToggle);
-		H:RegisterElement("Distance", z.Elements.distToggle);
-		H:RegisterElement("Line", z.Elements.lineToggle);
-		H:RegisterElement("Skeleton", z.Elements.skeletonToggle);
-		H:RegisterElement("Weapon", z.Elements.weaponToggle);
-		H:RegisterElement("TextColor", z.Elements.textColorPicker);
-		H:RegisterElement("BoxColor", z.Elements.boxColorPicker);
-		H:RegisterElement("LineColor", z.Elements.lineColorPicker);
-		H:RegisterElement("SkelColor", z.Elements.skelColorPicker);
-		H:RegisterElement("ESPNPC", z.Elements.espNpcToggle);
-		H:RegisterElement("NPCColor", z.Elements.npcColorPicker);
-		H:RegisterElement("NPCDistance", z.Elements.npcDistSlider);
-		H:RegisterElement("NPCElements", z.Elements.npcElementsDropdown);
-		H:RegisterElement("ESPAnimals", z.Elements.espAnimalsToggle);
-		H:RegisterElement("AnimalColor", z.Elements.animalColorPicker);
-		H:RegisterElement("AnimalDistance", z.Elements.animalDistSlider);
-		H:RegisterElement("AnimalElements", z.Elements.animalElementsDropdown);
-		H:RegisterElement("CrosshairOn", z.Elements.crosshairToggle);
-		H:RegisterElement("CrosshairType", z.Elements.crosshairType);
-		H:RegisterElement("CrosshairOutline", z.Elements.crosshairOutlineToggle);
-		H:RegisterElement("CrosshairDot", z.Elements.crosshairDotToggle);
-		H:RegisterElement("CrosshairColor", z.Elements.crosshairColorPicker);
-		H:RegisterElement("CrosshairSize", z.Elements.crosshairSizeSlider);
-		H:RegisterElement("CrosshairDistance", z.Elements.crosshairDistSlider);
-		H:RegisterElement("CrosshairThick", z.Elements.crosshairThickSlider);
-		H:RegisterElement("CrosshairTransp", z.Elements.crosshairTranspSlider);
-		H:RegisterElement("CrosshairDotSize", z.Elements.crosshairDotSizeSlider);
-		H:RegisterElement("WeaponColorOn", z.Elements.weaponColorToggle);
-		H:RegisterElement("WeaponColorPick", z.Elements.weaponColorPicker);
-		H:RegisterElement("WeaponMat", z.Elements.materialDropdown);
-		H:RegisterElement("AspectRatio", z.Elements.aspectToggle);
-		H:RegisterElement("AspectRatioMode", z.Elements.aspectModeDropdown);
-		H:RegisterElement("SkyColorEnabled", z.Elements.skyColorToggle);
-		H:RegisterElement("SkyColorPicker", z.Elements.skyColorPicker);
-		H:RegisterElement("Fullbright", z.Elements.fullbrightToggle);
-		H:RegisterElement("BindFullbright", z.Elements.keybindFullbright);
-		H:RegisterElement("WorldTime", z.Elements.worldTimeToggle);
-		H:RegisterElement("WorldTimeValue", z.Elements.worldTimeSlider);
-		H:RegisterElement("FreeCam", z.Elements.freecamToggle);
-		H:RegisterElement("CameraZoom", z.Elements.cameraZoomToggle);
-		H:RegisterElement("FOVEnabled", z.Elements.fovToggle);
-		H:RegisterElement("FOVValue", z.Elements.fovSlider);
-		H:RegisterElement("NoRecoil", z.Elements.noRecoilToggle);
-		H:RegisterElement("StatsHUD", z.Elements.statsHudToggle);
-		H:RegisterElement("BindHUD", z.Elements.bindHudToggle);
-		H:RegisterElement("BindESP", z.Elements.keybindESP);
-		H:RegisterElement("BindFreecam", z.Elements.keybindFreecam);
-		H:RegisterElement("BindCameraZoom", z.Elements.keybindCameraZoom);
-		H:RegisterElement("BindNoRecoil", z.Elements.keybindNoRecoil);
-		H:RegisterElement("BindHideUI", z.Elements.keybindHideUI);
-		H:RegisterElement("RemoveWall", z.Elements.removeConstructionsToggle);
-		H:RegisterElement("RemoveDist", z.Elements.removeDistanceSlider);
-		H:RegisterElement("BindRemoveWall", z.Elements.keybindRemoveConstructions);
-		H:RegisterElement("BindFOV", z.Elements.keybindFOV);
-		H:RegisterElement("Spider", z.Elements.spiderToggle);
-		H:RegisterElement("SpiderSpeed", z.Elements.spiderSpeedSlider);
-		H:RegisterElement("BindSpider", z.Elements.keybindSpider);
-		return H;
-	end;
-z.Tabs.Settings:AddSeparator();
-z.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save");
-z.Tabs.Settings:AddSeparator();
-z.Window.ConfigManager:SetFolder("velcloud_configs");
-z.Elements.configNameBox = z.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" });
-z.Elements.savedConfigs = z.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = z.Window.ConfigManager:GetConfigs() });
-z.Tabs.Settings:AddButton({ Title = "Save Config", Text = "Save", Callback = function()
-		local E, H = pcall(function()
-				local E = z.Elements.configNameBox:Get();
-				if not E or E == "" then
-					error("empty name");
-				end;
-				(z.buildConfig(E)):Save();
-				z.Elements.savedConfigs:SetOptions(z.Window.ConfigManager:GetConfigs());
-				z.Window:Notify({ Title = "Config", Text = "????????: " .. E, Duration = 2 });
-			end);
-		if not E then
-			warn("[config] save:", H);
-			z.Window:Notify({ Title = "Config", Text = "??????: " .. tostring(H), Duration = 4 });
-		end;
-	end });
-z.Tabs.Settings:AddButton({ Title = "Load Config", Text = "Load", Callback = function()
-		local i, c = pcall(function()
-				local i = z.Elements.savedConfigs:Get();
-				if not i or i == "" then
-					error("no config");
-				end;
-				z.Elements.configNameBox:Set(i);
-				(z.buildConfig(i)):Load();
-				if H.FreeCam then
-					if not E.Refs.freecamConn then
-						Fa();
-					end;
-				else
-					if E.Refs.freecamConn then
-						ma();
-					end;
-				end;
-				if H.NoRecoil then
-					Ia();
-				else
-					ba();
-				end;
-				if H.HitboxEnabled then
-					Oa();
-				else
-					Xa();
-				end;
-				if H.Spider then
-					k(true);
-				else
-					k(false);
-				end;
-				if not H.ESP_NPC then
-					for E, H in pairs(E.Refs.NPCDrawings or {}) do
-						for E, H in pairs(H) do
-							pcall(function()
-								H:Remove();
-							end);
-						end;
-					end;
-					E.Refs.NPCDrawings = {};
-					for E, H in pairs(E.Refs.NPCHighlights or {}) do
-						pcall(function()
-							H:Destroy();
-						end);
-					end;
-					E.Refs.NPCHighlights = {};
-					E.Refs.NPCList = {};
-				end;
-				if not H.ESP_Animals then
-					for E, H in pairs(E.Refs.AnimalDrawings or {}) do
-						for E, H in pairs(H) do
-							pcall(function()
-								H:Remove();
-							end);
-						end;
-					end;
-					E.Refs.AnimalDrawings = {};
-					for E, H in pairs(E.Refs.AnimalHighlights or {}) do
-						pcall(function()
-							H:Destroy();
-						end);
-					end;
-					E.Refs.AnimalHighlights = {};
-					E.Refs.AnimalList = {};
-				end;
-				if not H.ESP_Sleeper then
-					for E, H in pairs(E.Refs.SleeperDrawings or {}) do
-						for E, H in pairs(H) do
-							pcall(function()
-								H:Remove();
-							end);
-						end;
-					end;
-					E.Refs.SleeperDrawings = {};
-					for E, H in pairs(E.Refs.SleeperHighlights or {}) do
-						pcall(function()
-							H:Destroy();
-						end);
-					end;
-					E.Refs.SleeperHighlights = {};
-					for E, H in pairs(E.Refs.SleeperSkeletons or {}) do
-						for E, H in pairs(H.lines) do
-							pcall(function()
-								H:Remove();
-							end);
-						end;
-					end;
-					E.Refs.SleeperSkeletons = {};
-					E.Refs.SleeperList = {};
-				end;
-				ia(H.SkyColorEnabled, H.SkyColor);
-				if H.Fullbright or H.WorldTimeEnabled then
-					K();
-					if H.Fullbright then
-						Ha();
-					end;
-					if H.WorldTimeEnabled then
-						za();
-					end;
-				else
-					Ea();
-				end;
-				if H.WeaponColorEnabled then
-					if not E.Refs.weaponColorConn then
-						ra();
-					end;
-					for E, H in ipairs(E.Refs.lastWeaponModels) do
-						qa(H);
-					end;
-				else
-					for E, H in ipairs(E.Refs.lastWeaponModels) do
-						da(H);
-					end;
-					E.Refs.lastWeaponModels = {};
-					if E.Refs.weaponColorConn then
-						E.Refs.weaponColorConn:Disconnect();
-						E.Refs.weaponColorConn = nil;
-					end;
-				end;
-				E.Refs.fovSettled = false;
-				for E, H in ipairs(J:GetPlayers()) do
-					ya(H);
-				end;
-				if not H.FPSPing and E.Refs.HudPanel then
-					l6();
-				elseif H.FPSPing and not E.Refs.HudPanel then
-					g6();
-				end;
-				if not H.BindHUD and E.Refs.BindHudPanel then
-					t6();
-				elseif H.BindHUD and not E.Refs.BindHudPanel then
-					R6();
-				end;
-				z.Window:Notify({ Title = "Config", Text = "????????: " .. i, Duration = 2 });
-			end);
-		if not i then
-			warn("[config] load:", c);
-			z.Window:Notify({ Title = "Config", Text = "??????: " .. tostring(c), Duration = 4 });
-		end;
-	end });
-z.Tabs.Settings:AddButton({
-	Title = "Delete Config",
-	Text = "Delete",
-	Risky = true,
-	Callback = function()
-		local E, H = pcall(function()
-				local E = z.Elements.savedConfigs:Get();
-				if not E or E == "" then
-					return;
-				end;
-				z.Window.ConfigManager:DeleteConfig(E);
-				z.Elements.savedConfigs:SetOptions(z.Window.ConfigManager:GetConfigs());
-				z.Window:Notify({ Title = "Config", Text = "??????: " .. E, Duration = 2 });
-			end);
-		if not E then
-			warn("[config] delete:", H);
-		end;
-	end,
-});
-task.spawn(function()
-	while true do
-		task.wait(2);
-		pcall(function()
-			local E = _G.VelcloudKeyState.name or "\226\128\148";
-			if E == "????????..." then
-				E = "????????...";
-			end;
-			z.Elements.keyInfoLabel:Set(string.format("????: %s | ??: %s", E, Q()));
-		end);
-	end;
-end);
+    while true do
+        task.wait(2)
+        pcall(function()
+            local displayName = _G.VelcloudKeyState.name or "—"
+            if displayName == "Загрузка..." then displayName = "Проверка..." end
+            UI.Elements.keyInfoLabel:Set(string.format("Ключ: %s | до: %s", displayName, keyRemainingText()))
+        end)
+    end
+end)
