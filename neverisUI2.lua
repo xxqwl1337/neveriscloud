@@ -3063,40 +3063,45 @@ function VantixUI:CreateWindow(config)
 			return toggleObj
 		end
 
-		function Tab:AddSlider(opts)
-			opts = opts or {}
-			local r = makeSliderRow(opts.Title or "Slider", opts.Icon, opts.Risky, opts.Tooltip, opts.Beta)
-			local sl = makeSlider(r, opts.Min or 0, opts.Max or 100, opts.Default or 0, opts.Step)
-			sl.frame.Position = UDim2.new(0,ROW_PAD,0,30)
-			sl.frame.Size     = UDim2.new(1,-ROW_PAD*2,sl.frame.Size.Y.Scale,sl.frame.Size.Y.Offset)
-			sl.frame.ZIndex   = 8
+			function Tab:AddSlider(opts)
+				opts = opts or {}
+				local r = makeSliderRow(opts.Title or "Slider", opts.Icon, opts.Risky, opts.Tooltip, opts.Beta)
+				local sl = makeSlider(r, opts.Min or 0, opts.Max or 100, opts.Default or 0, opts.Step)
+				sl.frame.Position = UDim2.new(0,ROW_PAD,0,30)
+				sl.frame.Size     = UDim2.new(1,-ROW_PAD*2,sl.frame.Size.Y.Scale,sl.frame.Size.Y.Offset)
+				sl.frame.ZIndex   = 8
 
-			local initVal = opts.Default or opts.Min or 0
-			local valLbl = lbl(r,{
-				text=tostring(math.round(initVal)),
-				font=Enum.Font.BuilderSansBold, size=13, colorKey="white",
-				sz=UDim2.new(0,55,0,20),
-				pos=UDim2.new(1,-ROW_PAD,0,8), anchor=Vector2.new(1,0),
-				xa=Enum.TextXAlignment.Right, z=9,
-			})
-			sl.changed:Connect(function(v)
-				valLbl.Text = tostring(math.round(v))
-			end)
+				local initVal = opts.Default or opts.Min or 0
+				local valLbl = lbl(r,{
+					text = (opts.Step and opts.Step < 1) and string.format("%.1f", initVal) or tostring(math.round(initVal)),
+					font=Enum.Font.BuilderSansBold, size=13, colorKey="white",
+					sz=UDim2.new(0,55,0,20),
+					pos=UDim2.new(1,-ROW_PAD,0,8), anchor=Vector2.new(1,0),
+					xa=Enum.TextXAlignment.Right, z=9,
+				})
+				sl.changed:Connect(function(v)
+					if opts.Step and opts.Step < 1 then
+						valLbl.Text = string.format("%.1f", v)
+					else
+						valLbl.Text = tostring(math.round(v))
+					end
+				end)
 
-			if opts.Callback then
-				sl.changed:Connect(opts.Callback)
+				if opts.Callback then
+					sl.changed:Connect(opts.Callback)
+				end
+
+				return {
+					Set = function(_, value)
+						sl.setValue(value)
+					end,
+					Get = function()
+						return sl.getValue()
+					end,
+					Changed = sl.changed,
+				}
 			end
 
-			return {
-				Set = function(_, value)
-					sl.setValue(value)
-				end,
-				Get = function()
-					return sl.getValue()
-				end,
-				Changed = sl.changed,
-			}
-		end
 
 		function Tab:AddButton(opts)
 			opts = opts or {}
