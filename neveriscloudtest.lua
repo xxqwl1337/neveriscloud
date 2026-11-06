@@ -326,7 +326,7 @@ end
 -- ===== END KEY SYSTEM =====
 
 -- ===== ИНИЦИАЛИЗАЦИЯ БИБЛИОТЕКИ =====
-CC.Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/main/neverisUI2.lua?t=" .. os.time()))()
+CC.Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqwl1337/neveriscloud/main/neverisUI2.lua"))()
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -338,12 +338,13 @@ local Camera      = workspace.CurrentCamera
 local Mouse       = LP:GetMouse()
 
 UI.Window = CC.Lib:CreateWindow({
-    Title = "velcloud.xd", Theme = "Velcloud",
+    Title = "velcloud.xd", Theme = "Velcloud", AccentColor = Color3.fromRGB(50, 100, 220),
     LogoID = 110034487018208, Size = {820, 480},
 })
 UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2")
-UI.Window:CreateTag("v0.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
+UI.Window:CreateTag("v0.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
 UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.4 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
@@ -3247,8 +3248,8 @@ local themeNames = {}
 for name in pairs(CC.Lib.Themes) do table.insert(themeNames, name) end
 table.sort(themeNames)
 
-UI.Elements.themeDropdown = UI.Tabs.Settings:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=UI.Window:GetTheme(), Callback=function(s) UI.Window:SetTheme(s) end})
-UI.Elements.accentDropdown = UI.Tabs.Settings:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
+UI.Tabs.Settings:AddDropdown({Title="Theme", Icon="swatch-book", Options=themeNames, Default=UI.Window:GetTheme(), Callback=function(s) UI.Window:SetTheme(s) end})
+UI.Tabs.Settings:AddDropdown({Title="Accent Color", Icon="droplet", Options={"White","Blue","Red","Green","Purple"}, Default="White", Callback=function(s)
     local colors = { White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255), Red=Color3.fromRGB(230,70,70), Green=Color3.fromRGB(80,210,120), Purple=Color3.fromRGB(170,110,240) }
     CC.Lib:SetAccentColor(colors[s])
 end})
@@ -3293,9 +3294,6 @@ end)
 
 UI.buildConfig = function(name)
     local cfg = UI.Window.ConfigManager:CreateConfig(name)
-
-    cfg:RegisterElement("ThemeName", UI.Elements.themeDropdown)
-    cfg:RegisterElement("AccentName", UI.Elements.accentDropdown)
 
     cfg:RegisterElement("AimbotEnabled", UI.Elements.aimbotEnabled)
     cfg:RegisterElement("AimbotType", UI.Elements.aimbotType)
@@ -3434,17 +3432,6 @@ UI.Tabs.Settings:AddButton({Title="Load Config", Text="Load", Callback=function(
         UI.Elements.configNameBox:Set(name)
 
         UI.buildConfig(name):Load()
-
-        -- форсируем применение темы и акцента после загрузки конфига
-        local loadedTheme = UI.Elements.themeDropdown:Get()
-        if loadedTheme and loadedTheme ~= "" then
-            UI.Window:SetTheme(loadedTheme)
-        end
-        local loadedAccent = UI.Elements.accentDropdown:Get()
-        if loadedAccent then
-            local colors = { White=Color3.fromRGB(255,255,255), Blue=Color3.fromRGB(64,156,255), Red=Color3.fromRGB(230,70,70), Green=Color3.fromRGB(80,210,120), Purple=Color3.fromRGB(170,110,240) }
-            if colors[loadedAccent] then CC.Lib:SetAccentColor(colors[loadedAccent]) end
-        end
 
         if Flags.FreeCam then if not CC.Refs.freecamConn then startFreeCam() end
         else if CC.Refs.freecamConn then stopFreeCam() end end
