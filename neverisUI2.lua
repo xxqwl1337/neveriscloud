@@ -3073,7 +3073,7 @@ function VantixUI:CreateWindow(config)
 
 			local initVal = opts.Default or opts.Min or 0
 			local valLbl = lbl(r,{
-				text = (opts.Step and opts.Step < 1) and ((math.floor(initVal) == initVal) and tostring(math.floor(initVal)) or string.format("%.1f", initVal)) or tostring(math.round(initVal)),
+				text = (opts.Step and opts.Step < 1) and ((math.abs(initVal - math.round(initVal)) < 0.001) and tostring(math.round(initVal)) or string.format("%.1f", initVal)) or tostring(math.round(initVal)),
 				font=Enum.Font.BuilderSansBold, size=13, colorKey="white",
 				sz=UDim2.new(0,55,0,20),
 				pos=UDim2.new(1,-ROW_PAD,0,8), anchor=Vector2.new(1,0),
@@ -3081,7 +3081,7 @@ function VantixUI:CreateWindow(config)
 			})
 			sl.changed:Connect(function(v)
 				if opts.Step and opts.Step < 1 then
-					valLbl.Text = (math.floor(v) == v) and tostring(math.floor(v)) or string.format("%.1f", v)
+					valLbl.Text = (math.abs(v - math.round(v)) < 0.001) and tostring(math.round(v)) or string.format("%.1f", v)
 				else
 					valLbl.Text = tostring(math.round(v))
 				end
