@@ -190,7 +190,7 @@ local function requireKey()
     end
 end
 
-if not requireKey() then pcall(function() game:GetService("Players").LocalPlayer:Kick("velcloud.xd: доступ не активирован") end); return end
+if not requireKey() then return end
 
 local function keyRemainingText()
     local st = _G.VelcloudKeyState
