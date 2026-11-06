@@ -51,6 +51,8 @@ local RISKY  = Color3.fromRGB(235, 80, 80)
 local BETA   = Color3.fromRGB(235, 190, 60)
 local ROW_PAD = 14
 
+local _allToggleUpdates = {}
+
 local THEMES = {
 	Black = {
 		black    = Color3.fromRGB(0,   0,   0  ),
@@ -409,6 +411,9 @@ local function setTheme(themeName)
 		K[k] = v
 	end
 	refreshThemeUpdaters()
+	for _, fn in ipairs(_allToggleUpdates) do
+        pcall(fn)
+    end
 end
 
 local function shade(color, factor)
@@ -658,6 +663,10 @@ local function makeToggle(parent, initialState, guard)
 			knob.BackgroundColor3=kc
 		end
 	end
+
+	table.insert(_allToggleUpdates, function()
+        update(state, false)
+    end)
 
 	registerThemeUpdater(function()
 		update(state, false)
