@@ -433,6 +433,7 @@ local function setAccentColor(color)
 	K.logoMid = color
 	K.logoBot = shade(color, 0.55)
 	refreshThemeUpdaters()
+	refreshAllToggles()
 end
 
 -- random letters for ScreenGui names, so there is no fixed name to look for
