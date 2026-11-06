@@ -411,8 +411,14 @@ local function setTheme(themeName)
 		K[k] = v
 	end
 	refreshThemeUpdaters()
-	for _, fn in ipairs(_allToggleUpdates) do
-        pcall(fn)
+	for _, item in ipairs(ALL_TOGGLE_FRAMES) do
+        if item.track and item.track.Parent and item.knob and item.knob.Parent then
+            local s = item.getState()
+            local tc = s and K.white or K.raised
+            local kc = s and K.black or K.white
+            item.track.BackgroundColor3 = tc
+            item.knob.BackgroundColor3 = kc
+        end
     end
 end
 
@@ -664,9 +670,7 @@ local function makeToggle(parent, initialState, guard)
 		end
 	end
 
-	table.insert(_allToggleUpdates, function()
-        update(state, false)
-    end)
+	table.insert(ALL_TOGGLE_FRAMES, { track = track, knob = knob, getState = function() return state end })
 
 	registerThemeUpdater(function()
 		update(state, false)
