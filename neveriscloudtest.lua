@@ -1,7 +1,7 @@
 --[[
-    CLOUDCLIENT — Aimbot + Visuals + FreeCam + Crosshair + Config
+    VELCLOUD.XD — Aimbot + Visuals + FreeCam + Crosshair + Config
     Архитектура: Табличная (_G.CC)
-    BUILD: v0.3.7.1 (GitHub Keys)
+    BUILD: v0.4 (GitHub Keys + FastBoot)
 ]]
 
 -- ===== ГЛАВНАЯ ТАБЛИЦА =====
@@ -16,54 +16,105 @@ local CC = _G.CC
 local Flags = CC.Flags
 local UI = CC.UI
 
--- ===== KEY SYSTEM (GitHub + HWID) =====
-local KEY_URL = "https://raw.githubusercontent.com/xxqwl1337/neveriscloud/refs/heads/main/keys.json"
-local KEY_FILE = "cloudclient_key.txt"
+-- ===== KEY SYSTEM (GitHub API + HWID + Protection + FastBoot) =====
+local KEY_FILE = "velcloud_key.txt"
 local MY_USERID = tostring(game:GetService("Players").LocalPlayer.UserId)
+local MY_VERSION = "0.4"
 
-_G.CloudKeyState = { key = nil, name = nil, valid = false, reason = "не активирован" }
+_G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "не активирован", expires = 0 }
+
+-- Простейший хеш (чтобы не хранить ключ в открытом виде на диске)
+local function simpleHash(str)
+    local hash = 0
+    for i = 1, #str do
+        hash = (hash * 31 + string.byte(str, i)) % 2147483647
+    end
+    return tostring(hash)
+end
 
 local function fetchKeys()
+    -- Рандомный хвост заставляет Roblox скачать файл заново
+    local randomBuster = math.random(100000, 999999)
+    local API_URL = "https://api.github.com/repos/xxqwl1337/neveriscloud/contents/keys.json?ref=main&t=" .. os.time() .. "&r=" .. randomBuster
+    
     local success, data = pcall(function()
-        return game:HttpGet(KEY_URL)
+        return game:HttpGet(API_URL)
     end)
+    
     if not success or not data then return nil end
-    local decodeSuccess, decoded = pcall(function()
+    
+    local decodeSuccess, json = pcall(function()
         return game:GetService("HttpService"):JSONDecode(data)
     end)
-    if not decodeSuccess or not decoded then return nil end
-    return decoded
+    
+    -- Если GitHub выдал ошибку (например, rate limit 403), json.content будет nil
+    if not decodeSuccess or not json or not json.content then return nil end
+    
+    local ok, decodedContent = pcall(function()
+        return game:GetService("HttpService"):Base64Decode((json.content:gsub("%s+", "")))
+    end)
+    
+    if not ok or not decodedContent then return nil end
+    
+    local keysSuccess, keys = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(decodedContent)
+    end)
+    
+    if not keysSuccess or not keys then return nil end
+    return keys
 end
 
 local function validateKey(k, keys)
-    if not k or k == "" then return false, "Пустой ключ" end
+    if not k or k == "" then return false, "Пустой ключ", false end
     local entry = keys[k]
-    if not entry then return false, "Ключ не найден (удален или неверный)" end
-    
+    if not entry then return false, "Ключ не найден (удален или неверный)", false end
+
     if entry.expires ~= 0 and os.time and os.time() > entry.expires then
-        return false, "Срок ключа истёк"
+        return false, "Срок ключа истёк", true
     end
-    
+
+    -- Проверка версии скрипта (двойные скобки вокруг gsub фиксят ошибку tonumber)
+    if entry.min_version then
+        local current = tonumber((MY_VERSION:gsub("v", "")))
+        local required = tonumber((tostring(entry.min_version):gsub("v", "")))
+        if current and required and current < required then
+            return false, "Обновите скрипт до v" .. tostring(entry.min_version), true
+        end
+    end
+
     if entry.hwid and entry.hwid ~= "" then
-        if entry.hwid == "BANNED" then return false, "Ключ забанен" end
-        if entry.hwid ~= MY_USERID then return false, "Ключ привязан к другому аккаунту" end
+        if entry.hwid == "BANNED" then return false, "Ключ забанен", true end
+        if entry.hwid ~= MY_USERID then return false, "Ключ привязан к другому аккаунту", true end
     end
-    
-    return true, entry
+
+    return true, entry, false
 end
 
-local function loadSavedKey()
-    if not (isfile and readfile) then return nil end
+local function formatExpires(expires)
+    if not expires or expires == 0 then return "бессрочно" end
+    local ok, dateStr = pcall(function() return os.date("%d.%m.%y (%H:%M)", expires) end)
+    return ok and dateStr or "неизвестно"
+end
+
+-- Сохранение защищенного токена
+local function saveSessionKey(k, uid, expires)
+    if not writefile then return end
+    local token = simpleHash(k .. uid)
+    pcall(writefile, KEY_FILE, token .. "|" .. uid .. "|" .. tostring(expires or 0) .. "|" .. k)
+end
+
+local function loadSessionKey()
+    if not (isfile and readfile) then return nil, nil, nil, nil end
     local ok, data = pcall(function()
         if isfile(KEY_FILE) then return readfile(KEY_FILE) end
     end)
-    if ok and data then return (data:gsub("%s+", "")) end
-    return nil
-end
-
-local function saveKey(k)
-    if not writefile then return end
-    pcall(writefile, KEY_FILE, k)
+    if ok and data then 
+        local parts = string.split(data:gsub("%s+", ""), "|")
+        if #parts >= 4 then
+            return parts[1], parts[2], tonumber(parts[3] or 0), parts[4]
+        end
+    end
+    return nil, nil, nil, nil
 end
 
 local function deleteSavedKey()
@@ -76,10 +127,8 @@ end
 
 local function promptForKey()
     local sg = Instance.new("ScreenGui")
-    sg.Name = "KeyPrompt_" .. math.random(1e6)
-    sg.ResetOnSpawn = false
-    sg.IgnoreGuiInset = true
-    sg.DisplayOrder = 999
+    sg.Name = "VelcloudPrompt_" .. math.random(1e6)
+    sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999
     sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
     local frame = Instance.new("Frame")
@@ -87,77 +136,89 @@ local function promptForKey()
     frame.Position = UDim2.fromScale(0.5, 0.5)
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-    frame.BorderSizePixel = 0
-    frame.Parent = sg
+    frame.BorderSizePixel = 0; frame.Parent = sg
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    
     local stroke = Instance.new("UIStroke", frame)
     stroke.Color = Color3.fromRGB(60, 60, 60); stroke.Thickness = 1
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -24, 0, 28); title.Position = UDim2.fromOffset(12, 12)
-    title.BackgroundTransparency = 1
-    title.Text = "cloudclient — введи ключ"
-    title.TextColor3 = Color3.new(1,1,1)
-    title.Font = Enum.Font.BuilderSansBold; title.TextSize = 16
+    title.BackgroundTransparency = 1; title.Text = "velcloud.xd — введи ключ"
+    title.TextColor3 = Color3.new(1,1,1); title.Font = Enum.Font.BuilderSansBold; title.TextSize = 16
     title.TextXAlignment = Enum.TextXAlignment.Left; title.Parent = frame
 
     local box = Instance.new("TextBox")
     box.Size = UDim2.new(1, -24, 0, 36); box.Position = UDim2.fromOffset(12, 52)
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    box.TextColor3 = Color3.new(1,1,1)
-    box.PlaceholderText = "CLOUD-XXXX-XXXX"
-    box.PlaceholderColor3 = Color3.fromRGB(120,120,120)
-    box.Font = Enum.Font.Code; box.TextSize = 14
-    box.ClearTextOnFocus = false; box.Text = ""
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30); box.TextColor3 = Color3.new(1,1,1)
+    box.PlaceholderText = "CLOUD-XXXX-XXXX"; box.PlaceholderColor3 = Color3.fromRGB(120,120,120)
+    box.Font = Enum.Font.Code; box.TextSize = 14; box.ClearTextOnFocus = false; box.Text = ""
     box.Parent = frame
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -24, 0, 36); btn.Position = UDim2.fromOffset(12, 100)
-    btn.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
-    btn.TextColor3 = Color3.new(0,0,0)
-    btn.Font = Enum.Font.BuilderSansBold; btn.TextSize = 14
-    btn.Text = "Активировать"; btn.Parent = frame
+    btn.BackgroundColor3 = Color3.fromRGB(80, 200, 120); btn.TextColor3 = Color3.new(0,0,0)
+    btn.Font = Enum.Font.BuilderSansBold; btn.TextSize = 14; btn.Text = "Активировать"; btn.Parent = frame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local status = Instance.new("TextLabel")
     status.Size = UDim2.new(1, -24, 0, 40); status.Position = UDim2.fromOffset(12, 148)
-    status.BackgroundTransparency = 1; status.Text = ""
-    status.TextColor3 = Color3.fromRGB(255, 100, 100)
-    status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12
-    status.TextWrapped = true
+    status.BackgroundTransparency = 1; status.Text = ""; status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    status.Font = Enum.Font.BuilderSansMedium; status.TextSize = 12; status.TextWrapped = true
     status.TextXAlignment = Enum.TextXAlignment.Left; status.Parent = frame
 
     local result = nil
+    local failCount = 0
+    local isLocked = false
+
     local function tryActivate()
+        if isLocked then return end
         local k = box.Text
         if not k or k == "" then
             status.Text = "Введи ключ!"
+            status.TextColor3 = Color3.fromRGB(255, 100, 100)
             return
         end
-        
-        status.Text = "Скачивание ключей..."
+
+        status.Text = "Проверка..."
         status.TextColor3 = Color3.fromRGB(255, 255, 100)
         local keys = fetchKeys()
-        
+
         if not keys then
             status.Text = "Ошибка: не удалось скачать ключи"
             status.TextColor3 = Color3.fromRGB(255, 100, 100)
             return
         end
-        
-        local ok, entryOrReason = validateKey(k, keys)
+
+        local ok, entryOrReason, hardFail = validateKey(k, keys)
         if ok then
-            status.Text = "OK — " .. tostring(entryOrReason.name)
+            status.Text = "Успешный вход: " .. tostring(entryOrReason.name) .. "!"
             status.TextColor3 = Color3.fromRGB(100, 255, 100)
             result = k
-            task.wait(0.4)
+            task.wait(1)
             sg:Destroy()
         else
             status.Text = "отказ: " .. tostring(entryOrReason)
             status.TextColor3 = Color3.fromRGB(255, 100, 100)
+            box.Text = ""
+            
+            if hardFail then
+                warn("[velcloud.xd] Ключ отклонён (hard): " .. tostring(entryOrReason))
+            else
+                failCount = failCount + 1
+                if failCount >= 3 then
+                    isLocked = true
+                    status.Text = "Слишком много попыток. Ждите 30 сек..."
+                    task.wait(30)
+                    isLocked = false
+                    failCount = 0
+                    status.Text = "Можно попробовать снова"
+                end
+            end
         end
     end
+
     btn.MouseButton1Click:Connect(tryActivate)
     box.FocusLost:Connect(function(enter) if enter then tryActivate() end end)
 
@@ -165,53 +226,102 @@ local function promptForKey()
     return result
 end
 
+-- Функция для проверки сохранённой сессии
+local function quickLocalCheck()
+    local savedHash, savedUid, savedExpires, savedKey = loadSessionKey()
+    if not savedHash or not savedUid or not savedKey then return false end
+    if savedUid ~= MY_USERID then return false end
+    if savedExpires and savedExpires ~= 0 and os.time() > savedExpires then
+        return false 
+    end
+    return true, savedExpires, savedKey
+end
+
 local function requireKey()
+    local isQuickOk, localExpires, savedKey = quickLocalCheck()
+    
+    -- 1. Если локальный файл есть — ОБЯЗАТЕЛЬНО проверяем его по сети (чтобы поймать бан)
+    if isQuickOk then
+        local keys = fetchKeys()
+        if not keys then
+            -- Если интернета нет, но файл есть — пускаем (оффлайн режим)
+            _G.VelcloudKeyState = { key = nil, name = "Offline", valid = true, reason = "OK", expires = localExpires }
+            return true
+        end
+        
+        -- Проверяем на сервере
+        local ok, entryOrReason = validateKey(savedKey, keys)
+        if ok then
+            _G.VelcloudKeyState = { key = nil, name = entryOrReason.name, valid = true, reason = "OK", expires = entryOrReason.expires }
+            saveSessionKey(savedKey, MY_USERID, entryOrReason.expires)
+            return true
+        else
+            -- Ключ забанен или истёк!
+            print("[velcloud.xd] Сохраненный ключ отклонён сервером: " .. tostring(entryOrReason))
+            deleteSavedKey()
+            -- Идём в меню ввода ключа
+        end
+    end
+
+    -- 2. Если локально не прокатило или ключ забанили — идём в сеть
     local keys = fetchKeys()
     if not keys then
-        warn("[cloudclient] Не удалось скачать ключи с GitHub. Проверь интернет.")
-        game:GetService("Players").LocalPlayer:Kick("cloudclient: не удалось проверить лицензию (нет интернета)")
+        warn("[velcloud.xd] Не удалось скачать ключи с GitHub. Проверь интернет.")
+        game:GetService("Players").LocalPlayer:Kick("velcloud.xd: не удалось проверить лицензию (нет интернета)")
         return false
     end
 
-    local saved = loadSavedKey()
-    if saved then
-        local ok, entryOrReason = validateKey(saved, keys)
-        if ok then
-            _G.CloudKeyState = { key = saved, name = entryOrReason.name, valid = true, reason = "OK" }
-            return true
-        else
-            print("[cloudclient] Сохраненный ключ недействителен: " .. tostring(entryOrReason))
+    local savedHash, savedUid, savedExpires, savedKey2 = loadSessionKey()
+    if savedHash and savedUid and savedKey2 then
+        if savedUid ~= MY_USERID then
+            print("[velcloud.xd] Файл ключа принадлежит другому аккаунту. Удаляем.")
             deleteSavedKey()
+        else
+            local ok, entryOrReason = validateKey(savedKey2, keys)
+            if ok then
+                _G.VelcloudKeyState = { key = nil, name = entryOrReason.name, valid = true, reason = "OK", expires = entryOrReason.expires }
+                saveSessionKey(savedKey2, MY_USERID, entryOrReason.expires)
+                return true
+            else
+                deleteSavedKey()
+            end
         end
     end
 
+    -- 3. Просим ввести ключ
     while true do
         local entered = promptForKey()
-        if not entered then 
-            _G.CloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено" }
-            return false 
+        if not entered then
+            _G.VelcloudKeyState = { key = nil, name = nil, valid = false, reason = "отменено", expires = 0 }
+            return false
         end
-        
+
+        keys = fetchKeys() or keys
         local ok, entry = validateKey(entered, keys)
         if ok then
-            saveKey(entered)
-            _G.CloudKeyState = { key = entered, name = entry.name, valid = true, reason = "OK" }
+            saveSessionKey(entered, MY_USERID, entry.expires)
+            _G.VelcloudKeyState = { key = nil, name = entry.name, valid = true, reason = "OK", expires = entry.expires }
             return true
+        else
+            print("[velcloud.xd] Ключ отклонён: " .. tostring(entry))
+            deleteSavedKey()
         end
     end
 end
 
 if not requireKey() then
     pcall(function()
-        game:GetService("Players").LocalPlayer:Kick("cloudclient: доступ не активирован")
+        game:GetService("Players").LocalPlayer:Kick("velcloud.xd: доступ не активирован")
     end)
     return
 end
 
 local function keyRemainingText()
-    local st = _G.CloudKeyState
+    local st = _G.VelcloudKeyState
     if not st or not st.valid then return "нет ключа" end
-    return "GitHub"
+    if not st.expires or st.expires == 0 then return "бессрочно" end
+    if st.expires - os.time() <= 0 then return "истёк" end
+    return formatExpires(st.expires)
 end
 -- ===== END KEY SYSTEM =====
 
@@ -228,14 +338,14 @@ local Camera      = workspace.CurrentCamera
 local Mouse       = LP:GetMouse()
 
 UI.Window = CC.Lib:CreateWindow({
-    Title = "cloudclient", Theme = "Vantix", AccentColor = Color3.fromRGB(255, 255, 255),
+    Title = "velcloud.xd", Theme = "Velcloud", AccentColor = Color3.fromRGB(50, 100, 220),
     LogoID = 110034487018208, Size = {820, 480},
 })
-UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(100, 200, 100), nil, "gamepad-2")
-UI.Window:CreateTag("Beta", Color3.fromRGB(255, 105, 180), nil, "flask-conical")
-UI.Window:CreateTag("v0.3.7.1", Color3.fromRGB(150, 150, 150), nil, "git-branch")
+UI.Window:CreateTag("Rust Decoy", Color3.fromRGB(235, 80, 80), nil, "gamepad-2")
+UI.Window:CreateTag("Beta", Color3.fromRGB(235, 190, 60), nil, "flask-conical")
+UI.Window:CreateTag("v0.4", Color3.fromRGB(150, 150, 150), nil, "git-branch")
 UI.Window:CreateTag("Premium", Color3.fromRGB(255, 215, 0), nil, "crown")
-UI.Window:Notify({ Title = "Welcome", Text = "cloudclient v0.3.7.1 loaded", Icon = "check", Duration = 4 })
+UI.Window:Notify({ Title = "Welcome", Text = "velcloud.xd v0.4 loaded", Icon = "check", Duration = 4 })
 
 -- ===== СОСТОЯНИЕ =====
 Flags.ESP = false; Flags.ESPMode = "Chams"
@@ -525,7 +635,7 @@ if hasHookMeta then
                 return oldNewIndex(self, key, value)
             end)
         end)
-        if not ok then warn("[cloudclient] FOV __newindex hook failed:", err) end
+        if not ok then warn("[velcloud.xd] FOV __newindex hook failed:", err) end
     end)
 
     pcall(function()
@@ -539,7 +649,7 @@ if hasHookMeta then
                 return oldIndex(self, key)
             end)
         end)
-        if not ok then warn("[cloudclient] FOV __index hook failed:", err) end
+        if not ok then warn("[velcloud.xd] FOV __index hook failed:", err) end
     end)
 end
 
@@ -622,7 +732,7 @@ CC.Refs.LastWallScan = 0
 CC.Refs.HiddenWalls = {}
 
 local hiddenFolder = Instance.new("Folder")
-hiddenFolder.Name = "CC_HiddenWalls"
+hiddenFolder.Name = "VEL_HiddenWalls"
 
 local function toggleRemoveConstructions(state)
     Flags.RemoveConstructions = state
@@ -692,7 +802,7 @@ local function ensureSpiderBV(hrp)
     if spiderBV and spiderBV.Parent == hrp then return spiderBV end
     clearSpiderVelocity()
     spiderBV = Instance.new("BodyVelocity")
-    spiderBV.Name = "CC_Spider"
+    spiderBV.Name = "VEL_Spider"
     spiderBV.MaxForce = Vector3.new(0, 15000, 0)
     spiderBV.P = 2000
     spiderBV.Velocity = Vector3.zero
@@ -871,7 +981,7 @@ if hasHookMeta then
             return oldNewIndex(self, key, value)
         end)
     end)
-    if not ok then warn("[cloudclient] Lighting hook failed:", err) end
+    if not ok then warn("[velcloud.xd] Lighting hook failed:", err) end
 end
 
 -- ===== SKY COLOR =====
@@ -885,7 +995,7 @@ local function setSkyColor(enabled, color)
     if enabled then
         if not CC.Refs.customSky then
             CC.Refs.customSky = Instance.new("Sky")
-            CC.Refs.customSky.Name = "CloudClientCustomSky"
+            CC.Refs.customSky.Name = "VelcloudCustomSky"
             CC.Refs.customSky.Parent = lighting
         end
         local c = color or Flags.SkyColor
@@ -897,10 +1007,10 @@ local function setSkyColor(enabled, color)
         CC.Refs.customSky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
         CC.Refs.customSky.SunAngularSize = 0
         CC.Refs.customSky.MoonAngularSize = 0
-        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        local cc = lighting:FindFirstChild("VelcloudSkyTint")
         if not cc then
             cc = Instance.new("ColorCorrectionEffect")
-            cc.Name = "CloudClientSkyTint"
+            cc.Name = "VelcloudSkyTint"
             cc.Parent = lighting
         end
         cc.TintColor = c
@@ -909,7 +1019,7 @@ local function setSkyColor(enabled, color)
         cc.Saturation = 0
     else
         if CC.Refs.customSky then CC.Refs.customSky:Destroy(); CC.Refs.customSky = nil end
-        local cc = lighting:FindFirstChild("CloudClientSkyTint")
+        local cc = lighting:FindFirstChild("VelcloudSkyTint")
         if cc then cc:Destroy() end
     end
 end
@@ -1453,7 +1563,7 @@ local function getClosestTarget()
 end
 
 -- ===== AIMBOT LOGIC =====
-RunService:BindToRenderStep("CloudClientAimbot", Enum.RenderPriority.Last.Value, function(dt)
+RunService:BindToRenderStep("VelcloudAimbot", Enum.RenderPriority.Last.Value, function(dt)
     if not Flags.AimbotEnabled then
         CC.Refs.CurrentTargetPart = nil
         if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
@@ -1581,7 +1691,7 @@ end
 
 LP.CharacterAdded:Connect(function() task.wait(0.1); if CC.Refs.freecamConn then stopFreeCam() end end)
 
--- ===== NO RECOIL (Стабильный, без багов) =====
+-- ===== NO RECOIL =====
 local noRecoilRenderConn = nil
 local noRecoilMotorCache = {}
 
@@ -1673,7 +1783,7 @@ local function applyHighlight(plr)
     if not hl or not hl.Parent then
         if hl then pcall(function() hl:Destroy() end) end
         hl = Instance.new("Highlight")
-        hl.Name = "CloudClientESP"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char
+        hl.Name = "VelcloudESP"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char
         CC.Refs.Highlights[plr] = hl
     end
     if hl.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
@@ -1948,7 +2058,7 @@ local function updateSleeperESP()
                     if not hl or not hl.Parent then
                         if hl then pcall(function() hl:Destroy() end) end
                         hl = Instance.new("Highlight")
-                        hl.Name = "CloudClientSleeper"
+                        hl.Name = "VelcloudSleeper"
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         hl.Parent = model
                         CC.Refs.SleeperHighlights[model] = hl
@@ -2165,7 +2275,7 @@ local function updateNPCESP()
                     if not hl or not hl.Parent then
                         if hl then pcall(function() hl:Destroy() end) end
                         hl = Instance.new("Highlight")
-                        hl.Name = "CloudClientNPC"
+                        hl.Name = "VelcloudNPC"
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         hl.Parent = model
                         CC.Refs.NPCHighlights[model] = hl
@@ -2362,7 +2472,7 @@ local function updateAnimalESP()
                     if not hl or not hl.Parent then
                         if hl then pcall(function() hl:Destroy() end) end
                         hl = Instance.new("Highlight")
-                        hl.Name = "CloudClientAnimal"
+                        hl.Name = "VelcloudAnimal"
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         hl.Parent = model
                         CC.Refs.AnimalHighlights[model] = hl
@@ -2505,7 +2615,7 @@ end)
 local function createHud()
     CC.Refs.HudPanel = CC.Lib:CreateNewWindow({ 
         Title = "Stats", 
-        Name = "CloudClientStats", 
+        Name = "VelcloudStats", 
         Size = {220}, 
         Minimizable = true,
         Position = UDim2.new(1, -240, 0, 20),
@@ -2578,7 +2688,7 @@ end
 local function createBindHud()
     CC.Refs.BindHudPanel = CC.Lib:CreateNewWindow({ 
         Title = "Binds", 
-        Name = "CloudClientBinds", 
+        Name = "VelcloudBinds", 
         Size = {240}, 
         Minimizable = true,
         Position = UDim2.new(1, -500, 0, 20),
@@ -2671,7 +2781,7 @@ end
 RunService.RenderStepped:Connect(function()
     if Flags.ESP and Flags.MaxDistance > 0 then
         local ok, err = pcall(updateESP)
-        if not ok then warn("[cloudclient] ESP error:", err); pcall(hideAll) end
+        if not ok then warn("[velcloud.xd] ESP error:", err); pcall(hideAll) end
     else
         hideAll()
     end
@@ -3130,7 +3240,7 @@ UI.Elements.crosshairDotSizeSlider = UI.Tabs.Misc:AddSlider({Title="Dot Size", I
 -- ===== UI: SETTINGS =====
 UI.Tabs.Settings = UI.Window:AddTab("Settings", "settings")
 
-UI.Elements.keyInfoLabel = UI.Tabs.Settings:AddLabel( string.format("Ключ: %s | до: %s", _G.CloudKeyState.key or "—", keyRemainingText()), "key" )
+UI.Elements.keyInfoLabel = UI.Tabs.Settings:AddLabel( string.format("Ключ: %s | до: %s", _G.VelcloudKeyState.name or "—", keyRemainingText()), "key" )
 
 UI.Tabs.Settings:AddSeparator()
 
@@ -3299,7 +3409,7 @@ UI.Tabs.Settings:AddSeparator()
 UI.Tabs.Settings:AddLabel("SYSTEM CONFIG", "save")
 UI.Tabs.Settings:AddSeparator()
 
-UI.Window.ConfigManager:SetFolder("cloudclient_configs")
+UI.Window.ConfigManager:SetFolder("velcloud_configs")
 
 UI.Elements.configNameBox = UI.Tabs.Settings:AddTextBox({ Title = "Config Name", Placeholder = "Enter name...", Default = "default" })
 UI.Elements.savedConfigs = UI.Tabs.Settings:AddDropdown({ Title = "Saved Configs", Options = UI.Window.ConfigManager:GetConfigs() })
@@ -3413,9 +3523,11 @@ end})
 
 task.spawn(function()
     while true do
-        task.wait(30)
+        task.wait(2)
         pcall(function()
-            UI.Elements.keyInfoLabel:Set(string.format("Ключ: %s | до: %s", _G.CloudKeyState.key or "—", keyRemainingText()))
+            local displayName = _G.VelcloudKeyState.name or "—"
+            if displayName == "Загрузка..." then displayName = "Проверка..." end
+            UI.Elements.keyInfoLabel:Set(string.format("Ключ: %s | до: %s", displayName, keyRemainingText()))
         end)
     end
 end)
