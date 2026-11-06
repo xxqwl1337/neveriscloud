@@ -51,13 +51,6 @@ local RISKY  = Color3.fromRGB(235, 80, 80)
 local BETA   = Color3.fromRGB(235, 190, 60)
 local ROW_PAD = 14
 
-local ALL_TOGGLES = {}
-local function refreshAllToggles()
-    for _, updater in ipairs(ALL_TOGGLES) do
-        pcall(updater)
-    end
-end
-
 local THEMES = {
 	Black = {
 		black    = Color3.fromRGB(0,   0,   0  ),
@@ -433,7 +426,6 @@ local function setAccentColor(color)
 	K.logoMid = color
 	K.logoBot = shade(color, 0.55)
 	refreshThemeUpdaters()
-	refreshAllToggles()
 end
 
 -- random letters for ScreenGui names, so there is no fixed name to look for
@@ -667,11 +659,6 @@ local function makeToggle(parent, initialState, guard)
 			knob.BackgroundColor3=kc
 		end
 	end
-
-	-- Добавляем в глобальный список
-    table.insert(ALL_TOGGLES, function()
-        update(state, false) -- Принудительно перерисовываем с текущими K.white/K.black
-    end)
 
 	registerThemeUpdater(function()
 		update(state, false)
