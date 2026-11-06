@@ -359,7 +359,7 @@ local THEMES = {
 
 local activeThemeName = "Velcloud"
 local K = {}
-for k, v in pairs(THEMES.Vantix) do
+for k, v in pairs(THEMES.Black) do
 	K[k] = v
 end
 
