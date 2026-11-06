@@ -359,7 +359,8 @@ local THEMES = {
 
 local activeThemeName = "Velcloud"
 local K = {}
-for k, v in pairs(THEMES.Black) do
+-- Загружаем сразу Velcloud, чтобы стартовать со светлой темы
+for k, v in pairs(THEMES.Velcloud) do
 	K[k] = v
 end
 
