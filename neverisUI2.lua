@@ -409,7 +409,6 @@ local function setTheme(themeName)
 		K[k] = v
 	end
 	refreshThemeUpdaters()
-	refreshAllToggles()
 end
 
 local function shade(color, factor)
