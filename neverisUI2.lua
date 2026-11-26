@@ -2777,34 +2777,6 @@ function VantixUI:CreateWindow(config)
 			Padding=UDim.new(0,4),
 		},scroll)
 
-		-- Fox: двухколоночный режим таба (вызвать ДО добавления элементов)
-		local twoColumns = false
-		local function applyColumnLayout()
-			for _, ch in ipairs(scroll:GetChildren()) do
-				if ch:IsA("UIListLayout") or ch:IsA("UIGridLayout") then ch:Destroy() end
-			end
-			if twoColumns then
-				local g = inst("UIGridLayout",{
-					FillDirection=Enum.FillDirection.Horizontal,
-					SortOrder=Enum.SortOrder.LayoutOrder,
-					CellSize=UDim2.new(0.5,-6,0,0),
-					CellPadding=UDim2.new(0,8,0,8),
-					FillMode=Enum.FillMode.CurrentSpace,
-					HorizontalAlignment=Enum.HorizontalAlignment.Left,
-					VerticalAlignment=Enum.VerticalAlignment.Top,
-				},scroll)
-				-- секции должны сами stretched по высоте, иначе наложения не будет
-				scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			else
-				inst("UIListLayout",{
-					FillDirection=Enum.FillDirection.Vertical,
-					SortOrder=Enum.SortOrder.LayoutOrder,
-					Padding=UDim.new(0,4),
-				},scroll)
-				scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			end
-		end
-
 		if sidebar then
 			local nb = frame(sidebarScroll,{
 				name="NB_"..tabName, colorKey="white", trans=1,
@@ -3032,12 +3004,6 @@ function VantixUI:CreateWindow(config)
 				sz=UDim2.new(1,-(textOffset + ROW_PAD + 62),0,20), pos=UDim2.new(0,textOffset,0,10), z=8,
 			}).TextTruncate = Enum.TextTruncate.AtEnd
 			return r
-		end
-
-		function Tab:SetTwoColumns(on)
-			twoColumns = on and true or false
-			applyColumnLayout()
-			return self
 		end
 
 		function Tab:AddToggle(opts)
